@@ -5,7 +5,8 @@
       "Bash(./pngcompress -h)",
       "Bash(file:*)",
       "Bash(go build:*)",
-      "Bash(./img-compress:*)"
+      "Bash(./img-compress:*)",
+      "WebSearch"
     ]
   }
 }
