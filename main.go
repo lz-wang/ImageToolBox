@@ -47,23 +47,6 @@ var compressCmd = &cobra.Command{
 	RunE: runCompress,
 }
 
-var pngCmd = &cobra.Command{
-	Use:   "png",
-	Short: "压缩 PNG 图片",
-	Long:  `使用 pngquant + oxipng 双重管道压缩 PNG 图片。`,
-	Example: `  imagetoolbox png -i photo.png -o compressed.png -q 90`,
-	RunE:   runPNG,
-}
-
-var jpegCmd = &cobra.Command{
-	Use:     "jpeg",
-	Aliases: []string{"jpg"},
-	Short:   "压缩 JPEG 图片",
-	Long:    `使用 libjpeg-turbo (djpeg + cjpeg) 管道压缩 JPEG 图片。`,
-	Example: `  imagetoolbox jpeg -i photo.jpg -o compressed.jpg -q 85`,
-	RunE:    runJPEG,
-}
-
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "显示版本信息",
@@ -78,39 +61,13 @@ var (
 	quality    int
 )
 
-var (
-	pngInput       string
-	pngOutput      string
-	pngQuality     int
-	pngOxiPngLevel int
-)
-
-var (
-	jpegInput       string
-	jpegOutput      string
-	jpegQuality     int
-	jpegProgressive bool
-)
-
 func init() {
 	rootCmd.AddCommand(compressCmd)
-	rootCmd.AddCommand(pngCmd)
-	rootCmd.AddCommand(jpegCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	compressCmd.Flags().StringVarP(&inputFile, "input", "i", "", "输入图片文件路径")
 	compressCmd.Flags().StringVarP(&outputFile, "output", "o", "", "输出图片文件路径")
 	compressCmd.Flags().IntVarP(&quality, "quality", "q", 80, "压缩质量 (1-100)")
-
-	pngCmd.Flags().StringVarP(&pngInput, "input", "i", "", "输入 PNG 文件路径")
-	pngCmd.Flags().StringVarP(&pngOutput, "output", "o", "", "输出 PNG 文件路径")
-	pngCmd.Flags().IntVarP(&pngQuality, "quality", "q", 80, "压缩质量 (1-100)")
-	pngCmd.Flags().IntVar(&pngOxiPngLevel, "oxipng-level", 4, "oxipng 优化级别 (0-6)")
-
-	jpegCmd.Flags().StringVarP(&jpegInput, "input", "i", "", "输入 JPEG 文件路径")
-	jpegCmd.Flags().StringVarP(&jpegOutput, "output", "o", "", "输出 JPEG 文件路径")
-	jpegCmd.Flags().IntVarP(&jpegQuality, "quality", "q", 80, "压缩质量 (1-100)")
-	jpegCmd.Flags().BoolVar(&jpegProgressive, "progressive", true, "使用渐进式编码")
 }
 
 func runCompress(cmd *cobra.Command, args []string) error {
@@ -228,116 +185,5 @@ func compressJPEGFile(inPath, outPath string, q int) error {
 	}
 
 	fmt.Printf("压缩完成: %s\n", outputPath)
-	return nil
-}
-
-func runPNG(cmd *cobra.Command, args []string) error {
-	var input *os.File
-	var err error
-
-	if pngInput != "" {
-		input, err = os.Open(pngInput)
-		if err != nil {
-			return fmt.Errorf("无法打开输入文件: %w", err)
-		}
-		defer input.Close()
-	} else {
-		input = os.Stdin
-	}
-
-	var output *os.File
-	var outputPath string
-	var tmpFile *os.File
-
-	if pngOutput != "" {
-		output, err = os.Create(pngOutput)
-		if err != nil {
-			return fmt.Errorf("无法创建输出文件: %w", err)
-		}
-		defer output.Close()
-		outputPath = pngOutput
-	} else if pngInput != "" {
-		tmpFile, err = os.CreateTemp("", "imagetoolbox-*.png")
-		if err != nil {
-			return err
-		}
-		output = tmpFile
-		outputPath = pngInput
-	} else {
-		output = os.Stdout
-	}
-
-	opts := compress.PNGOptions{
-		Quality:     pngQuality,
-		OxiPngLevel: pngOxiPngLevel,
-		Input:       input,
-		Output:      output,
-	}
-
-	if err := compress.CompressPNG(opts); err != nil {
-		return err
-	}
-
-	if tmpFile != nil {
-		tmpFile.Close()
-		os.Rename(tmpFile.Name(), pngInput)
-	}
-
-	if outputPath != "" {
-		fmt.Printf("压缩完成: %s\n", outputPath)
-	}
-	return nil
-}
-
-func runJPEG(cmd *cobra.Command, args []string) error {
-	if jpegInput == "" {
-		return fmt.Errorf("必须指定输入文件路径 (-i)")
-	}
-
-	if _, err := os.Stat(jpegInput); err != nil {
-		return fmt.Errorf("无法访问输入文件: %w", err)
-	}
-
-	var output *os.File
-	var outputPath string
-	var tmpFile *os.File
-	var err error
-
-	if jpegOutput != "" {
-		output, err = os.Create(jpegOutput)
-		if err != nil {
-			return fmt.Errorf("无法创建输出文件: %w", err)
-		}
-		defer output.Close()
-		outputPath = jpegOutput
-	} else {
-		tmpFile, err = os.CreateTemp("", "imagetoolbox-*.jpg")
-		if err != nil {
-			return err
-		}
-		output = tmpFile
-		outputPath = jpegInput
-	}
-
-	opts := compress.JPEGOptions{
-		Quality:     jpegQuality,
-		Progressive: jpegProgressive,
-		Optimize:    true,
-		InputPath:   jpegInput,
-		Output:      output,
-	}
-
-	if err := compress.CompressJPEG(opts); err != nil {
-		return err
-	}
-
-	if tmpFile != nil {
-		tmpFile.Close()
-		os.Rename(tmpFile.Name(), jpegInput)
-	}
-
-	if outputPath != "" {
-		fmt.Printf("压缩完成: %s\n", outputPath)
-	}
 	return nil
 }
