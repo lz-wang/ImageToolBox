@@ -41,7 +41,42 @@ make -j
 
 ### 使用方法
 
-TODO
+#### 构建
+
+```bash
+make build
+```
+
+#### 压缩图片
+
+自动检测图片格式（PNG/JPEG）并压缩：
+
+```bash
+# 压缩 PNG 图片（覆盖原文件）
+./itb compress -i photo.png
+
+# 压缩 JPEG 图片（覆盖原文件）
+./itb compress -i photo.jpg
+
+# 指定输出文件
+./itb compress -i photo.png -o compressed.png
+
+# 指定压缩质量（1-100，默认 80）
+./itb compress -i photo.jpg -q 90
+```
+
+#### 命令参数
+
+| 参数 | 说明 |
+|------|------|
+| `-i, --input` | 输入图片文件路径 |
+| `-o, --output` | 输出图片文件路径（不指定则覆盖原文件） |
+| `-q, --quality` | 压缩质量 1-100（默认 80） |
+
+#### 压缩管道
+
+- **PNG**: `pngquant` → `oxipng`（有损 + 无损双重压缩）
+- **JPEG**: `djpeg` → `cjpeg`（libjpeg-turbo 解码 + 编码）
 
 ## 图像水印
 
