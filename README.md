@@ -31,7 +31,7 @@ make -j
 
 - 仓库地址: <https://github.com/kornelski/pngquant>
 - 项目网站: [pngquant — lossy PNG compressor](https://pngquant.org/)
-- 当前版本: 
+- 当前版本: 3.0.3
 
 #### oxipng 无损压缩PNG
 
@@ -50,6 +50,8 @@ TODO
 TODO
 
 ### 重复水印
+
+TODO
 
 ## 图像上传
 
