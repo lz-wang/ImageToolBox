@@ -10,8 +10,8 @@ import (
 
 // PNGOptions PNG 压缩选项
 type PNGOptions struct {
-	Quality     string // 质量范围，如 "60-80"
-	OxiPngLevel int    // oxipng 优化级别 0-6
+	Quality     int // 质量 1-100
+	OxiPngLevel int // oxipng 优化级别 0-6
 	Input       io.Reader
 	Output      io.Writer
 }
@@ -39,9 +39,12 @@ func runPngQuant(opts PNGOptions) (*bytes.Buffer, error) {
 		return nil, err
 	}
 
+	// 将单一质量值转换为 min-max 范围
+	qualityRange := fmt.Sprintf("%d-%d", opts.Quality, 100)
+
 	cmd := exec.Command(
 		binPath,
-		"--quality", opts.Quality,
+		"--quality", qualityRange,
 		"--speed", "1",
 		"--strip",
 		"--output", "-",

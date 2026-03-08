@@ -49,8 +49,8 @@ var pngCmd = &cobra.Command{
   # 指定输出文件
   img-compress png -i photo.png -o compressed.png
 
-  # 自定义质量范围
-  img-compress png -i photo.png -q 70-90`,
+  # 自定义质量
+  img-compress png -i photo.png -q 90`,
 	RunE: runPNG,
 }
 
@@ -83,7 +83,7 @@ var versionCmd = &cobra.Command{
 var (
 	pngInput       string
 	pngOutput      string
-	pngQuality     string
+	pngQuality     int
 	pngOxiPngLevel int
 )
 
@@ -103,7 +103,7 @@ func init() {
 	// PNG 命令参数
 	pngCmd.Flags().StringVarP(&pngInput, "input", "i", "", "输入 PNG 文件路径")
 	pngCmd.Flags().StringVarP(&pngOutput, "output", "o", "", "输出 PNG 文件路径")
-	pngCmd.Flags().StringVarP(&pngQuality, "quality", "q", "60-80", "压缩质量范围 (min-max)")
+	pngCmd.Flags().IntVarP(&pngQuality, "quality", "q", 80, "压缩质量 (1-100)")
 	pngCmd.Flags().IntVar(&pngOxiPngLevel, "oxipng-level", 4, "oxipng 优化级别 (0-6)")
 
 	// JPEG 命令参数
