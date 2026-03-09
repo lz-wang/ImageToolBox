@@ -49,6 +49,7 @@ type PositionOptions struct {
 	Position      Position
 	FontPath      string
 	FontSize      *int
+	Color         *string
 	MarginRatio   *float64
 	JPGBackground *color.NRGBA
 }
@@ -165,7 +166,7 @@ func SaveImage(img image.Image, path string, jpgBackground color.NRGBA) error {
 
 // AddRepeatWatermark adds a repeated text watermark and saves the output.
 func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions) (image.Image, error) {
-	var colorVal = "#4db6ac"
+	var colorVal *string
 	var space *int
 	var angleVal = 30
 	var opacityVal = 0.5
@@ -174,9 +175,7 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 	var fontPath string
 
 	if opts != nil {
-		if opts.Color != nil {
-			colorVal = *opts.Color
-		}
+		colorVal = opts.Color
 		space = opts.Space
 		if opts.Angle != nil {
 			angleVal = *opts.Angle
@@ -215,9 +214,23 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 		spaceVal = fontSizeVal * 2
 	}
 
+	// 如果未指定颜色，则根据图片亮度自动选择
+	var colorStr string
+	if colorVal != nil && *colorVal != "" {
+		colorStr = *colorVal
+	} else {
+		rgba := imaging.Clone(im)
+		brightness := meanRedChannel(rgba, rgba.Bounds())
+		if brightness > 128 {
+			colorStr = "#000000" // 亮背景用黑色
+		} else {
+			colorStr = "#FFFFFF" // 暗背景用白色
+		}
+	}
+
 	args := WatermarkArgs{
 		Mark:           text,
-		Color:          colorVal,
+		Color:          colorStr,
 		Space:          spaceVal,
 		Angle:          angleVal,
 		FontFamily:     fontPath,
@@ -247,6 +260,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	var pos Position = BottomRight
 	var jpgBg color.NRGBA
 	var fontSize *int
+	var colorStr *string
 
 	if opts != nil {
 		if opts.Opacity != nil {
@@ -265,6 +279,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 			jpgBg = *opts.JPGBackground
 		}
 		fontSize = opts.FontSize
+		colorStr = opts.Color
 	}
 	img, err := imaging.Open(inputPath)
 	if err != nil {
@@ -310,12 +325,29 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	outlineAlpha := clampInt(int(math.Round(255*opacityVal*0.6)), 0, 255)
 
 	var fillColor, outlineColor color.NRGBA
-	if brightness > 128 {
-		fillColor = color.NRGBA{0, 0, 0, uint8(alpha)}
-		outlineColor = color.NRGBA{255, 255, 255, uint8(outlineAlpha)}
+
+	// 如果指定了颜色，则使用指定颜色
+	if colorStr != nil && *colorStr != "" {
+		parsedColor, err := parseHexColor(*colorStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid color format: %w", err)
+		}
+		fillColor = color.NRGBA{R: parsedColor.R, G: parsedColor.G, B: parsedColor.B, A: uint8(alpha)}
+		// 描边使用对比色
+		if brightness > 128 {
+			outlineColor = color.NRGBA{255, 255, 255, uint8(outlineAlpha)}
+		} else {
+			outlineColor = color.NRGBA{0, 0, 0, uint8(outlineAlpha)}
+		}
 	} else {
-		fillColor = color.NRGBA{255, 255, 255, uint8(alpha)}
-		outlineColor = color.NRGBA{0, 0, 0, uint8(outlineAlpha)}
+		// 自动选择颜色
+		if brightness > 128 {
+			fillColor = color.NRGBA{0, 0, 0, uint8(alpha)}
+			outlineColor = color.NRGBA{255, 255, 255, uint8(outlineAlpha)}
+		} else {
+			fillColor = color.NRGBA{255, 255, 255, uint8(alpha)}
+			outlineColor = color.NRGBA{0, 0, 0, uint8(outlineAlpha)}
+		}
 	}
 
 	marginW := int(float64(width) * marginRatio)

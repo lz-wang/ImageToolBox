@@ -133,14 +133,14 @@ make build
 | `-t, --text` | (必填) | 水印文字 |
 | `-o, --output` | `xxx_watermarked.ext` | 输出路径（默认在原文件名后加 `_watermarked`） |
 | `-m, --mode` | position | 水印模式：position / repeat |
-| `-p, --position` | bottom-right | 水印位置（position 模式） |
-| `--margin` | 0.04 | 边距比例（position 模式） |
+| `--color` | (自动) | 水印颜色（空表示自动选择黑/白） |
 | `--opacity` | 0.5 | 透明度 0~1，数值越大字体颜色越深 |
-| `--color` | #4db6ac | 水印颜色（repeat 模式） |
-| `--angle` | 30 | 旋转角度（repeat 模式） |
-| `--space` | 0 | 平铺间距（0 表示自动计算） |
 | `--font-size` | 0 | 字体大小（0 表示自动计算） |
 | `--font` | (自动) | 字体文件路径（不指定则自动使用系统字体） |
+| `--position` | bottom-right | 水印位置（position 模式），可选值 `bottom-right/bottom-left/top-right/top-left/center` |
+| `--margin` | 0.04 | 边距比例（position 模式） |
+| `--angle` | 30 | 字体旋转角度（repeat 模式） |
+| `--space` | 0 | 平铺间距（0 表示自动计算，repeat 模式） |
 
 ### 字体说明
 

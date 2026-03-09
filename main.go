@@ -74,7 +74,7 @@ var watermarkCmd = &cobra.Command{
   imagetoolbox watermark -i photo.jpg -t "Author"
 
   # 指定位置和透明度
-  imagetoolbox watermark -i photo.png -t "Copyright" -p center --opacity 0.8
+  imagetoolbox watermark -i photo.png -t "Copyright" --position center --opacity 0.8
 
   # 重复平铺水印
   imagetoolbox watermark -i photo.png -t "WATERMARK" --mode repeat --font /path/to/font.ttf
@@ -120,13 +120,13 @@ func init() {
 	watermarkCmd.Flags().StringVarP(&wmOutputFile, "output", "o", "", "输出图片文件路径（默认在原文件名后加 _watermarked）")
 	watermarkCmd.Flags().StringVarP(&wmText, "text", "t", "", "水印文字")
 	watermarkCmd.Flags().StringVarP(&wmMode, "mode", "m", "position", "水印模式: position（位置）/ repeat（重复平铺）")
-	watermarkCmd.Flags().StringVar(&wmColor, "color", "#4db6ac", "水印颜色（repeat模式）")
+	watermarkCmd.Flags().StringVar(&wmColor, "color", "", "水印颜色（repeat模式，空表示自动选择）")
 	watermarkCmd.Flags().IntVar(&wmSpace, "space", 0, "平铺间距（0表示自动计算）")
 	watermarkCmd.Flags().IntVar(&wmAngle, "angle", 30, "旋转角度（repeat模式）")
 	watermarkCmd.Flags().Float64Var(&wmOpacity, "opacity", 0.5, "透明度 (0~1)")
 	watermarkCmd.Flags().StringVar(&wmFontPath, "font", "", "字体文件路径")
 	watermarkCmd.Flags().IntVar(&wmFontSize, "font-size", 0, "字体大小（0表示自动计算）")
-	watermarkCmd.Flags().StringVarP(&wmPosition, "position", "p", "bottom-right", "水印位置: bottom-right/bottom-left/top-right/top-left/center")
+	watermarkCmd.Flags().StringVar(&wmPosition, "position", "bottom-right", "水印位置: bottom-right/bottom-left/top-right/top-left/center")
 	watermarkCmd.Flags().Float64Var(&wmMargin, "margin", 0.04, "边距比例（position模式）")
 
 	watermarkCmd.MarkFlagRequired("input")
@@ -289,6 +289,7 @@ func runWatermark(cmd *cobra.Command, args []string) error {
 			Position:    pos,
 			FontPath:    wmFontPath,
 			FontSize:    &wmFontSize,
+			Color:       &wmColor,
 			MarginRatio: &wmMargin,
 		}
 		_, err = watermark.AddPositionWatermark(wmInputFile, outputPath, wmText, opts)
