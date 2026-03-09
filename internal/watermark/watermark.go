@@ -48,6 +48,7 @@ type PositionOptions struct {
 	Opacity       *float64
 	Position      Position
 	FontPath      string
+	FontSize      *int
 	MarginRatio   *float64
 	JPGBackground *color.NRGBA
 }
@@ -168,7 +169,7 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 	var spaceVal = 75
 	var angleVal = 30
 	var opacityVal = 0.5
-	var fontSizeVal = 48
+	var fontSize *int
 	var fontHeightCropVal = 1.0
 	var fontPath string
 
@@ -185,13 +186,27 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 		if opts.Opacity != nil {
 			opacityVal = *opts.Opacity
 		}
-		if opts.FontSize != nil {
-			fontSizeVal = *opts.FontSize
-		}
+		fontSize = opts.FontSize
 		if opts.FontHeightCrop != nil {
 			fontHeightCropVal = *opts.FontHeightCrop
 		}
 		fontPath = opts.FontPath
+	}
+
+	// 先打开图片以获取尺寸
+	im, err := imaging.Open(inputPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果未指定字体大小，则自动计算
+	var fontSizeVal int
+	if fontSize != nil && *fontSize > 0 {
+		fontSizeVal = *fontSize
+	} else {
+		width := im.Bounds().Dx()
+		height := im.Bounds().Dy()
+		fontSizeVal = max(min(width, height)/25, 16)
 	}
 
 	args := WatermarkArgs{
@@ -205,10 +220,6 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 		Opacity:        opacityVal,
 	}
 	wm, err := NewWatermarker(args)
-	if err != nil {
-		return nil, err
-	}
-	im, err := imaging.Open(inputPath)
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +240,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	var fontPath string
 	var pos Position = BottomRight
 	var jpgBg color.NRGBA
+	var fontSize *int
 
 	if opts != nil {
 		if opts.Opacity != nil {
@@ -246,6 +258,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 		if opts.JPGBackground != nil {
 			jpgBg = *opts.JPGBackground
 		}
+		fontSize = opts.FontSize
 	}
 	img, err := imaging.Open(inputPath)
 	if err != nil {
@@ -255,9 +268,16 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 
 	width := rgba.Bounds().Dx()
 	height := rgba.Bounds().Dy()
-	fontSize := max(min(width, height)/25, 16)
 
-	face, err := loadFontFaceWithFallback(fontPath, fontSize)
+	// 如果未指定字体大小，则自动计算
+	var fontSizeVal int
+	if fontSize != nil && *fontSize > 0 {
+		fontSizeVal = *fontSize
+	} else {
+		fontSizeVal = max(min(width, height)/25, 16)
+	}
+
+	face, err := loadFontFaceWithFallback(fontPath, fontSizeVal)
 	if err != nil {
 		return nil, err
 	}

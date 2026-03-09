@@ -125,7 +125,7 @@ func init() {
 	watermarkCmd.Flags().IntVar(&wmAngle, "angle", 30, "旋转角度（repeat模式）")
 	watermarkCmd.Flags().Float64Var(&wmOpacity, "opacity", 0.5, "透明度 (0~1)")
 	watermarkCmd.Flags().StringVar(&wmFontPath, "font", "", "字体文件路径")
-	watermarkCmd.Flags().IntVar(&wmFontSize, "font-size", 48, "字体大小（repeat模式）")
+	watermarkCmd.Flags().IntVar(&wmFontSize, "font-size", 0, "字体大小（0表示自动计算）")
 	watermarkCmd.Flags().StringVarP(&wmPosition, "position", "p", "bottom-right", "水印位置: bottom-right/bottom-left/top-right/top-left/center")
 	watermarkCmd.Flags().Float64Var(&wmMargin, "margin", 0.04, "边距比例（position模式）")
 
@@ -288,6 +288,7 @@ func runWatermark(cmd *cobra.Command, args []string) error {
 			Opacity:     &wmOpacity,
 			Position:    pos,
 			FontPath:    wmFontPath,
+			FontSize:    &wmFontSize,
 			MarginRatio: &wmMargin,
 		}
 		_, err = watermark.AddPositionWatermark(wmInputFile, outputPath, wmText, opts)
