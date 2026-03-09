@@ -350,14 +350,13 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 		}
 	}
 
-	marginW := int(float64(width) * marginRatio)
-	marginH := int(float64(height) * marginRatio)
+	margin := int(float64(min(width, height)) * marginRatio)
 
 	positions := map[Position]image.Point{
-		BottomRight: {X: width - textW - marginW, Y: height - textH - marginH},
-		BottomLeft:  {X: marginW, Y: height - textH - marginH},
-		TopRight:    {X: width - textW - marginW, Y: marginH},
-		TopLeft:     {X: marginW, Y: marginH},
+		BottomRight: {X: width - textW - margin, Y: height - textH - margin},
+		BottomLeft:  {X: margin, Y: height - textH - margin},
+		TopRight:    {X: width - textW - margin, Y: margin},
+		TopLeft:     {X: margin, Y: margin},
 		Center:      {X: (width - textW) / 2, Y: (height - textH) / 2},
 	}
 

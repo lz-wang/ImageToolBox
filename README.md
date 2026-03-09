@@ -91,7 +91,7 @@ make build
 ./itb watermark -i photo.jpg -t "© Author"
 
 # 指定位置
-./itb watermark -i photo.png -t "Copyright" -p center
+./itb watermark -i photo.png -t "Copyright" --position center
 
 # 调整透明度
 ./itb watermark -i photo.png -t "Author" --opacity 0.8
@@ -99,16 +99,6 @@ make build
 # 指定输出路径
 ./itb watermark -i photo.jpg -t "Author" -o output.jpg
 ```
-
-#### 位置参数
-
-| 值 | 说明 |
-|----|------|
-| `bottom-right` | 右下角（默认） |
-| `bottom-left` | 左下角 |
-| `top-right` | 右上角 |
-| `top-left` | 左上角 |
-| `center` | 居中 |
 
 ### 重复平铺水印（repeat）
 
@@ -121,31 +111,38 @@ make build
 # 自定义旋转角度和透明度
 ./itb watermark -i photo.png -t "DRAFT" --mode repeat --angle 45 --opacity 0.3
 
-# 自定义颜色和间距
-./itb watermark -i photo.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000" --space 100
+# 自定义颜色
+./itb watermark -i photo.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000"
 ```
 
 ### 命令参数
+
+#### 通用参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `-i, --input` | (必填) | 输入图片路径 |
 | `-t, --text` | (必填) | 水印文字 |
-| `-o, --output` | `xxx_watermarked.ext` | 输出路径（默认在原文件名后加 `_watermarked`） |
-| `-m, --mode` | position | 水印模式：position / repeat |
-| `--color` | (自动) | 水印颜色（空表示自动选择黑/白） |
-| `--opacity` | 0.5 | 透明度 0~1，数值越大字体颜色越深 |
-| `--font-size` | 0 | 字体大小（0 表示自动计算） |
-| `--font` | (自动) | 字体文件路径（不指定则自动使用系统字体） |
-| `--position` | bottom-right | 水印位置（position 模式），可选值 `bottom-right/bottom-left/top-right/top-left/center` |
-| `--margin` | 0.04 | 边距比例（position 模式） |
-| `--angle` | 30 | 字体旋转角度（repeat 模式） |
-| `--space` | 0 | 平铺间距（0 表示自动计算，repeat 模式） |
+| `-o, --output` | `*_watermarked.*` | 输出路径，默认在原文件名后加 `_watermarked` |
+| `-m, --mode` | `position` | 水印模式：`position`（位置）/ `repeat`（平铺） |
+| `--color` | (自动) | 水印颜色，如 `#FF0000`；空则自动选择黑/白 |
+| `--opacity` | `0.5` | 透明度，范围 0~1 |
+| `--font-size` | `0` | 字体大小，`0` 表示根据图片自动计算 |
+| `--font` | (自动) | 字体文件路径，空则自动使用系统字体 |
 
-### 字体说明
+#### position 模式参数
 
-- **位置水印**：自动使用系统字体，字体大小默认根据图片尺寸自动计算
-- **重复水印**：默认使用内置 Go 字体，字体大小默认根据图片尺寸自动计算，可通过 `--font` 指定自定义字体
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--position` | `bottom-right` | 水印位置：`bottom-right` / `bottom-left` / `top-right` / `top-left` / `center` |
+| `--margin` | `0.04` | 边距比例，基于图片短边计算 |
+
+#### repeat 模式参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--angle` | `30` | 旋转角度（度） |
+| `--space` | `0` | 平铺间距，`0` 表示根据字体大小自动计算 |
 
 ## 图像上传
 
