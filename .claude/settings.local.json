@@ -8,7 +8,12 @@
       "Bash(./img-compress:*)",
       "WebSearch",
       "Bash(go get:*)",
-      "Bash(./itb watermark:*)"
+      "Bash(./itb watermark:*)",
+      "Bash(go mod:*)",
+      "Bash(go run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(./itb:*)"
     ]
   }
 }
