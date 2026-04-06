@@ -278,8 +278,11 @@ LSKY_TOKEN  # API Token
 # 指定存储策略 ID
 ./itb lsky upload -i photo.jpg --strategy 2
 
-# 输出 Markdown 链接
-./itb lsky upload -i photo.jpg --link-format markdown
+# 以 JSON 输出完整响应
+./itb lsky upload -i photo.jpg --output json
+
+# 输出 URL
+./itb lsky upload -i photo.jpg --output url
 ```
 
 #### upload 参数
@@ -290,7 +293,7 @@ LSKY_TOKEN  # API Token
 | `--url` | (环境变量) | LskyPro 服务地址 |
 | `--token` | (环境变量) | LskyPro API Token |
 | `-s, --strategy` | `0` | 存储策略 ID，`0` 表示不指定 |
-| `--link-format` | `url` | 快捷输出链接格式：`url` / `markdown` / `bbcode` / `html` / `markdown-with-link` / `thumbnail` |
+| `-o, --output` | `markdown` | 输出格式：`markdown` / `url` / `json` |
 
 ## 许可证
 

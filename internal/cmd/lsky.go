@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"imagetoolbox/internal/lsky"
@@ -15,7 +17,7 @@ var (
 var (
 	lskyUploadInput      string
 	lskyUploadStrategyID int
-	lskyUploadLinkFormat string
+	lskyUploadOutput     string
 )
 
 var lskyCmd = &cobra.Command{
@@ -41,8 +43,11 @@ var lskyUploadCmd = &cobra.Command{
   # 指定存储策略
   imagetoolbox lsky upload -i photo.jpg --strategy 2
 
-  # 输出 Markdown 链接
-  imagetoolbox lsky upload -i photo.jpg --link-format markdown`,
+  # 以 JSON 输出完整响应
+  imagetoolbox lsky upload -i photo.jpg --output json
+
+  # 输出 URL
+  imagetoolbox lsky upload -i photo.jpg --output url`,
 	RunE: runLskyUpload,
 }
 
@@ -56,7 +61,7 @@ func init() {
 
 	lskyUploadCmd.Flags().StringVarP(&lskyUploadInput, "input", "i", "", "本地图片路径")
 	lskyUploadCmd.Flags().IntVarP(&lskyUploadStrategyID, "strategy", "s", 0, "存储策略 ID")
-	lskyUploadCmd.Flags().StringVar(&lskyUploadLinkFormat, "link-format", "url", "快捷输出链接格式: url/markdown/bbcode/html/markdown-with-link/thumbnail")
+	lskyUploadCmd.Flags().StringVarP(&lskyUploadOutput, "output", "o", "markdown", "输出格式: markdown/url/json")
 	lskyUploadCmd.MarkFlagRequired("input")
 }
 
@@ -80,26 +85,18 @@ func runLskyUpload(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("上传完成: %s\n", lskyUploadInput)
-	fmt.Printf("Key: %s\n", result.Data.Key)
-	fmt.Printf("URL: %s\n", result.Data.Links.URL)
-	if result.Data.Links.ThumbnailURL != "" {
-		fmt.Printf("Thumbnail: %s\n", result.Data.Links.ThumbnailURL)
+	switch lskyUploadOutput {
+	case "json":
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	case "markdown":
+		fmt.Fprintln(os.Stdout, result.Data.Links.Markdown)
+		return nil
+	case "url":
+		fmt.Fprintln(os.Stdout, result.Data.Links.URL)
+		return nil
+	default:
+		return fmt.Errorf("不支持的输出格式: %s（支持: markdown, url, json）", lskyUploadOutput)
 	}
-	if result.Data.Mimetype != "" {
-		fmt.Printf("MIME: %s\n", result.Data.Mimetype)
-	}
-	if result.Data.Width > 0 && result.Data.Height > 0 {
-		fmt.Printf("尺寸: %dx%d\n", result.Data.Width, result.Data.Height)
-	}
-	if result.Data.Size > 0 {
-		fmt.Printf("大小: %.2f KB\n", result.Data.Size)
-	}
-
-	quickLink := lsky.PickLink(result.Data.Links, lskyUploadLinkFormat)
-	if quickLink != "" {
-		fmt.Printf("快捷链接(%s): %s\n", lskyUploadLinkFormat, quickLink)
-	}
-
-	return nil
 }

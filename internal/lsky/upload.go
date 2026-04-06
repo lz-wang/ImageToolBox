@@ -113,21 +113,3 @@ func buildUploadBody(file *os.File, filename string, opts *UploadOptions) (io.Re
 
 	return pr, writer.FormDataContentType(), nil
 }
-
-// PickLink 根据格式选择输出链接
-func PickLink(links Links, format string) string {
-	switch format {
-	case "markdown":
-		return links.Markdown
-	case "bbcode":
-		return links.BBCode
-	case "html":
-		return links.HTML
-	case "markdown-with-link":
-		return links.MarkdownWithLink
-	case "thumbnail":
-		return links.ThumbnailURL
-	default:
-		return links.URL
-	}
-}
