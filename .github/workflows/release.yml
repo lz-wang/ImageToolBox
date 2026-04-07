@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and publish, for example v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: ${{ matrix.target.name }}
+    runs-on: ${{ matrix.target.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: macos-amd64
+            runs_on: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            bins_dir: bins/macos-amd64
+            cmake_extra_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
+          - name: macos-arm64
+            runs_on: macos-15
+            goos: darwin
+            goarch: arm64
+            bins_dir: bins/macos-arm64
+            cmake_extra_args: -DCMAKE_OSX_ARCHITECTURES=arm64
+          - name: linux-amd64
+            runs_on: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            bins_dir: bins/linux-amd64
+            cmake_extra_args: ""
+          - name: linux-arm64
+            runs_on: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            bins_dir: bins/linux-arm64
+            cmake_extra_args: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake nasm
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install nasm
+
+      - name: Build libjpeg-turbo static tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git clone --depth 1 --branch 3.1.3 https://github.com/libjpeg-turbo/libjpeg-turbo.git /tmp/libjpeg-turbo
+          cmake -S /tmp/libjpeg-turbo -B /tmp/libjpeg-turbo/build \
+            -DENABLE_SHARED=FALSE \
+            -DENABLE_STATIC=TRUE \
+            -DCMAKE_BUILD_TYPE=Release \
+            ${{ matrix.target.cmake_extra_args }}
+          cmake --build /tmp/libjpeg-turbo/build --parallel
+
+          mkdir -p "${{ matrix.target.bins_dir }}"
+          install -m 0755 /tmp/libjpeg-turbo/build/cjpeg-static "${{ matrix.target.bins_dir }}/cjpeg-static"
+          install -m 0755 /tmp/libjpeg-turbo/build/djpeg-static "${{ matrix.target.bins_dir }}/djpeg-static"
+          if [[ -f /tmp/libjpeg-turbo/build/jpegtran-static ]]; then
+            install -m 0755 /tmp/libjpeg-turbo/build/jpegtran-static "${{ matrix.target.bins_dir }}/jpegtran-static"
+          fi
+
+      - name: Verify required bundled binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -x "${{ matrix.target.bins_dir }}/pngquant"
+          test -x "${{ matrix.target.bins_dir }}/oxipng"
+          test -x "${{ matrix.target.bins_dir }}/cjpeg-static"
+          test -x "${{ matrix.target.bins_dir }}/djpeg-static"
+
+      - name: Build itb
+        env:
+          GOOS: ${{ matrix.target.goos }}
+          GOARCH: ${{ matrix.target.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist/itb-${{ matrix.target.name }}
+          go build -trimpath -ldflags "-s -w -X main.version=${{ env.RELEASE_TAG }}" -o dist/itb-${{ matrix.target.name }}/itb .
+
+      - name: Package platform binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/itb-${{ matrix.target.name }}/bins
+          cp -R "${{ matrix.target.bins_dir }}" "dist/itb-${{ matrix.target.name }}/bins/"
+
+      - name: Create archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-assets
+          tar -C dist -czf "release-assets/itb-${{ env.RELEASE_TAG }}-${{ matrix.target.name }}.tar.gz" "itb-${{ matrix.target.name }}"
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target.name }}
+          path: release-assets/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-24.04
+    needs: build
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: release-assets/*.tar.gz
