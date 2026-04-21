@@ -7,4 +7,4 @@ build:
 	go build $(LDFLAGS) -o itb .
 
 clean:
-	rm -f itb imagetoolbox img-compress
+	rm -f itb

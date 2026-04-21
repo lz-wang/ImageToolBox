@@ -51,6 +51,41 @@ xattr -d com.apple.quarantine your_binary
 - **PNG**: `pngquant` → `oxipng`（有损 + 无损双重压缩）
 - **JPEG**: `djpeg` → `cjpeg`（libjpeg-turbo 解码 + 编码）
 
+## 图像裁剪
+
+按锚点和百分比保留图片区域。
+
+```bash
+# 保留左侧 40% 宽度
+./itb crop -i a.jpg --anchor left --width 40%
+
+# 保留右侧 40% 宽度
+./itb crop -i a.jpg --anchor right --width 40%
+
+# 保留左上角 40% x 40% 区域
+./itb crop -i a.jpg --anchor top-left --width 40% --height 40%
+
+# 保留中心 40% x 40% 区域
+./itb crop -i a.jpg --anchor center --width 40% --height 40%
+```
+
+### 命令参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-i, --input` | (必填) | 输入图片路径 |
+| `-o, --output` | `*_cropped.*` | 输出路径，默认在原文件名后加 `_cropped` |
+| `--anchor` | (必填) | 裁剪锚点：`left` / `right` / `top` / `bottom` / `top-left` / `top-right` / `bottom-left` / `bottom-right` / `center` |
+| `--width` | | 裁剪宽度百分比，例如 `40%` |
+| `--height` | | 裁剪高度百分比，例如 `40%` |
+
+### 参数规则
+
+- 仅支持百分比格式，范围为 `(0, 100]`
+- `left` / `right` 必须提供 `--width`，且不能提供 `--height`
+- `top` / `bottom` 必须提供 `--height`，且不能提供 `--width`
+- `top-left` / `top-right` / `bottom-left` / `bottom-right` / `center` 必须同时提供 `--width` 和 `--height`
+
 ## 图像水印
 
 为图片添加文字水印，支持两种模式：位置水印（单点）和重复平铺水印。

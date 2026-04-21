@@ -16,6 +16,7 @@ var rootCmd = &cobra.Command{
 	Long: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
 
 功能:
+  - crop: 图片裁剪，基于锚点和百分比保留目标区域
   - compress: 图片压缩（PNG/JPEG），基于 pngquant、oxipng 和 libjpeg-turbo
   - watermark: 添加文字水印，支持位置和重复平铺两种模式
   - s3: S3 兼容存储操作（上传、下载、删除、列表）
