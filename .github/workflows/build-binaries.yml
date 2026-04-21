@@ -294,11 +294,15 @@ jobs:
 
     steps:
       - name: Notify via Pushover
-        if: ${{ secrets.PUSHOVER_TOKEN != '' && secrets.PUSHOVER_USER != '' }}
         env:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
         run: |
+          if [ -z "${PUSHOVER_TOKEN}" ] || [ -z "${PUSHOVER_USER}" ]; then
+            echo "PUSHOVER_TOKEN or PUSHOVER_USER is not configured; skipping notification."
+            exit 0
+          fi
+
           MESSAGE=$(cat <<'EOF'
           <b>ImageToolBox CI 通知</b>
           <u>工作流</u>: <i>${{ github.workflow }}</i>
