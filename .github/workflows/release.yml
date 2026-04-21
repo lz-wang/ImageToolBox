@@ -104,7 +104,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install -y cmake nasm
+          if (Get-Command cmake -ErrorAction SilentlyContinue) {
+            Write-Host "Using preinstalled CMake:"
+            cmake --version
+          } else {
+            choco install -y cmake
+          }
+
+          if (Get-Command nasm -ErrorAction SilentlyContinue) {
+            Write-Host "Using preinstalled NASM:"
+            nasm -v
+          } else {
+            choco install -y nasm
+          }
 
       - name: Build pngquant and oxipng (Unix)
         if: runner.os != 'Windows'
