@@ -12,8 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chai2010/webp"
-	_ "golang.org/x/image/webp"
+	"github.com/deepteams/webp"
 )
 
 type Format string
@@ -109,13 +108,22 @@ func Encode(w io.Writer, img image.Image, format Format, opts SaveOptions) error
 		if opts.Flatten {
 			encodeImg = Flatten(img, background)
 		}
-		return webp.Encode(w, encodeImg, &webp.Options{
-			Lossless: opts.Lossless,
-			Quality:  float32(quality),
-		})
+		return encodeWEBP(w, encodeImg, opts.Lossless, quality)
 	default:
 		return fmt.Errorf("unsupported image format: %s", format)
 	}
+}
+
+func encodeWEBP(w io.Writer, img image.Image, lossless bool, quality int) error {
+	return webp.Encode(w, img, &webp.EncoderOptions{
+		Lossless: lossless,
+		Quality:  float32(quality),
+		Method:   4,
+	})
+}
+
+func SupportsWEBPEncoding() bool {
+	return true
 }
 
 func Flatten(img image.Image, bg color.NRGBA) image.Image {
