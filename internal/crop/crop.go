@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/disintegration/imaging"
-	"imagetoolbox/internal/watermark"
+	"imagetoolbox/internal/imageio"
 )
 
 type Anchor string
@@ -44,11 +44,22 @@ func CropFile(inputPath, outputPath string, opts Options) (image.Rectangle, erro
 	}
 
 	cropped := imaging.Crop(img, rect)
-	if err := watermark.SaveImage(cropped, outputPath, color.NRGBA{255, 255, 255, 255}); err != nil {
+	if err := imageio.Save(outputPath, cropped, imageio.SaveOptions{
+		Quality:    100,
+		Background: imageioMustColor("#FFFFFF"),
+	}); err != nil {
 		return image.Rectangle{}, fmt.Errorf("保存裁剪结果失败: %w", err)
 	}
 
 	return rect, nil
+}
+
+func imageioMustColor(hex string) color.NRGBA {
+	col, err := imageio.ParseHexColor(hex)
+	if err != nil {
+		panic(err)
+	}
+	return col
 }
 
 func ValidateAndComputeRect(inputPath string, opts Options) (image.Rectangle, error) {

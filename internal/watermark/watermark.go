@@ -6,12 +6,9 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"image/jpeg"
-	"image/png"
 	"log"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/disintegration/imaging"
@@ -19,6 +16,7 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+	"imagetoolbox/internal/imageio"
 )
 
 // Position defines the watermark position.
@@ -50,6 +48,15 @@ type PositionOptions struct {
 	FontPath      string
 	FontSize      *int
 	Color         *string
+	MarginRatio   *float64
+	JPGBackground *color.NRGBA
+}
+
+type ImageOptions struct {
+	ImagePath     string
+	Opacity       *float64
+	Position      Position
+	ScaleRatio    *float64
 	MarginRatio   *float64
 	JPGBackground *color.NRGBA
 }
@@ -137,31 +144,10 @@ func (w *Watermarker) Apply(im image.Image) (image.Image, error) {
 
 // SaveImage saves the image to disk with correct RGBA -> JPEG handling.
 func SaveImage(img image.Image, path string, jpgBackground color.NRGBA) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	lower := strings.ToLower(filepath.Ext(path))
-
-	switch lower {
-	case ".jpg", ".jpeg":
-		flattened := flattenToRGB(img, jpgBackground)
-		out, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-		return jpeg.Encode(out, flattened, &jpeg.Options{Quality: 100})
-	case ".png":
-		out, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-		return png.Encode(out, img)
-	default:
-		flattened := flattenToRGB(img, jpgBackground)
-		return imaging.Save(flattened, path, imaging.JPEGQuality(100))
-	}
+	return imageio.Save(path, img, imageio.SaveOptions{
+		Quality:    100,
+		Background: jpgBackground,
+	})
 }
 
 // AddRepeatWatermark adds a repeated text watermark and saves the output.
@@ -328,7 +314,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 
 	// 如果指定了颜色，则使用指定颜色
 	if colorStr != nil && *colorStr != "" {
-		parsedColor, err := parseHexColor(*colorStr)
+		parsedColor, err := imageio.ParseHexColor(*colorStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid color format: %w", err)
 		}
@@ -350,20 +336,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 		}
 	}
 
-	margin := int(float64(min(width, height)) * marginRatio)
-
-	positions := map[Position]image.Point{
-		BottomRight: {X: width - textW - margin, Y: height - textH - margin},
-		BottomLeft:  {X: margin, Y: height - textH - margin},
-		TopRight:    {X: width - textW - margin, Y: margin},
-		TopLeft:     {X: margin, Y: margin},
-		Center:      {X: (width - textW) / 2, Y: (height - textH) / 2},
-	}
-
-	chosen, ok := positions[pos]
-	if !ok {
-		chosen = positions[BottomRight]
-	}
+	chosen := calculatePosition(width, height, textW, textH, pos, marginRatio)
 
 	drawTextOutlined(rgba, face, chosen.X, chosen.Y, text, fillColor, outlineColor, 2)
 
@@ -377,12 +350,85 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	return rgba, nil
 }
 
+func AddImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.Image, error) {
+	if opts == nil {
+		return nil, errors.New("image watermark options are required")
+	}
+	if strings.TrimSpace(opts.ImagePath) == "" {
+		return nil, errors.New("image watermark path is required")
+	}
+
+	opacityVal := 0.5
+	scaleRatio := 0.2
+	marginRatio := 0.04
+	pos := BottomRight
+	jpgBg := color.NRGBA{255, 255, 255, 255}
+
+	if opts.Opacity != nil {
+		opacityVal = *opts.Opacity
+	}
+	if opts.ScaleRatio != nil {
+		scaleRatio = *opts.ScaleRatio
+	}
+	if opts.MarginRatio != nil {
+		marginRatio = *opts.MarginRatio
+	}
+	if opts.Position != "" {
+		pos = opts.Position
+	}
+	if opts.JPGBackground != nil {
+		jpgBg = *opts.JPGBackground
+	}
+	if scaleRatio <= 0 {
+		return nil, errors.New("scale ratio must be greater than 0")
+	}
+
+	base, err := imaging.Open(inputPath)
+	if err != nil {
+		return nil, err
+	}
+	logo, err := imaging.Open(opts.ImagePath)
+	if err != nil {
+		return nil, err
+	}
+
+	baseImg := imaging.Clone(base)
+	baseW := baseImg.Bounds().Dx()
+	baseH := baseImg.Bounds().Dy()
+	logoW := logo.Bounds().Dx()
+	logoH := logo.Bounds().Dy()
+	if logoW <= 0 || logoH <= 0 {
+		return nil, errors.New("watermark image dimensions are invalid")
+	}
+
+	targetShort := max(1, int(math.Round(float64(min(baseW, baseH))*scaleRatio)))
+	logoShort := min(logoW, logoH)
+	scale := float64(targetShort) / float64(logoShort)
+	targetW := max(1, int(math.Round(float64(logoW)*scale)))
+	targetH := max(1, int(math.Round(float64(logoH)*scale)))
+
+	resizedLogo := imaging.Resize(logo, targetW, targetH, imaging.Lanczos)
+	overlay, err := setOpacity(resizedLogo, opacityVal)
+	if err != nil {
+		return nil, err
+	}
+
+	point := calculatePosition(baseW, baseH, targetW, targetH, pos, marginRatio)
+	pasteWithAlpha(baseImg, overlay, point.X, point.Y)
+
+	if err := SaveImage(baseImg, outputPath, jpgBg); err != nil {
+		return nil, err
+	}
+
+	return baseImg, nil
+}
+
 func (w *Watermarker) generateMark() (image.Image, error) {
 	face, err := loadFontFaceWithFallback(w.args.FontFamily, w.args.Size)
 	if err != nil {
 		return nil, err
 	}
-	colorVal, err := parseHexColor(w.args.Color)
+	colorVal, err := imageio.ParseHexColor(w.args.Color)
 	if err != nil {
 		return nil, err
 	}
@@ -484,41 +530,6 @@ func firstExistingFontPath(candidates []string) string {
 	return ""
 }
 
-func parseHexColor(s string) (color.NRGBA, error) {
-	str := strings.TrimSpace(s)
-	if str == "" {
-		return color.NRGBA{}, errors.New("color must not be empty")
-	}
-	str = strings.TrimPrefix(str, "#")
-	switch len(str) {
-	case 3:
-		str = fmt.Sprintf("%c%c%c%c%c%c", str[0], str[0], str[1], str[1], str[2], str[2])
-	case 6, 8:
-	default:
-		return color.NRGBA{}, fmt.Errorf("invalid color format: %q", s)
-	}
-
-	var r, g, b, a uint8
-	hexRGB := str
-	if len(str) == 8 {
-		hexRGB = str[:6]
-	}
-	_, err := fmt.Sscanf(hexRGB, "%02x%02x%02x", &r, &g, &b)
-	if err != nil {
-		return color.NRGBA{}, err
-	}
-	if len(str) == 8 {
-		_, err = fmt.Sscanf(str[6:], "%02x", &a)
-		if err != nil {
-			return color.NRGBA{}, err
-		}
-	} else {
-		a = 255
-	}
-
-	return color.NRGBA{R: r, G: g, B: b, A: a}, nil
-}
-
 func setOpacity(img image.Image, opacity float64) (image.Image, error) {
 	if opacity < 0 || opacity > 1 {
 		return nil, errors.New("opacity must be between 0 and 1")
@@ -568,14 +579,6 @@ func tightAlphaBounds(img *image.NRGBA) (image.Rectangle, bool) {
 func pasteWithAlpha(dst *image.NRGBA, src image.Image, x, y int) {
 	r := image.Rect(x, y, x+src.Bounds().Dx(), y+src.Bounds().Dy())
 	draw.DrawMask(dst, r, src, src.Bounds().Min, src, src.Bounds().Min, draw.Over)
-}
-
-func flattenToRGB(img image.Image, bg color.NRGBA) image.Image {
-	bounds := img.Bounds()
-	rgba := image.NewRGBA(bounds)
-	draw.Draw(rgba, bounds, &image.Uniform{C: bg}, image.Point{}, draw.Src)
-	draw.Draw(rgba, bounds, img, bounds.Min, draw.Over)
-	return rgba
 }
 
 func meanRedChannel(img *image.NRGBA, r image.Rectangle) float64 {
@@ -639,6 +642,24 @@ func sameRGB(a, b image.Image) bool {
 
 func fixedToInt(v fixed.Int26_6) int {
 	return int(math.Ceil(float64(v) / 64.0))
+}
+
+func calculatePosition(baseW, baseH, itemW, itemH int, pos Position, marginRatio float64) image.Point {
+	margin := int(float64(min(baseW, baseH)) * marginRatio)
+
+	positions := map[Position]image.Point{
+		BottomRight: {X: baseW - itemW - margin, Y: baseH - itemH - margin},
+		BottomLeft:  {X: margin, Y: baseH - itemH - margin},
+		TopRight:    {X: baseW - itemW - margin, Y: margin},
+		TopLeft:     {X: margin, Y: margin},
+		Center:      {X: (baseW - itemW) / 2, Y: (baseH - itemH) / 2},
+	}
+
+	point, ok := positions[pos]
+	if !ok {
+		point = positions[BottomRight]
+	}
+	return point
 }
 
 func clampInt(v, lo, hi int) int {
