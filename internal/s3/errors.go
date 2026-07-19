@@ -12,7 +12,7 @@ var (
 	ErrMissingEndpoint = errors.New("endpoint is required")
 
 	// ErrMissingCredentials 凭证未配置
-	ErrMissingCredentials = errors.New("access key and secret key are required (set via flags or S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY env vars)")
+	ErrMissingCredentials = errors.New("access key and secret key are required (set via flags or ITB_S3_ACCESS_KEY_ID/ITB_S3_SECRET_ACCESS_KEY env vars)")
 
 	// ErrMissingBucket 存储桶未指定
 	ErrMissingBucket = errors.New("bucket name is required")

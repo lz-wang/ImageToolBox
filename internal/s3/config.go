@@ -19,16 +19,16 @@ type Config struct {
 // LoadFromEnv 从环境变量加载配置
 func (c *Config) LoadFromEnv() {
 	if c.Endpoint == "" {
-		c.Endpoint = os.Getenv("S3_ENDPOINT")
+		c.Endpoint = os.Getenv("ITB_S3_ENDPOINT")
 	}
 	if c.AccessKeyID == "" {
-		c.AccessKeyID = os.Getenv("S3_ACCESS_KEY_ID")
+		c.AccessKeyID = os.Getenv("ITB_S3_ACCESS_KEY_ID")
 	}
 	if c.SecretAccessKey == "" {
-		c.SecretAccessKey = os.Getenv("S3_SECRET_ACCESS_KEY")
+		c.SecretAccessKey = os.Getenv("ITB_S3_SECRET_ACCESS_KEY")
 	}
 	if c.Region == "" {
-		c.Region = os.Getenv("S3_REGION")
+		c.Region = os.Getenv("ITB_S3_REGION")
 		if c.Region == "" {
 			c.Region = "us-east-1"
 		}
