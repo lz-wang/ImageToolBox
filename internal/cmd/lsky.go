@@ -26,8 +26,8 @@ var lskyCmd = &cobra.Command{
 	Long: `LskyPro 图床操作，当前支持上传图片。
 
 环境变量支持:
-  LSKY_URL    LskyPro 服务地址（支持根地址或 /api/v1）
-  LSKY_TOKEN  API Token`,
+  ITB_LSKY_URL    LskyPro 服务地址（支持根地址或 /api/v1）
+  ITB_LSKY_TOKEN  API Token`,
 }
 
 var lskyUploadCmd = &cobra.Command{
