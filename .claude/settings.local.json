@@ -13,7 +13,10 @@
       "Bash(go run:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(./itb:*)"
+      "Bash(./itb:*)",
+      "Bash(gofmt *)",
+      "Bash(/Users/lzwang/projects/ImageToolBox/itb inspect *)",
+      "Bash(echo \"exit code: $?\")"
     ]
   }
 }
