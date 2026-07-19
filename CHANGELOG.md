@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING:** 环境变量统一为 `ITB_` 前缀：`S3_*` → `ITB_S3_*`、`LSKY_*` → `ITB_LSKY_*`，旧名不再被读取。
+- 文档与帮助文本不再宣传 `AWS_*` 环境变量（代码此前从未读取，属 dead config）。
+- 修复 `--region` 默认值导致 `ITB_S3_REGION` 失效的问题，环境变量现在可正常覆盖区域。
+
 ## [v0.3.0] - 2026-04-22
 
 ### Added
