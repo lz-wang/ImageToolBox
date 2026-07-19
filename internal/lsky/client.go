@@ -17,20 +17,20 @@ type Config struct {
 // LoadFromEnv 从环境变量加载配置
 func (c *Config) LoadFromEnv() {
 	if c.BaseURL == "" {
-		c.BaseURL = os.Getenv("LSKY_URL")
+		c.BaseURL = os.Getenv("ITB_LSKY_URL")
 	}
 	if c.Token == "" {
-		c.Token = os.Getenv("LSKY_TOKEN")
+		c.Token = os.Getenv("ITB_LSKY_TOKEN")
 	}
 }
 
 // Validate 校验配置
 func (c *Config) Validate() error {
 	if strings.TrimSpace(c.BaseURL) == "" {
-		return fmt.Errorf("缺少 LskyPro 地址，请通过 --url 或 LSKY_URL 提供")
+		return fmt.Errorf("缺少 LskyPro 地址，请通过 --url 或 ITB_LSKY_URL 提供")
 	}
 	if strings.TrimSpace(c.Token) == "" {
-		return fmt.Errorf("缺少 LskyPro Token，请通过 --token 或 LSKY_TOKEN 提供")
+		return fmt.Errorf("缺少 LskyPro Token，请通过 --token 或 ITB_LSKY_TOKEN 提供")
 	}
 	return nil
 }
