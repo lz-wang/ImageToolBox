@@ -279,10 +279,10 @@
 ### 环境变量
 
 ```bash
-S3_ENDPOINT             # S3 端点 URL（可选）
-S3_ACCESS_KEY_ID        # Access Key
-S3_SECRET_ACCESS_KEY    # Secret Key
-S3_REGION               # 区域（默认 us-east-1）
+ITB_S3_ENDPOINT           # S3 端点 URL（可选）
+ITB_S3_ACCESS_KEY_ID      # Access Key ID
+ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_REGION             # 区域（默认 us-east-1）
 ```
 
 ### 公共参数
@@ -390,8 +390,8 @@ S3_REGION               # 区域（默认 us-east-1）
 ### 环境变量
 
 ```bash
-LSKY_URL    # LskyPro 地址，例如 https://img.example.com 或 https://img.example.com/api/v1
-LSKY_TOKEN  # API Token
+ITB_LSKY_URL    # LskyPro 地址，例如 https://img.example.com 或 https://img.example.com/api/v1
+ITB_LSKY_TOKEN  # API Token
 ```
 
 ### 上传图片

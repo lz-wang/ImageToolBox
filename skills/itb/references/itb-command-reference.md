@@ -162,13 +162,10 @@ Supports AWS S3, MinIO, Alibaba OSS, Tencent COS, and other S3-compatible servic
 Environment variables:
 
 ```bash
-S3_ENDPOINT
-S3_ACCESS_KEY_ID
-S3_SECRET_ACCESS_KEY
-S3_REGION
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_REGION
+ITB_S3_ENDPOINT
+ITB_S3_ACCESS_KEY_ID
+ITB_S3_SECRET_ACCESS_KEY
+ITB_S3_REGION
 ```
 
 Common flags:
@@ -198,15 +195,15 @@ Use `s3 delete -f` only for explicitly requested non-interactive deletion.
 Environment variables:
 
 ```bash
-LSKY_URL
-LSKY_TOKEN
+ITB_LSKY_URL
+ITB_LSKY_TOKEN
 ```
 
 Examples:
 
 ```bash
 itb lsky upload -i photo.jpg
-itb lsky upload -i photo.jpg --url https://img.example.com --token "$LSKY_TOKEN"
+itb lsky upload -i photo.jpg --url https://img.example.com --token "$ITB_LSKY_TOKEN"
 itb lsky upload -i photo.jpg --strategy 2
 itb lsky upload -i photo.jpg --output json
 itb lsky upload -i photo.jpg --output url
@@ -215,7 +212,7 @@ itb lsky upload -i photo.jpg --output url
 Flags:
 
 - `-i, --input`: required image path.
-- `--url`: LskyPro root or `/api/v1` URL; prefer `LSKY_URL`.
-- `--token`: API token; prefer `LSKY_TOKEN`.
+- `--url`: LskyPro root or `/api/v1` URL; prefer `ITB_LSKY_URL`.
+- `--token`: API token; prefer `ITB_LSKY_TOKEN`.
 - `-s, --strategy`: storage strategy ID; default `0`.
 - `-o, --output`: `markdown`, `url`, or `json`; default `markdown`.

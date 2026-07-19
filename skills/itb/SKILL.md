@@ -47,7 +47,7 @@ itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to we
 
 - Do not omit `-o` with `compress` unless overwriting the original is intended; `compress` overwrites input when no output is provided.
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
-- Do not print secrets. Prefer environment variables for `S3_*`, `AWS_*`, and `LSKY_*` credentials.
+- Do not print secrets. Prefer environment variables for `ITB_S3_*` and `ITB_LSKY_*` credentials.
 - Use `--force-path-style` for MinIO-style endpoints when needed.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.
