@@ -57,6 +57,7 @@ func TestLoadFromEnv(t *testing.T) {
 				"ITB_S3_ENDPOINT":          "e",
 				"ITB_S3_ACCESS_KEY_ID":     "a",
 				"ITB_S3_SECRET_ACCESS_KEY": "s",
+				"ITB_S3_REGION":            "",
 			},
 			want: Config{
 				Endpoint:        "e",
