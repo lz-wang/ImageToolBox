@@ -53,10 +53,10 @@ var s3Cmd = &cobra.Command{
 	Long: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
 环境变量支持:
-  AWS_ACCESS_KEY_ID       Access Key
-  AWS_SECRET_ACCESS_KEY   Secret Key
-  AWS_REGION              区域
-  S3_ENDPOINT             自定义端点`,
+  ITB_S3_ENDPOINT           自定义端点
+  ITB_S3_ACCESS_KEY_ID      Access Key ID
+  ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
+  ITB_S3_REGION             区域（默认 us-east-1）`,
 }
 
 var s3UploadCmd = &cobra.Command{
@@ -123,7 +123,7 @@ func init() {
 	s3Cmd.PersistentFlags().StringVarP(&s3Endpoint, "endpoint", "e", "", "S3 端点 URL")
 	s3Cmd.PersistentFlags().StringVarP(&s3AccessKey, "access-key", "a", "", "Access Key ID（默认从环境变量读取）")
 	s3Cmd.PersistentFlags().StringVarP(&s3SecretKey, "secret-key", "s", "", "Secret Access Key（默认从环境变量读取）")
-	s3Cmd.PersistentFlags().StringVarP(&s3Region, "region", "r", "us-east-1", "区域")
+	s3Cmd.PersistentFlags().StringVarP(&s3Region, "region", "r", "", "区域（默认从 ITB_S3_REGION 读取，未设置时为 us-east-1）")
 	s3Cmd.PersistentFlags().StringVarP(&s3Bucket, "bucket", "b", "", "存储桶名称")
 	s3Cmd.PersistentFlags().BoolVar(&s3ForcePathStyle, "force-path-style", false, "强制路径样式 URL（MinIO 需要）")
 	s3Cmd.MarkPersistentFlagRequired("bucket")
