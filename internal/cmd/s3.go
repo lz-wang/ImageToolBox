@@ -64,13 +64,13 @@ var s3UploadCmd = &cobra.Command{
 	Short: "上传文件到存储桶",
 	Long:  `上传本地文件到 S3 兼容存储桶。`,
 	Example: `  # 上传文件
-  imagetoolbox s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
+  itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
 
   # 指定对象键名
-  imagetoolbox s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+  itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
 
   # 指定 Content-Type
-  imagetoolbox s3 upload -i data.json -b my-bucket --content-type application/json`,
+  itb s3 upload -i data.json -b my-bucket --content-type application/json`,
 	RunE: runS3Upload,
 }
 
@@ -79,10 +79,10 @@ var s3DownloadCmd = &cobra.Command{
 	Short: "从存储桶下载文件",
 	Long:  `从 S3 兼容存储桶下载文件到本地。`,
 	Example: `  # 下载文件
-  imagetoolbox s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
+  itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
 
   # 使用默认文件名
-  imagetoolbox s3 download -b my-bucket -k images/photo.jpg`,
+  itb s3 download -b my-bucket -k images/photo.jpg`,
 	RunE: runS3Download,
 }
 
@@ -91,10 +91,10 @@ var s3DeleteCmd = &cobra.Command{
 	Short: "从存储桶删除对象",
 	Long:  `从 S3 兼容存储桶删除指定对象。`,
 	Example: `  # 删除对象（需要确认）
-  imagetoolbox s3 delete -b my-bucket -k photo.jpg
+  itb s3 delete -b my-bucket -k photo.jpg
 
   # 强制删除（不需要确认）
-  imagetoolbox s3 delete -b my-bucket -k photo.jpg -f`,
+  itb s3 delete -b my-bucket -k photo.jpg -f`,
 	RunE: runS3Delete,
 }
 
@@ -103,13 +103,13 @@ var s3ListCmd = &cobra.Command{
 	Short: "列出存储桶中的对象",
 	Long:  `列出 S3 兼容存储桶中的对象。`,
 	Example: `  # 列出所有对象
-  imagetoolbox s3 list -b my-bucket
+  itb s3 list -b my-bucket
 
   # 按前缀过滤
-  imagetoolbox s3 list -b my-bucket -p images/
+  itb s3 list -b my-bucket -p images/
 
   # JSON 格式输出
-  imagetoolbox s3 list -b my-bucket --format json`,
+  itb s3 list -b my-bucket --format json`,
 	RunE: runS3List,
 }
 

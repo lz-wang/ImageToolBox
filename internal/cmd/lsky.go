@@ -35,19 +35,19 @@ var lskyUploadCmd = &cobra.Command{
 	Short: "上传图片到 LskyPro",
 	Long:  `上传本地图片到 LskyPro 图床。`,
 	Example: `  # 使用环境变量上传
-  imagetoolbox lsky upload -i photo.jpg
+  itb lsky upload -i photo.jpg
 
   # 显式指定地址和 Token
-  imagetoolbox lsky upload -i photo.jpg --url https://img.example.com --token your-token
+  itb lsky upload -i photo.jpg --url https://img.example.com --token your-token
 
   # 指定存储策略
-  imagetoolbox lsky upload -i photo.jpg --strategy 2
+  itb lsky upload -i photo.jpg --strategy 2
 
   # 以 JSON 输出完整响应
-  imagetoolbox lsky upload -i photo.jpg --output json
+  itb lsky upload -i photo.jpg --output json
 
   # 输出 URL
-  imagetoolbox lsky upload -i photo.jpg --output url`,
+  itb lsky upload -i photo.jpg --output url`,
 	RunE: runLskyUpload,
 }
 

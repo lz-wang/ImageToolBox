@@ -11,7 +11,7 @@ var (
 
 // rootCmd 根命令
 var rootCmd = &cobra.Command{
-	Use:   "imagetoolbox",
+	Use:   "itb",
 	Short: "图片处理工具箱",
 	Long: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
 
@@ -24,9 +24,8 @@ var rootCmd = &cobra.Command{
   - inspect: 检查图片元数据和文件 hash
   - batch: 批量执行 resize/convert/watermark
   - s3: S3 兼容存储操作（上传、下载、删除、列表）
-  - lsky: 上传图片到 LskyPro 图床
-
-所有依赖二进制已内嵌，无需外部依赖。`,
+  - lsky: 上传图片到 LskyPro 图床`,
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }
 
 // Execute 执行根命令

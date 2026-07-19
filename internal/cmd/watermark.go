@@ -41,16 +41,16 @@ var watermarkCmd = &cobra.Command{
    - 支持旋转角度和间距调整
    - 需要指定字体文件路径`,
 	Example: `  # 位置水印（默认右下角，智能颜色）
-  imagetoolbox watermark -i photo.jpg -t "Author"
+  itb watermark -i photo.jpg -t "Author"
 
   # 指定位置和透明度
-  imagetoolbox watermark -i photo.png -t "Copyright" --position center --opacity 0.8
+  itb watermark -i photo.png -t "Copyright" --position center --opacity 0.8
 
   # 重复平铺水印
-  imagetoolbox watermark -i photo.png -t "WATERMARK" --mode repeat --font /path/to/font.ttf
+  itb watermark -i photo.png -t "WATERMARK" --mode repeat --font /path/to/font.ttf
 
   # 指定输出路径
-  imagetoolbox watermark -i photo.jpg -t "Author" -o output.jpg`,
+  itb watermark -i photo.jpg -t "Author" -o output.jpg`,
 	RunE: runWatermark,
 }
 

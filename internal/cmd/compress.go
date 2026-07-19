@@ -20,8 +20,8 @@ var compressCmd = &cobra.Command{
 	Long: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
 
 无需指定图片类型，程序会通过读取文件头自动判断。`,
-	Example: `  imagetoolbox compress -i photo.png
-  imagetoolbox compress -i photo.jpg -o compressed.jpg -q 90`,
+	Example: `  itb compress -i photo.png
+  itb compress -i photo.jpg -o compressed.jpg -q 90`,
 	RunE: runCompress,
 }
 

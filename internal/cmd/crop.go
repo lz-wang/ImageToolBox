@@ -23,10 +23,10 @@ var cropCmd = &cobra.Command{
 	Long: `按指定锚点和百分比裁剪图片。
 
 宽高仅支持百分比，例如 40%。`,
-	Example: `  imagetoolbox crop -i a.jpg --anchor left --width 40%
-  imagetoolbox crop -i a.jpg --anchor right --width 40%
-  imagetoolbox crop -i a.jpg --anchor top-left --width 40% --height 40%
-  imagetoolbox crop -i a.jpg --anchor center --width 40% --height 40%`,
+	Example: `  itb crop -i a.jpg --anchor left --width 40%
+  itb crop -i a.jpg --anchor right --width 40%
+  itb crop -i a.jpg --anchor top-left --width 40% --height 40%
+  itb crop -i a.jpg --anchor center --width 40% --height 40%`,
 	RunE: runCrop,
 }
 

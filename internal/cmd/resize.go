@@ -23,10 +23,10 @@ var (
 var resizeCmd = &cobra.Command{
 	Use:   "resize",
 	Short: "调整图片尺寸",
-	Example: `  imagetoolbox resize -i photo.jpg --width 1200
-  imagetoolbox resize -i photo.png --height 800
-  imagetoolbox resize -i photo.jpg --percent 50%
-  imagetoolbox resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top`,
+	Example: `  itb resize -i photo.jpg --width 1200
+  itb resize -i photo.png --height 800
+  itb resize -i photo.jpg --percent 50%
+  itb resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top`,
 	RunE: runResize,
 }
 

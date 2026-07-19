@@ -19,9 +19,9 @@ var (
 var convertCmd = &cobra.Command{
 	Use:   "convert",
 	Short: "转换图片格式",
-	Example: `  imagetoolbox convert -i photo.png --to webp
-  imagetoolbox convert -i photo.png --to jpg --background "#FFFFFF"
-  imagetoolbox convert -i photo.jpg --to png -o converted.png`,
+	Example: `  itb convert -i photo.png --to webp
+  itb convert -i photo.png --to jpg --background "#FFFFFF"
+  itb convert -i photo.jpg --to png -o converted.png`,
 	RunE: runConvert,
 }
 

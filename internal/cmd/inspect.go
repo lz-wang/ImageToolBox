@@ -25,11 +25,11 @@ var inspectCmd = &cobra.Command{
 	Long: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
 
 该命令为只读操作，不会修改原始图片。`,
-	Example: `  imagetoolbox inspect -i photo.jpg
-  imagetoolbox inspect -i photo.jpg --format json
-  imagetoolbox inspect -i photo.jpg --format plain
-  imagetoolbox inspect -i photo.jpg --detail=false
-  imagetoolbox inspect -i photo.jpg --no-hash`,
+	Example: `  itb inspect -i photo.jpg
+  itb inspect -i photo.jpg --format json
+  itb inspect -i photo.jpg --format plain
+  itb inspect -i photo.jpg --detail=false
+  itb inspect -i photo.jpg --no-hash`,
 	RunE: runInspect,
 }
 

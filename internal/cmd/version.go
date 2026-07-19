@@ -10,7 +10,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "显示版本信息",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("imagetoolbox version %s\n", version)
+		fmt.Printf("itb version %s\n", version)
 	},
 }
 
