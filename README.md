@@ -37,7 +37,8 @@
 ./itb compress -i photo.jpg -q 90
 ```
 
-#### 命令参数
+<details>
+<summary>命令参数与压缩管道</summary>
 
 | 参数 | 说明 |
 |------|------|
@@ -45,10 +46,12 @@
 | `-o, --output` | 输出图片文件路径（不指定则覆盖原文件） |
 | `-q, --quality` | 压缩质量 1-100（默认 80） |
 
-#### 压缩管道
+**压缩管道**
 
 - **PNG**: `pngquant` → `oxipng`（有损 + 无损双重压缩）
 - **JPEG**: `djpeg` → `cjpeg`（libjpeg-turbo 解码 + 编码）
+
+</details>
 
 ## 图像裁剪
 
@@ -68,7 +71,8 @@
 ./itb crop -i a.jpg --anchor center --width 40% --height 40%
 ```
 
-### 命令参数
+<details>
+<summary>命令参数与规则</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -78,12 +82,14 @@
 | `--width` | | 裁剪宽度百分比，例如 `40%` |
 | `--height` | | 裁剪高度百分比，例如 `40%` |
 
-### 参数规则
+**参数规则**
 
 - 仅支持百分比格式，范围为 `(0, 100]`
 - `left` / `right` 必须提供 `--width`，且不能提供 `--height`
 - `top` / `bottom` 必须提供 `--height`，且不能提供 `--width`
 - `top-left` / `top-right` / `bottom-left` / `bottom-right` / `center` 必须同时提供 `--width` 和 `--height`
+
+</details>
 
 ## 图像缩放
 
@@ -103,7 +109,8 @@
 ./itb resize -i photo.png --percent 50%
 ```
 
-### 命令参数
+<details>
+<summary>命令参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -115,6 +122,8 @@
 | `--mode` | `fit` | 缩放模式：`fit` / `fill` / `stretch` |
 | `--anchor` | `center` | `fill` 模式的锚点 |
 | `--filter` | `lanczos` | 采样器：`nearest` / `linear` / `catmullrom` / `lanczos` |
+
+</details>
 
 ## 图像格式转换
 
@@ -131,7 +140,8 @@
 ./itb convert -i photo.jpg --to png -o output.png
 ```
 
-### 命令参数
+<details>
+<summary>命令参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -141,6 +151,8 @@
 | `-q, --quality` | `80` | 有损格式质量 |
 | `--lossless` | `false` | 无损编码（webp/png） |
 | `--background` | `#FFFFFF` | 转不透明格式时的背景色 |
+
+</details>
 
 ## 图像水印
 
@@ -182,9 +194,10 @@
 ./itb watermark -i photo.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000"
 ```
 
-### 命令参数
+<details>
+<summary>命令参数</summary>
 
-#### 通用参数
+**通用参数**
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -200,19 +213,21 @@
 | `--scale` | `0.2` | 图片水印缩放比例，基于底图短边 |
 | `--tile` | `false` | 图片平铺水印，当前版本暂不支持 |
 
-#### position 模式参数
+**position 模式参数**
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--position` | `bottom-right` | 水印位置：`bottom-right` / `bottom-left` / `top-right` / `top-left` / `center` |
 | `--margin` | `0.04` | 边距比例，基于图片短边计算 |
 
-#### repeat 模式参数
+**repeat 模式参数**
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--angle` | `30` | 旋转角度（度） |
 | `--space` | `0` | 平铺间距，`0` 表示根据字体大小自动计算 |
+
+</details>
 
 ## 图片检查
 
@@ -235,7 +250,8 @@
 ./itb inspect -i photo.jpg --no-hash
 ```
 
-### 命令参数
+<details>
+<summary>命令参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -244,6 +260,8 @@
 | `--detail` | `true` | 输出详细元数据 |
 | `--no-hash` | `false` | 不计算文件 hash |
 | `--strict` | `false` | 图像解析失败时直接返回错误 |
+
+</details>
 
 ## 批量处理
 
@@ -260,7 +278,8 @@
 ./itb batch watermark --input-dir ./images --output-dir ./out -t "© Author"
 ```
 
-### 公共参数
+<details>
+<summary>公共参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -271,6 +290,8 @@
 | `--workers` | `4` | 并发 worker 数 |
 | `--skip-existing` | `false` | 输出已存在时跳过 |
 | `--fail-fast` | `false` | 遇错尽快停止 |
+
+</details>
 
 ## S3 兼容存储操作
 
@@ -285,7 +306,8 @@ ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # 区域（默认 us-east-1）
 ```
 
-### 公共参数
+<details>
+<summary>公共参数</summary>
 
 所有 S3 子命令共享以下参数：
 
@@ -297,6 +319,8 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 | `-r, --region` | `us-east-1` | 区域 |
 | `-b, --bucket` | (必填) | 存储桶名称 |
 | `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要） |
+
+</details>
 
 ### 上传文件
 
@@ -311,13 +335,16 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 ./itb s3 upload -i data.json -b my-bucket --content-type application/json
 ```
 
-#### upload 参数
+<details>
+<summary>upload 参数</summary>
 
 | 参数 | 说明 |
 |------|------|
 | `-i, --input` | 本地文件路径（必填） |
 | `-k, --key` | 对象键名（默认使用文件名） |
 | `--content-type` | 内容类型（自动检测） |
+
+</details>
 
 ### 下载文件
 
@@ -329,12 +356,15 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 ./itb s3 download -b my-bucket -k images/photo.jpg
 ```
 
-#### download 参数
+<details>
+<summary>download 参数</summary>
 
 | 参数 | 说明 |
 |------|------|
 | `-k, --key` | 对象键名（必填） |
 | `-o, --output` | 本地输出路径（默认使用对象键名） |
+
+</details>
 
 ### 删除对象
 
@@ -346,12 +376,15 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 ./itb s3 delete -b my-bucket -k photo.jpg -f
 ```
 
-#### delete 参数
+<details>
+<summary>delete 参数</summary>
 
 | 参数 | 说明 |
 |------|------|
 | `-k, --key` | 对象键名（必填） |
 | `-f, --force` | 强制删除，不确认 |
+
+</details>
 
 ### 列出对象
 
@@ -366,7 +399,8 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 ./itb s3 list -b my-bucket --format json
 ```
 
-#### list 参数
+<details>
+<summary>list 参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -374,7 +408,10 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 | `--max-keys` | `1000` | 最大返回数量 |
 | `--format` | `table` | 输出格式：`table` / `json` / `plain` |
 
-### 云服务商配置示例
+</details>
+
+<details>
+<summary>云服务商配置示例</summary>
 
 | 云服务商 | Endpoint 示例 | ForcePathStyle |
 |---------|---------------|----------------|
@@ -382,6 +419,8 @@ ITB_S3_REGION             # 区域（默认 us-east-1）
 | MinIO | `http://localhost:9000` | `true` |
 | 阿里云 OSS | `https://oss-cn-hangzhou.aliyuncs.com` | `false` |
 | 腾讯云 COS | `https://cos.ap-guangzhou.myqcloud.com` | `false` |
+
+</details>
 
 ## LskyPro 上传
 
@@ -413,7 +452,8 @@ ITB_LSKY_TOKEN  # API Token
 ./itb lsky upload -i photo.jpg --output url
 ```
 
-#### upload 参数
+<details>
+<summary>upload 参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -422,6 +462,8 @@ ITB_LSKY_TOKEN  # API Token
 | `--token` | (环境变量) | LskyPro API Token |
 | `-s, --strategy` | `0` | 存储策略 ID，`0` 表示不指定 |
 | `-o, --output` | `markdown` | 输出格式：`markdown` / `url` / `json` |
+
+</details>
 
 ## 许可证
 
