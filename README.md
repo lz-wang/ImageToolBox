@@ -1,5 +1,7 @@
 # GO 图像工具箱
 
+> **English**: [README.en.md](./README.en.md)
+
 > 外部依赖说明见 [docs/build-bins.md](docs/build-bins.md)。
 > 
 > CI 当前会并行构建以下平台：

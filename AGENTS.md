@@ -60,6 +60,13 @@ main.go  ──→  internal/cmd  ──→  各领域包 (compress/resize/conve
 - 根目录的 `test-images/` 仅作手动验证（已 gitignore），不要在测试里引用。
 - 纯 Go 单测不依赖内嵌的原生二进制；涉及 `compress` 的集成测试才会触发解压流程。
 
+## 文档约定
+
+- 仓库维护双语 README：中文 `README.md`、英文 `README.en.md`，两者页首通过互链相互引用（中文顶部链向英文版，英文顶部链向中文版）。
+- 任何对功能、命令、flag、参数、示例、环境变量或目录结构的变更，**必须同步更新两个 README**，严禁只改其一。
+- 两个文件的小节结构与 `<details>` 折叠块应一一对应；新增、删除、重命名内容时同步处理两侧。
+- 翻译时命令、flag、参数名、代码块保持原样，只翻译说明性文字；表头在英文版用 Option / Default / Description。
+
 ## 外部工具与 CI
 
 `docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，再用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。
