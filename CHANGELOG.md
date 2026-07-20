@@ -2,13 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [v0.4.0] - 2026-07-20
+
+### Added
+
+- 新增 `inspect` 子命令：查看文件信息、图像元数据（宽高/格式/色彩模型）与文件 hash，支持 `table`/`json`/`plain` 三种输出格式，默认只读不解码像素。
 
 ### Changed
 
 - **BREAKING:** 环境变量统一为 `ITB_` 前缀：`S3_*` → `ITB_S3_*`、`LSKY_*` → `ITB_LSKY_*`，旧名不再被读取。
 - 文档与帮助文本不再宣传 `AWS_*` 环境变量（代码此前从未读取，属 dead config）。
 - 修复 `--region` 默认值导致 `ITB_S3_REGION` 失效的问题，环境变量现在可正常覆盖区域。
+- 统一根命令与所有子命令帮助文本中的命令名为 `itb`，禁用 cobra 默认 `completion` 子命令，并精简与短格式重复的描述。
 
 ## [v0.3.0] - 2026-04-22
 
