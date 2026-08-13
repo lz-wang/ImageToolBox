@@ -394,11 +394,35 @@ jobs:
           pattern: release-*
           merge-multiple: true
 
+      - name: Checkout release source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Extract release notes from CHANGELOG
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          awk -v version="${VERSION}" '
+            index($0, "## [v" version "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+            END { if (!found) exit 2 }
+          ' CHANGELOG.md > release-notes.md
+
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "Error: CHANGELOG.md has no release notes for v${VERSION}"
+            exit 2
+          fi
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          generate_release_notes: true
+          body_path: release-notes.md
           files: release-assets/*
 
   homebrew:
@@ -446,7 +470,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          base="https://github.com/lz-wang/ImageToolBox/releases/download/${TAG}"
+          base="https://github.com/lz-wang/image-tool-box/releases/download/${TAG}"
           for target in macos-amd64 macos-arm64 linux-amd64 linux-arm64; do
             file="itb-${TAG}-${target}.tar.gz.sha256"
             sha="$(curl -fsSL "${base}/${file}" | awk 'NR == 1 { print $1 }')"
@@ -475,36 +499,35 @@ jobs:
           cat > homebrew-tap/Formula/itb.rb <<RUBY
           class Itb < Formula
             desc "Image processing command-line toolbox"
-            homepage "https://github.com/lz-wang/ImageToolBox"
+            homepage "https://github.com/lz-wang/image-tool-box"
             license "MIT"
 
             on_macos do
               on_arm do
-                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-macos-arm64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-macos-arm64.tar.gz"
                 sha256 "${MACOS_ARM64_SHA}"
               end
 
               on_intel do
-                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-macos-amd64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-macos-amd64.tar.gz"
                 sha256 "${MACOS_AMD64_SHA}"
               end
             end
 
             on_linux do
               on_arm do
-                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-linux-arm64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-linux-arm64.tar.gz"
                 sha256 "${LINUX_ARM64_SHA}"
               end
 
               on_intel do
-                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-linux-amd64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-linux-amd64.tar.gz"
                 sha256 "${LINUX_AMD64_SHA}"
               end
             end
 
             def install
-              binary = Dir["itb-*/itb"].first
-              bin.install binary => "itb"
+              bin.install "itb"
             end
 
             test do
