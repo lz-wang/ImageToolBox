@@ -12,6 +12,15 @@
 > 
 > Release artifacts: macOS / Linux are packaged as `.tar.gz`, Windows as `.zip`; Windows executables and the bundled compression tools all carry the `.exe` extension.
 
+## Install
+
+After a new version is released, install it with Homebrew (macOS / Linux):
+
+```bash
+brew tap lz-wang/tap
+brew install lz-wang/tap/itb
+```
+
 > [!WARNING]
 > **macOS runtime note**
 >

@@ -12,6 +12,15 @@
 > 
 > Release 产物中，macOS / Linux 使用 `.tar.gz`，Windows 使用 `.zip`；Windows 可执行文件和内置压缩工具均带 `.exe` 扩展名。
 
+## 安装
+
+新版本发布后，可通过 Homebrew（macOS / Linux）安装：
+
+```bash
+brew tap lz-wang/tap
+brew install lz-wang/tap/itb
+```
+
 > [!WARNING]
 > **macOS 运行提示**
 >
