@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- 发布工作流会在 GitHub Release 完成后，将四个平台的校验和同步为 `lz-wang/homebrew-tap` 中的 `itb` Formula；Formula 审计、安装和测试通过后才会推送。
+- 发布工作流会在 GitHub Release 完成后，将四个平台的校验和同步为 `lz-wang/homebrew-tap` 中的 `itb` Formula；Formula 使用发布版本，且审计、安装和测试通过后才会推送。
 
 ## [v0.4.0] - 2026-07-20
 

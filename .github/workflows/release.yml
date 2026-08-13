@@ -351,7 +351,9 @@ jobs:
           set -euo pipefail
 
           mkdir -p release-assets
-          archive="release-assets/itb-${{ needs.prepare.outputs.tag }}-${{ matrix.target.name }}.tar.gz"
+          archive_target="${{ matrix.target.name }}"
+          archive_target="${archive_target//-/_}"
+          archive="release-assets/itb_${{ needs.prepare.outputs.version }}_${archive_target}.tar.gz"
           tar -C dist -czf "${archive}" "itb-${{ matrix.target.name }}"
           archive_name="$(basename "${archive}")"
           (
@@ -369,7 +371,8 @@ jobs:
         run: |
           $releaseDir = "release-assets"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $archive = "release-assets/itb-${{ needs.prepare.outputs.tag }}-${{ matrix.target.name }}.zip"
+          $archiveTarget = "${{ matrix.target.name }}".Replace("-", "_")
+          $archive = "release-assets/itb_${{ needs.prepare.outputs.version }}_$archiveTarget.zip"
           Compress-Archive -Path "dist/itb-${{ matrix.target.name }}/*" -DestinationPath $archive
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
           "$hash  $(Split-Path -Leaf $archive)" | Set-Content "$archive.sha256"
@@ -471,8 +474,9 @@ jobs:
           set -euo pipefail
 
           base="https://github.com/lz-wang/image-tool-box/releases/download/${TAG}"
-          for target in macos-amd64 macos-arm64 linux-amd64 linux-arm64; do
-            file="itb-${TAG}-${target}.tar.gz.sha256"
+          version="${TAG#v}"
+          for target in macos_amd64 macos_arm64 linux_amd64 linux_arm64; do
+            file="itb_${version}_${target}.tar.gz.sha256"
             sha="$(curl -fsSL "${base}/${file}" | awk 'NR == 1 { print $1 }')"
 
             if [[ ! "${sha}" =~ ^[0-9a-f]{64}$ ]]; then
@@ -480,8 +484,7 @@ jobs:
               exit 2
             fi
 
-            output_name="${target/-/_}"
-            echo "${output_name}=${sha}" >> "${GITHUB_OUTPUT}"
+            echo "${target}=${sha}" >> "${GITHUB_OUTPUT}"
           done
 
       - name: Generate Formula
@@ -504,24 +507,24 @@ jobs:
 
             on_macos do
               on_arm do
-                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-macos-arm64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb_${VERSION}_macos_arm64.tar.gz"
                 sha256 "${MACOS_ARM64_SHA}"
               end
 
               on_intel do
-                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-macos-amd64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb_${VERSION}_macos_amd64.tar.gz"
                 sha256 "${MACOS_AMD64_SHA}"
               end
             end
 
             on_linux do
               on_arm do
-                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-linux-arm64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb_${VERSION}_linux_arm64.tar.gz"
                 sha256 "${LINUX_ARM64_SHA}"
               end
 
               on_intel do
-                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb-v${VERSION}-linux-amd64.tar.gz"
+                url "https://github.com/lz-wang/image-tool-box/releases/download/v${VERSION}/itb_${VERSION}_linux_amd64.tar.gz"
                 sha256 "${LINUX_AMD64_SHA}"
               end
             end
@@ -531,7 +534,7 @@ jobs:
             end
 
             test do
-              assert_match version.to_s, shell_output("#{bin}/itb version")
+              assert_match "itb version v${VERSION}", shell_output("#{bin}/itb version")
             end
           end
           RUBY
