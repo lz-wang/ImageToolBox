@@ -375,7 +375,8 @@ jobs:
           $archive = "release-assets/itb_${{ needs.prepare.outputs.version }}_$archiveTarget.zip"
           Compress-Archive -Path "dist/itb-${{ matrix.target.name }}/*" -DestinationPath $archive
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
-          "$hash  $(Split-Path -Leaf $archive)" | Set-Content "$archive.sha256"
+          $checksum = "$hash  $(Split-Path -Leaf $archive)`n"
+          [System.IO.File]::WriteAllText("$archive.sha256", $checksum, [System.Text.UTF8Encoding]::new($false))
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
