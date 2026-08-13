@@ -390,17 +390,17 @@ jobs:
     needs: [prepare, build]
 
     steps:
+      - name: Checkout release source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v5
         with:
           path: release-assets
           pattern: release-*
           merge-multiple: true
-
-      - name: Checkout release source
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Extract release notes from CHANGELOG
         shell: bash
