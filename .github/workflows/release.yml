@@ -16,11 +16,58 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
+  prepare:
+    name: Validate release
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Validate tag and project
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: release tag must match vX.Y.Z: ${tag}"
+            exit 2
+          fi
+          if [[ ! -f go.mod || ! -f main.go ]]; then
+            echo "Error: project implementation manifests are missing"
+            exit 2
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${tag#v}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Homebrew publishing credential
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "${HOMEBREW_TAP_TOKEN}" ]]; then
+            echo "Error: HOMEBREW_TAP_TOKEN is required to publish Formula/itb.rb."
+            exit 2
+          fi
+
   build:
     name: ${{ matrix.target.name }}
+    needs: prepare
     runs-on: ${{ matrix.target.runs_on }}
     strategy:
       fail-fast: false
@@ -79,7 +126,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -265,7 +312,7 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist/itb-${{ matrix.target.name }}
-          go build -trimpath -ldflags "-s -w -X main.version=${{ env.RELEASE_TAG }}" -o dist/itb-${{ matrix.target.name }}/itb .
+          go build -trimpath -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.tag }}" -o dist/itb-${{ matrix.target.name }}/itb .
 
       - name: Build itb (Windows)
         if: runner.os == 'Windows'
@@ -277,7 +324,7 @@ jobs:
         run: |
           $distDir = Join-Path "dist" "itb-${{ matrix.target.name }}"
           New-Item -ItemType Directory -Force -Path $distDir | Out-Null
-          go build -trimpath -ldflags "-s -w -X main.version=${{ env.RELEASE_TAG }}" -o (Join-Path $distDir "itb.exe") .
+          go build -trimpath -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.tag }}" -o (Join-Path $distDir "itb.exe") .
 
       - name: Package platform binaries (Unix)
         if: runner.os != 'Windows'
@@ -304,7 +351,17 @@ jobs:
           set -euo pipefail
 
           mkdir -p release-assets
-          tar -C dist -czf "release-assets/itb-${{ env.RELEASE_TAG }}-${{ matrix.target.name }}.tar.gz" "itb-${{ matrix.target.name }}"
+          archive="release-assets/itb-${{ needs.prepare.outputs.tag }}-${{ matrix.target.name }}.tar.gz"
+          tar -C dist -czf "${archive}" "itb-${{ matrix.target.name }}"
+          archive_name="$(basename "${archive}")"
+          (
+            cd release-assets
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "${archive_name}" > "${archive_name}.sha256"
+            else
+              shasum -a 256 "${archive_name}" > "${archive_name}.sha256"
+            fi
+          )
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
@@ -312,7 +369,10 @@ jobs:
         run: |
           $releaseDir = "release-assets"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          Compress-Archive -Path "dist/itb-${{ matrix.target.name }}/*" -DestinationPath "release-assets/itb-${{ env.RELEASE_TAG }}-${{ matrix.target.name }}.zip"
+          $archive = "release-assets/itb-${{ needs.prepare.outputs.tag }}-${{ matrix.target.name }}.zip"
+          Compress-Archive -Path "dist/itb-${{ matrix.target.name }}/*" -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          "$hash  $(Split-Path -Leaf $archive)" | Set-Content "$archive.sha256"
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
@@ -324,7 +384,7 @@ jobs:
   publish:
     name: Publish Release
     runs-on: ubuntu-24.04
-    needs: build
+    needs: [prepare, build]
 
     steps:
       - name: Download packaged artifacts
@@ -337,14 +397,163 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           generate_release_notes: true
           files: release-assets/*
+
+  homebrew:
+    name: Publish Homebrew Formula
+    needs: [prepare, publish]
+    runs-on: macos-latest
+    concurrency:
+      group: homebrew-tap
+      cancel-in-progress: false
+
+    steps:
+      - name: Check latest release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ "${latest}" != "${TAG}" ]]; then
+            echo "Skip stale release: ${TAG}; latest is ${latest}."
+            echo "publish=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "publish=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout Homebrew tap
+        if: steps.release.outputs.publish == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: lz-wang/homebrew-tap
+          ref: main
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Read release checksums
+        if: steps.release.outputs.publish == 'true'
+        id: sha
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base="https://github.com/lz-wang/ImageToolBox/releases/download/${TAG}"
+          for target in macos-amd64 macos-arm64 linux-amd64 linux-arm64; do
+            file="itb-${TAG}-${target}.tar.gz.sha256"
+            sha="$(curl -fsSL "${base}/${file}" | awk 'NR == 1 { print $1 }')"
+
+            if [[ ! "${sha}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Error: invalid SHA-256 for ${file}."
+              exit 2
+            fi
+
+            output_name="${target/-/_}"
+            echo "${output_name}=${sha}" >> "${GITHUB_OUTPUT}"
+          done
+
+      - name: Generate Formula
+        if: steps.release.outputs.publish == 'true'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MACOS_AMD64_SHA: ${{ steps.sha.outputs.macos_amd64 }}
+          MACOS_ARM64_SHA: ${{ steps.sha.outputs.macos_arm64 }}
+          LINUX_AMD64_SHA: ${{ steps.sha.outputs.linux_amd64 }}
+          LINUX_ARM64_SHA: ${{ steps.sha.outputs.linux_arm64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > homebrew-tap/Formula/itb.rb <<RUBY
+          class Itb < Formula
+            desc "Image processing command-line toolbox"
+            homepage "https://github.com/lz-wang/ImageToolBox"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-macos-arm64.tar.gz"
+                sha256 "${MACOS_ARM64_SHA}"
+              end
+
+              on_intel do
+                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-macos-amd64.tar.gz"
+                sha256 "${MACOS_AMD64_SHA}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-linux-arm64.tar.gz"
+                sha256 "${LINUX_ARM64_SHA}"
+              end
+
+              on_intel do
+                url "https://github.com/lz-wang/ImageToolBox/releases/download/v${VERSION}/itb-v${VERSION}-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              end
+            end
+
+            def install
+              binary = Dir["itb-*/itb"].first
+              bin.install binary => "itb"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/itb version")
+            end
+          end
+          RUBY
+
+      - name: Commit Formula locally
+        if: steps.release.outputs.publish == 'true'
+        id: formula
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [[ -z "$(git -C homebrew-tap status --porcelain -- Formula/itb.rb)" ]]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git -C homebrew-tap add Formula/itb.rb
+          git -C homebrew-tap commit -m "itb ${{ needs.prepare.outputs.version }}"
+          echo "changed=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Test Formula
+        if: steps.release.outputs.publish == 'true' && steps.formula.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          brew tap lz-wang/tap "file://${GITHUB_WORKSPACE}/homebrew-tap"
+          brew audit --strict --formula lz-wang/tap/itb
+          brew install --formula lz-wang/tap/itb
+          brew test lz-wang/tap/itb
+
+      - name: Publish Formula
+        if: steps.release.outputs.publish == 'true' && steps.formula.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C homebrew-tap push origin HEAD:main
 
   notify:
     name: Notify Release Result
     runs-on: ubuntu-24.04
-    needs: [build, publish]
+    needs: [prepare, build, publish, homebrew]
     if: always()
 
     steps:
@@ -352,23 +561,29 @@ jobs:
         env:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag || github.ref_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          MANUAL_TAG: ${{ inputs.tag }}
         run: |
           if [ -z "${PUSHOVER_TOKEN}" ] || [ -z "${PUSHOVER_USER}" ]; then
             echo "PUSHOVER_TOKEN or PUSHOVER_USER is not configured; skipping notification."
             exit 0
           fi
 
-          MESSAGE=$(cat <<'EOF'
+          MESSAGE=$(cat <<EOF
           <b>ImageToolBox Release 通知</b>
           <u>工作流</u>: <i>${{ github.workflow }}</i>
+          <u>校验结果</u>: ${{ needs.prepare.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.prepare.result) }}
           <u>构建结果</u>: ${{ needs.build.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.build.result) }}
           <u>发布结果</u>: ${{ needs.publish.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.publish.result) }}
-          <u>版本</u>: <font color="#0000ff">${{ env.RELEASE_TAG }}</font>
+          <u>Homebrew</u>: ${{ needs.homebrew.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.homebrew.result) }}
+          <u>版本</u>: <font color="#0000ff">${RELEASE_TAG}</font>
           <u>分支/标签</u>: <i>${{ github.ref_name }}</i>
           <u>触发人</u>: <i>${{ github.actor }}</i>
           <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">查看运行详情</a>
           <u>提交内容</u>:
-          ${{ github.event.head_commit.message || github.event.pull_request.title || inputs.tag || 'workflow_dispatch' }}
+          ${COMMIT_MESSAGE:-${PR_TITLE:-${MANUAL_TAG:-workflow_dispatch}}}
           EOF
           )
           curl -fsS https://api.pushover.net/1/messages.json \
