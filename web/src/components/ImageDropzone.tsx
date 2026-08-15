@@ -1,9 +1,16 @@
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
-import { Box, Button, Stack, Typography } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/Delete'
+import {
+	Box,
+	IconButton,
+	Paper,
+	Stack,
+	Tooltip,
+	Typography,
+} from '@mui/material'
 import type { DragEvent } from 'react'
 import { useRef, useState } from 'react'
 import { useObjectUrl } from '../hooks/useObjectUrl'
-import { formatBytes } from '../lib/format'
 import { isImageFile } from '../lib/validate'
 
 interface ImageDropzoneProps {
@@ -27,7 +34,8 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 	}
 
 	return (
-		<Box
+		<Paper
+			elevation={file ? 1 : 0}
 			onDragOver={(e) => {
 				e.preventDefault()
 				setDragOver(true)
@@ -36,11 +44,16 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 			onDrop={acceptDrop}
 			onClick={() => inputRef.current?.click()}
 			sx={{
-				minHeight: 260,
-				border: '2px dashed',
+				width: 520,
+				height: 520,
+				maxWidth: '100%',
+				boxSizing: 'border-box',
+				border: file ? 'none' : '2px dashed',
 				borderColor: dragOver ? 'primary.main' : 'divider',
 				borderRadius: 2,
 				p: 2,
+				bgcolor: file ? undefined : 'transparent',
+				position: 'relative',
 				display: 'flex',
 				flexDirection: 'column',
 				alignItems: 'center',
@@ -64,27 +77,38 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 				}}
 			/>
 			{file ? (
-				<Stack spacing={1} sx={{ alignItems: 'center' }}>
+				<>
 					<Box
 						component="img"
 						src={previewUrl}
 						alt={file.name}
-						sx={{ maxWidth: '100%', maxHeight: 320, borderRadius: 1 }}
-					/>
-					<Typography variant="body2" noWrap sx={{ maxWidth: '100%' }}>
-						{file.name} · {formatBytes(file.size)}
-					</Typography>
-					<Button
-						size="small"
-						variant="outlined"
-						onClick={(e) => {
-							e.stopPropagation()
-							onChange(null)
+						sx={{
+							maxWidth: '100%',
+							maxHeight: '100%',
+							objectFit: 'contain',
+							borderRadius: 1,
 						}}
-					>
-						移除图片
-					</Button>
-				</Stack>
+					/>
+					<Tooltip title="移除图片">
+						<IconButton
+							size="small"
+							aria-label="移除图片"
+							sx={{
+								position: 'absolute',
+								right: 16,
+								bottom: 16,
+								color: 'error.main',
+								'&:hover': { bgcolor: 'transparent', color: 'error.dark' },
+							}}
+							onClick={(e) => {
+								e.stopPropagation()
+								onChange(null)
+							}}
+						>
+							<DeleteIcon fontSize="small" />
+						</IconButton>
+					</Tooltip>
+				</>
 			) : (
 				<Stack spacing={1} sx={{ alignItems: 'center', py: 4 }}>
 					<CloudUploadIcon color="action" sx={{ fontSize: 48 }} />
@@ -96,6 +120,6 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 					</Typography>
 				</Stack>
 			)}
-		</Box>
+		</Paper>
 	)
 }

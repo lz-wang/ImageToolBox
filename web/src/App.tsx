@@ -186,12 +186,9 @@ export default function App() {
 							/>
 						</Box>
 						{processedResult ? (
-							<Paper sx={{ flex: 1, minWidth: 0, p: 2.5 }}>
-								<Typography variant="subtitle2" sx={{ mb: 1 }}>
-									处理结果
-								</Typography>
+							<Box sx={{ flex: 1, minWidth: 0 }}>
 								<ResultPanel result={processedResult} />
-							</Paper>
+							</Box>
 						) : null}
 					</Stack>
 					<Paper sx={{ width: '100%', maxWidth: 760, p: 2.5 }}>
