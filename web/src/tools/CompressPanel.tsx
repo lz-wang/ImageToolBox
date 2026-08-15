@@ -12,9 +12,6 @@ export default function CompressPanel({ file, onResult }: FileProp) {
 	return (
 		<Stack spacing={2}>
 			<Typography variant="h6">压缩 Compress</Typography>
-			<Typography variant="body2" color="text.secondary">
-				自动检测 PNG/JPEG 并使用 pngquant + oxipng / libjpeg-turbo 压缩
-			</Typography>
 			<Typography variant="body2">质量：{quality}</Typography>
 			<Slider
 				value={quality}
