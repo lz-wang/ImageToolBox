@@ -2,6 +2,9 @@ libjpeg-turbo
 bins
 test-images
 itb
+web/node_modules/
+web/dist/*
+!web/dist/.placeholder
 !skills/itb/
 !skills/itb/**
 .codegraph

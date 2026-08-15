@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"io/fs"
+
 	"github.com/spf13/cobra"
 )
 
@@ -28,8 +30,10 @@ var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }
 
-// Execute 执行根命令
-func Execute(v string) error {
+// Execute 执行根命令。staticFS 为 WebUI 静态资源（web/dist），
+// 仅 serve 命令使用。
+func Execute(v string, staticFS fs.FS) error {
 	version = v
+	webFS = staticFS
 	return rootCmd.Execute()
 }
