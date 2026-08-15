@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { convertImage } from '../api/client'
 import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const TARGETS = [
@@ -27,6 +28,7 @@ export default function ConvertPanel({ file }: FileProp) {
 	const [quality, setQuality] = useState(80)
 	const [lossless, setLossless] = useState(false)
 	const [background, setBackground] = useState('#FFFFFF')
+	const sourceUrl = useObjectUrl(file)
 	const { loading, error, result, run } = useImageTool(convertImage)
 
 	const process = () => run(file, { to, quality, lossless, background })
@@ -77,7 +79,13 @@ export default function ConvertPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始转换'}
 			</Button>
-			{result ? <ResultPanel result={result} /> : null}
+			{result ? (
+				<ResultPanel
+					result={result}
+					sourceUrl={sourceUrl}
+					sourceName={file.name}
+				/>
+			) : null}
 		</Stack>
 	)
 }

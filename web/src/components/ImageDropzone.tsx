@@ -1,7 +1,8 @@
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import type { DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import { formatBytes } from '../lib/format'
 
 interface ImageDropzoneProps {
@@ -13,17 +14,7 @@ interface ImageDropzoneProps {
 export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [dragOver, setDragOver] = useState(false)
-	const [previewUrl, setPreviewUrl] = useState('')
-
-	useEffect(() => {
-		if (!file) {
-			setPreviewUrl('')
-			return
-		}
-		const url = URL.createObjectURL(file)
-		setPreviewUrl(url)
-		return () => URL.revokeObjectURL(url)
-	}, [file])
+	const previewUrl = useObjectUrl(file)
 
 	const acceptDrop = (event: DragEvent<HTMLDivElement>) => {
 		event.preventDefault()

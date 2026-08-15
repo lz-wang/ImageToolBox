@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { resizeImage } from '../api/client'
 import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const MODES = [
@@ -39,6 +40,7 @@ export default function ResizePanel({ file }: FileProp) {
 	const [mode, setMode] = useState('fit')
 	const [anchor, setAnchor] = useState('center')
 	const [filter, setFilter] = useState('lanczos')
+	const sourceUrl = useObjectUrl(file)
 	const { loading, error, result, run } = useImageTool(resizeImage)
 
 	const process = () => {
@@ -120,7 +122,13 @@ export default function ResizePanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始缩放'}
 			</Button>
-			{result ? <ResultPanel result={result} /> : null}
+			{result ? (
+				<ResultPanel
+					result={result}
+					sourceUrl={sourceUrl}
+					sourceName={file.name}
+				/>
+			) : null}
 		</Stack>
 	)
 }

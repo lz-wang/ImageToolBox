@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { cropImage } from '../api/client'
 import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const ANCHORS = [
@@ -29,6 +30,7 @@ export default function CropPanel({ file }: FileProp) {
 	const [anchor, setAnchor] = useState('center')
 	const [width, setWidth] = useState('40%')
 	const [height, setHeight] = useState('40%')
+	const sourceUrl = useObjectUrl(file)
 	const { loading, error, result, run } = useImageTool(cropImage)
 
 	const process = () => run(file, { anchor, width, height })
@@ -74,7 +76,13 @@ export default function CropPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始裁剪'}
 			</Button>
-			{result ? <ResultPanel result={result} /> : null}
+			{result ? (
+				<ResultPanel
+					result={result}
+					sourceUrl={sourceUrl}
+					sourceName={file.name}
+				/>
+			) : null}
 		</Stack>
 	)
 }

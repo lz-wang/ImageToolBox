@@ -1,56 +1,57 @@
 import DownloadIcon from '@mui/icons-material/Download'
-import { Box, Button, Chip, Stack } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { Box, Button, Divider, Stack } from '@mui/material'
 import type { ProcessResult } from '../api/client'
-import { formatBytes } from '../lib/format'
+import BeforeAfter from './BeforeAfter'
 
-/** 处理结果展示：预览 + 尺寸 + 体积对比 + 下载 */
-export default function ResultPanel({ result }: { result: ProcessResult }) {
-	const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
+interface ResultPanelProps {
+	result: ProcessResult
+	/** 原图 object URL，提供时展示 Before / After 对比 */
+	sourceUrl?: string
+	sourceName?: string
+}
 
-	useEffect(() => {
-		const img = new Image()
-		img.onload = () => setDims({ w: img.naturalWidth, h: img.naturalHeight })
-		img.src = result.url
-	}, [result])
-
+/** 处理结果展示：Before/After 对比（或单图预览）+ 下载 */
+export default function ResultPanel({
+	result,
+	sourceUrl,
+	sourceName,
+}: ResultPanelProps) {
 	return (
-		<Stack spacing={1.5}>
-			<Box
-				component="img"
-				src={result.url}
-				alt={result.filename}
-				sx={{
-					maxWidth: '100%',
-					maxHeight: 420,
-					alignSelf: 'flex-start',
-					borderRadius: 1,
-					border: '1px solid',
-					borderColor: 'divider',
-				}}
-			/>
-			<Stack
-				direction="row"
-				spacing={1}
-				useFlexGap
-				sx={{ flexWrap: 'wrap', alignItems: 'center' }}
-			>
-				<Chip label={result.filename} size="small" />
-				{dims ? <Chip size="small" label={`${dims.w}×${dims.h}`} /> : null}
-				<Chip
-					size="small"
-					label={`${formatBytes(result.inputSize)} → ${formatBytes(result.outputSize)}`}
+		<Stack spacing={2} divider={<Divider />}>
+			{sourceUrl ? (
+				<BeforeAfter
+					sourceUrl={sourceUrl}
+					sourceName={sourceName ?? '原图'}
+					inputSize={result.inputSize}
+					outputUrl={result.url}
+					outputName={result.filename}
+					outputSize={result.outputSize}
 				/>
-				<Button
-					variant="contained"
-					size="small"
-					startIcon={<DownloadIcon />}
-					href={result.url}
-					download={result.filename}
-				>
-					下载
-				</Button>
-			</Stack>
+			) : (
+				<Box
+					component="img"
+					src={result.url}
+					alt={result.filename}
+					sx={{
+						maxWidth: '100%',
+						maxHeight: 360,
+						alignSelf: 'flex-start',
+						borderRadius: 1,
+						border: '1px solid',
+						borderColor: 'divider',
+					}}
+				/>
+			)}
+			<Button
+				variant="contained"
+				size="small"
+				startIcon={<DownloadIcon />}
+				href={result.url}
+				download={result.filename}
+				sx={{ alignSelf: 'flex-start' }}
+			>
+				下载 {result.filename}
+			</Button>
 		</Stack>
 	)
 }

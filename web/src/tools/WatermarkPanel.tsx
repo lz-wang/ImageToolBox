@@ -15,6 +15,7 @@ import type { WatermarkOptions } from '../api/client'
 import { watermarkImage } from '../api/client'
 import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const POSITIONS = [
@@ -41,6 +42,7 @@ export default function WatermarkPanel({ file }: FileProp) {
 	const [fontFile, setFontFile] = useState<File | null>(null)
 	const wmInputRef = useRef<HTMLInputElement>(null)
 	const fontInputRef = useRef<HTMLInputElement>(null)
+	const sourceUrl = useObjectUrl(file)
 	const { loading, error, result, run } = useImageTool(watermarkImage)
 
 	const process = () => {
@@ -229,7 +231,13 @@ export default function WatermarkPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '添加水印'}
 			</Button>
-			{result ? <ResultPanel result={result} /> : null}
+			{result ? (
+				<ResultPanel
+					result={result}
+					sourceUrl={sourceUrl}
+					sourceName={file.name}
+				/>
+			) : null}
 		</Stack>
 	)
 }

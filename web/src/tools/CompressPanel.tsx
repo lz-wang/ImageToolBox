@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { compressImage } from '../api/client'
 import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
+import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 export default function CompressPanel({ file }: FileProp) {
 	const [quality, setQuality] = useState(80)
+	const sourceUrl = useObjectUrl(file)
 	const { loading, error, result, run } = useImageTool(compressImage)
 
 	return (
@@ -34,7 +36,13 @@ export default function CompressPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始压缩'}
 			</Button>
-			{result ? <ResultPanel result={result} /> : null}
+			{result ? (
+				<ResultPanel
+					result={result}
+					sourceUrl={sourceUrl}
+					sourceName={file.name}
+				/>
+			) : null}
 		</Stack>
 	)
 }
