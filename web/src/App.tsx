@@ -1,5 +1,6 @@
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
+import SettingsBrightnessIcon from '@mui/icons-material/SettingsBrightness'
 import {
 	Alert,
 	AppBar,
@@ -7,6 +8,8 @@ import {
 	Container,
 	CssBaseline,
 	IconButton,
+	Menu,
+	MenuItem,
 	Paper,
 	Stack,
 	Tab,
@@ -14,10 +17,11 @@ import {
 	Toolbar,
 	Tooltip,
 	Typography,
+	useMediaQuery,
 } from '@mui/material'
 import type { PaletteMode } from '@mui/material/styles'
 import { ThemeProvider } from '@mui/material/styles'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import BatchDropzone from './components/BatchDropzone'
 import ImageDropzone from './components/ImageDropzone'
 import LskyPanel from './storage/LskyPanel'
@@ -59,16 +63,63 @@ const BATCH_TOOLS = [
 ] as const
 
 type BatchToolKey = (typeof BATCH_TOOLS)[number]['key']
+type ThemePreference = PaletteMode | 'system'
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+	{ value: 'system', label: '跟随设备' },
+	{ value: 'light', label: '明亮模式' },
+	{ value: 'dark', label: '暗黑模式' },
+]
+const THEME_PREFERENCE_STORAGE_KEY = 'itb-theme-preference'
+
+function isThemePreference(value: string | null): value is ThemePreference {
+	return THEME_OPTIONS.some((option) => option.value === value)
+}
+
+function loadThemePreference(): ThemePreference {
+	if (typeof window === 'undefined') {
+		return 'system'
+	}
+
+	try {
+		const value = window.localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY)
+		return isThemePreference(value) ? value : 'system'
+	} catch {
+		return 'system'
+	}
+}
 
 export default function App() {
-	const [mode, setMode] = useState<PaletteMode>('light')
+	const [themePreference, setThemePreference] =
+		useState<ThemePreference>(loadThemePreference)
+	const [themeMenuAnchor, setThemeMenuAnchor] = useState<HTMLElement | null>(
+		null,
+	)
+	const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)')
 	const [section, setSection] = useState<SectionKey>('tools')
 	const [file, setFile] = useState<File | null>(null)
 	const [tool, setTool] = useState<ToolKey>('compress')
 	const [batchFiles, setBatchFiles] = useState<File[]>([])
 	const [batchTool, setBatchTool] = useState<BatchToolKey>('resize')
 	const [storageTool, setStorageTool] = useState<'s3' | 'lsky'>('s3')
+	const mode: PaletteMode =
+		themePreference === 'system'
+			? prefersDarkMode
+				? 'dark'
+				: 'light'
+			: themePreference
 	const theme = useMemo(() => buildTheme(mode), [mode])
+	const currentThemeOption = THEME_OPTIONS.find(
+		(option) => option.value === themePreference,
+	)
+
+	useEffect(() => {
+		try {
+			window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference)
+		} catch {
+			// Storage can be unavailable in private or restricted browsing contexts.
+		}
+	}, [themePreference])
 
 	const active = TOOLS.find((t) => t.key === tool)
 	const ActivePanel = active?.Component ?? CompressPanel
@@ -83,14 +134,42 @@ export default function App() {
 					<Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
 						Image Tool Box
 					</Typography>
-					<Tooltip title={mode === 'light' ? '切换暗黑模式' : '切换明亮模式'}>
+					<Tooltip title={`主题：${currentThemeOption?.label ?? '跟随设备'}`}>
 						<IconButton
 							color="inherit"
-							onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
+							aria-label="选择主题"
+							aria-controls={themeMenuAnchor ? 'theme-menu' : undefined}
+							aria-haspopup="true"
+							onClick={(event) => setThemeMenuAnchor(event.currentTarget)}
 						>
-							{mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+							{themePreference === 'system' ? (
+								<SettingsBrightnessIcon />
+							) : mode === 'light' ? (
+								<LightModeIcon />
+							) : (
+								<DarkModeIcon />
+							)}
 						</IconButton>
 					</Tooltip>
+					<Menu
+						id="theme-menu"
+						anchorEl={themeMenuAnchor}
+						open={Boolean(themeMenuAnchor)}
+						onClose={() => setThemeMenuAnchor(null)}
+					>
+						{THEME_OPTIONS.map((option) => (
+							<MenuItem
+								key={option.value}
+								selected={themePreference === option.value}
+								onClick={() => {
+									setThemePreference(option.value)
+									setThemeMenuAnchor(null)
+								}}
+							>
+								{option.label}
+							</MenuItem>
+						))}
+					</Menu>
 				</Toolbar>
 			</AppBar>
 			<Container maxWidth="lg" sx={{ py: 3 }}>
