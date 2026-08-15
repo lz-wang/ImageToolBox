@@ -31,6 +31,23 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
 	return (await response.json()) as T
 }
 
+function filenameFromDisposition(
+	disposition: string,
+	fallback: string,
+): string {
+	const encodedMatch = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+	if (encodedMatch) {
+		try {
+			return decodeURIComponent(encodedMatch[1])
+		} catch {
+			// Fall back to the legacy filename parameter when decoding fails.
+		}
+	}
+
+	const filenameMatch = /filename="?([^";]+)"?/i.exec(disposition)
+	return filenameMatch?.[1] ?? fallback
+}
+
 export interface HealthStatus {
 	status: string
 }
@@ -109,12 +126,11 @@ async function processImage(
 	}
 	const blob = await response.blob()
 	const disposition = response.headers.get('Content-Disposition') ?? ''
-	const match = /filename="([^"]+)"/.exec(disposition)
 	return {
 		blob,
 		url: URL.createObjectURL(blob),
 		contentType: response.headers.get('Content-Type') ?? blob.type,
-		filename: match?.[1] ?? 'result',
+		filename: filenameFromDisposition(disposition, 'result'),
 		inputSize: Number(response.headers.get('X-ITB-Input-Size') ?? 0),
 		outputSize: Number(response.headers.get('X-ITB-Output-Size') ?? blob.size),
 	}
@@ -195,11 +211,10 @@ async function processBatch(
 	}
 	const blob = await response.blob()
 	const disposition = response.headers.get('Content-Disposition') ?? ''
-	const match = /filename="?([^";]+)"?/.exec(disposition)
 	return {
 		blob,
 		url: URL.createObjectURL(blob),
-		filename: match?.[1] ?? 'itb-batch-result.zip',
+		filename: filenameFromDisposition(disposition, 'itb-batch-result.zip'),
 		success: Number(response.headers.get('X-ITB-Success') ?? 0),
 		skipped: Number(response.headers.get('X-ITB-Skipped') ?? 0),
 		failed: Number(response.headers.get('X-ITB-Failed') ?? 0),

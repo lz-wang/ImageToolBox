@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,8 +32,25 @@ func serveImageFile(c *gin.Context, outputPath string, inputSize int64, download
 		contentType = http.DetectContentType(data)
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", downloadName))
+	c.Header("Content-Disposition", contentDisposition(downloadName))
 	c.Header("X-ITB-Input-Size", strconv.FormatInt(inputSize, 10))
 	c.Header("X-ITB-Output-Size", strconv.FormatInt(int64(len(data)), 10))
 	c.Data(http.StatusOK, contentType, data)
+}
+
+// contentDisposition 为非 ASCII 文件名提供 RFC 5987 的 UTF-8 编码，
+// 避免浏览器或 Fetch 将传统 filename 参数错误解码为乱码。
+func contentDisposition(downloadName string) string {
+	for _, r := range downloadName {
+		if r > 0x7f {
+			fallback := "download" + filepath.Ext(downloadName)
+			return fmt.Sprintf(
+				"attachment; filename=%q; filename*=UTF-8''%s",
+				fallback,
+				url.PathEscape(downloadName),
+			)
+		}
+	}
+
+	return fmt.Sprintf("attachment; filename=%q", downloadName)
 }
