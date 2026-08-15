@@ -51,7 +51,6 @@ const TOOLS = [
 	{ key: 'crop', label: '裁剪', Component: CropPanel },
 	{ key: 'convert', label: '转换', Component: ConvertPanel },
 	{ key: 'watermark', label: '水印', Component: WatermarkPanel },
-	{ key: 'inspect', label: '检查', Component: InspectPanel },
 ] as const
 
 type ToolKey = (typeof TOOLS)[number]['key']
@@ -184,30 +183,33 @@ export default function App() {
 				</Tabs>
 
 				{section === 'tools' ? (
-					<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-						<Box sx={{ flex: 1, minWidth: 0 }}>
-							<ImageDropzone file={file} onChange={setFile} />
-						</Box>
-						<Paper
-							sx={{ flex: 1.2, minWidth: 0, p: 2.5, alignSelf: 'flex-start' }}
-						>
-							<Tabs
-								value={tool}
-								onChange={(_, v: string) => setTool(v as ToolKey)}
-								variant="scrollable"
-								scrollButtons="auto"
-								sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+					<Stack spacing={3}>
+						<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+							<Box sx={{ flex: 1, minWidth: 0 }}>
+								<ImageDropzone file={file} onChange={setFile} />
+							</Box>
+							<Paper
+								sx={{ flex: 1.2, minWidth: 0, p: 2.5, alignSelf: 'flex-start' }}
 							>
-								{TOOLS.map((t) => (
-									<Tab key={t.key} value={t.key} label={t.label} />
-								))}
-							</Tabs>
-							{file ? (
-								<ActivePanel file={file} />
-							) : (
-								<Alert severity="info">请先选择一张图片</Alert>
-							)}
-						</Paper>
+								<Tabs
+									value={tool}
+									onChange={(_, v: string) => setTool(v as ToolKey)}
+									variant="scrollable"
+									scrollButtons="auto"
+									sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+								>
+									{TOOLS.map((t) => (
+										<Tab key={t.key} value={t.key} label={t.label} />
+									))}
+								</Tabs>
+								{file ? (
+									<ActivePanel file={file} />
+								) : (
+									<Alert severity="info">请先选择一张图片</Alert>
+								)}
+							</Paper>
+						</Stack>
+						{file ? <InspectPanel file={file} /> : null}
 					</Stack>
 				) : section === 'batch' ? (
 					<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
