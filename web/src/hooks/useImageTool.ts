@@ -16,6 +16,7 @@ export function useImageTool<O>(
 		options: O,
 		extra?: Record<string, File>,
 	) => Promise<ProcessResult>,
+	onResult?: (result: ProcessResult | null) => void,
 ): ImageToolState<O> {
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState('')
@@ -40,17 +41,19 @@ export function useImageTool<O>(
 				urlRef.current = null
 			}
 			setResult(null)
+			onResult?.(null)
 			try {
 				const res = await processor(file, options, extra)
 				urlRef.current = res.url
 				setResult(res)
+				onResult?.(res)
 			} catch (err) {
 				setError(err instanceof Error ? err.message : String(err))
 			} finally {
 				setLoading(false)
 			}
 		},
-		[processor],
+		[onResult, processor],
 	)
 
 	const reset = useCallback(() => {
@@ -59,8 +62,9 @@ export function useImageTool<O>(
 			urlRef.current = null
 		}
 		setResult(null)
+		onResult?.(null)
 		setError('')
-	}, [])
+	}, [onResult])
 
 	return { loading, error, result, run, reset }
 }

@@ -13,9 +13,7 @@ import {
 import { useRef, useState } from 'react'
 import type { WatermarkOptions } from '../api/client'
 import { watermarkImage } from '../api/client'
-import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
-import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const POSITIONS = [
@@ -26,7 +24,7 @@ const POSITIONS = [
 	'center',
 ]
 
-export default function WatermarkPanel({ file }: FileProp) {
+export default function WatermarkPanel({ file, onResult }: FileProp) {
 	const [type, setType] = useState<'text' | 'image'>('text')
 	const [text, setText] = useState('lzwang')
 	const [mode, setMode] = useState<'position' | 'repeat'>('position')
@@ -42,8 +40,7 @@ export default function WatermarkPanel({ file }: FileProp) {
 	const [fontFile, setFontFile] = useState<File | null>(null)
 	const wmInputRef = useRef<HTMLInputElement>(null)
 	const fontInputRef = useRef<HTMLInputElement>(null)
-	const sourceUrl = useObjectUrl(file)
-	const { loading, error, result, run } = useImageTool(watermarkImage)
+	const { loading, error, run } = useImageTool(watermarkImage, onResult)
 
 	const process = () => {
 		const options: WatermarkOptions = {
@@ -231,13 +228,6 @@ export default function WatermarkPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '添加水印'}
 			</Button>
-			{result ? (
-				<ResultPanel
-					result={result}
-					sourceUrl={sourceUrl}
-					sourceName={file.name}
-				/>
-			) : null}
 		</Stack>
 	)
 }

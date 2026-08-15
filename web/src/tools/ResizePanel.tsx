@@ -9,9 +9,7 @@ import {
 } from '@mui/material'
 import { useState } from 'react'
 import { resizeImage } from '../api/client'
-import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
-import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const MODES = [
@@ -33,15 +31,14 @@ const ANCHORS = [
 ]
 const FILTERS = ['lanczos', 'nearest', 'linear', 'catmullrom']
 
-export default function ResizePanel({ file }: FileProp) {
+export default function ResizePanel({ file, onResult }: FileProp) {
 	const [width, setWidth] = useState('1200')
 	const [height, setHeight] = useState('')
 	const [percent, setPercent] = useState('')
 	const [mode, setMode] = useState('fit')
 	const [anchor, setAnchor] = useState('center')
 	const [filter, setFilter] = useState('lanczos')
-	const sourceUrl = useObjectUrl(file)
-	const { loading, error, result, run } = useImageTool(resizeImage)
+	const { loading, error, run } = useImageTool(resizeImage, onResult)
 
 	const process = () => {
 		run(file, {
@@ -122,13 +119,6 @@ export default function ResizePanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始缩放'}
 			</Button>
-			{result ? (
-				<ResultPanel
-					result={result}
-					sourceUrl={sourceUrl}
-					sourceName={file.name}
-				/>
-			) : null}
 		</Stack>
 	)
 }

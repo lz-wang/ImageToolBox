@@ -2,15 +2,12 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import { Alert, Button, Slider, Stack, Typography } from '@mui/material'
 import { useState } from 'react'
 import { compressImage } from '../api/client'
-import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
-import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
-export default function CompressPanel({ file }: FileProp) {
+export default function CompressPanel({ file, onResult }: FileProp) {
 	const [quality, setQuality] = useState(80)
-	const sourceUrl = useObjectUrl(file)
-	const { loading, error, result, run } = useImageTool(compressImage)
+	const { loading, error, run } = useImageTool(compressImage, onResult)
 
 	return (
 		<Stack spacing={2}>
@@ -36,13 +33,6 @@ export default function CompressPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始压缩'}
 			</Button>
-			{result ? (
-				<ResultPanel
-					result={result}
-					sourceUrl={sourceUrl}
-					sourceName={file.name}
-				/>
-			) : null}
 		</Stack>
 	)
 }

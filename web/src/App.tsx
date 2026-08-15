@@ -21,8 +21,10 @@ import {
 } from '@mui/material'
 import type { PaletteMode } from '@mui/material/styles'
 import { ThemeProvider } from '@mui/material/styles'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ProcessResult } from './api/client'
 import ImageDropzone from './components/ImageDropzone'
+import ResultPanel from './components/ResultPanel'
 import { buildTheme } from './theme/theme'
 import CompressPanel from './tools/CompressPanel'
 import ConvertPanel from './tools/ConvertPanel'
@@ -75,6 +77,9 @@ export default function App() {
 	const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)')
 	const [file, setFile] = useState<File | null>(null)
 	const [tool, setTool] = useState<ToolKey>('compress')
+	const [processedResult, setProcessedResult] = useState<ProcessResult | null>(
+		null,
+	)
 	const mode: PaletteMode =
 		themePreference === 'system'
 			? prefersDarkMode
@@ -96,6 +101,9 @@ export default function App() {
 
 	const active = TOOLS.find((t) => t.key === tool)
 	const ActivePanel = active?.Component ?? CompressPanel
+	const handleResult = useCallback((result: ProcessResult | null) => {
+		setProcessedResult(result)
+	}, [])
 
 	return (
 		<ThemeProvider theme={theme}>
@@ -146,7 +154,10 @@ export default function App() {
 			<Container maxWidth="lg" sx={{ py: 3 }}>
 				<Tabs
 					value={tool}
-					onChange={(_, v: string) => setTool(v as ToolKey)}
+					onChange={(_, v: string) => {
+						setTool(v as ToolKey)
+						setProcessedResult(null)
+					}}
 					variant="scrollable"
 					scrollButtons="auto"
 					sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
@@ -156,22 +167,45 @@ export default function App() {
 					))}
 				</Tabs>
 
-				<Stack spacing={3}>
-					<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+				<Stack spacing={3} sx={{ alignItems: 'center' }}>
+					<Stack
+						direction={{ xs: 'column', md: 'row' }}
+						spacing={3}
+						sx={{
+							width: '100%',
+							maxWidth: processedResult ? 1120 : 640,
+						}}
+					>
 						<Box sx={{ flex: 1, minWidth: 0 }}>
-							<ImageDropzone file={file} onChange={setFile} />
+							<ImageDropzone
+								file={file}
+								onChange={(nextFile) => {
+									setFile(nextFile)
+									setProcessedResult(null)
+								}}
+							/>
 						</Box>
-						<Paper
-							sx={{ flex: 1.2, minWidth: 0, p: 2.5, alignSelf: 'flex-start' }}
-						>
-							{file ? (
-								<ActivePanel file={file} />
-							) : (
-								<Alert severity="info">请先选择一张图片</Alert>
-							)}
-						</Paper>
+						{processedResult ? (
+							<Paper sx={{ flex: 1, minWidth: 0, p: 2.5 }}>
+								<Typography variant="subtitle2" sx={{ mb: 1 }}>
+									处理结果
+								</Typography>
+								<ResultPanel result={processedResult} />
+							</Paper>
+						) : null}
 					</Stack>
-					{file ? <InspectPanel file={file} /> : null}
+					<Paper sx={{ width: '100%', maxWidth: 760, p: 2.5 }}>
+						{file ? (
+							<ActivePanel file={file} onResult={handleResult} />
+						) : (
+							<Alert severity="info">请先选择一张图片</Alert>
+						)}
+					</Paper>
+					{file ? (
+						<Box sx={{ width: '100%', maxWidth: 960 }}>
+							<InspectPanel file={file} />
+						</Box>
+					) : null}
 				</Stack>
 			</Container>
 		</ThemeProvider>

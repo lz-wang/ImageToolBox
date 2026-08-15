@@ -12,9 +12,7 @@ import {
 } from '@mui/material'
 import { useState } from 'react'
 import { convertImage } from '../api/client'
-import ResultPanel from '../components/ResultPanel'
 import { useImageTool } from '../hooks/useImageTool'
-import { useObjectUrl } from '../hooks/useObjectUrl'
 import type { FileProp } from './types'
 
 const TARGETS = [
@@ -23,13 +21,12 @@ const TARGETS = [
 	{ value: 'jpg', label: 'JPEG' },
 ]
 
-export default function ConvertPanel({ file }: FileProp) {
+export default function ConvertPanel({ file, onResult }: FileProp) {
 	const [to, setTo] = useState('webp')
 	const [quality, setQuality] = useState(80)
 	const [lossless, setLossless] = useState(false)
 	const [background, setBackground] = useState('#FFFFFF')
-	const sourceUrl = useObjectUrl(file)
-	const { loading, error, result, run } = useImageTool(convertImage)
+	const { loading, error, run } = useImageTool(convertImage, onResult)
 
 	const process = () => run(file, { to, quality, lossless, background })
 
@@ -79,13 +76,6 @@ export default function ConvertPanel({ file }: FileProp) {
 			>
 				{loading ? '处理中…' : '开始转换'}
 			</Button>
-			{result ? (
-				<ResultPanel
-					result={result}
-					sourceUrl={sourceUrl}
-					sourceName={file.name}
-				/>
-			) : null}
 		</Stack>
 	)
 }
