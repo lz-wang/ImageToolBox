@@ -7,7 +7,10 @@ import {
 	Box,
 	Container,
 	CssBaseline,
+	Dialog,
+	DialogContent,
 	IconButton,
+	LinearProgress,
 	Menu,
 	MenuItem,
 	Paper,
@@ -29,7 +32,6 @@ import { buildTheme } from './theme/theme'
 import CompressPanel from './tools/CompressPanel'
 import ConvertPanel from './tools/ConvertPanel'
 import CropPanel from './tools/CropPanel'
-import InspectPanel from './tools/InspectPanel'
 import ResizePanel from './tools/ResizePanel'
 import WatermarkPanel from './tools/WatermarkPanel'
 
@@ -80,6 +82,7 @@ export default function App() {
 	const [processedResult, setProcessedResult] = useState<ProcessResult | null>(
 		null,
 	)
+	const [processing, setProcessing] = useState(false)
 	const mode: PaletteMode =
 		themePreference === 'system'
 			? prefersDarkMode
@@ -104,6 +107,18 @@ export default function App() {
 	const handleResult = useCallback((result: ProcessResult | null) => {
 		setProcessedResult(result)
 	}, [])
+	const handleLoadingChange = useCallback((loading: boolean) => {
+		setProcessing(loading)
+	}, [])
+	const activePanel = file ? (
+		<ActivePanel
+			file={file}
+			onResult={handleResult}
+			onLoadingChange={handleLoadingChange}
+		/>
+	) : (
+		<Alert severity="info">请先选择一张图片</Alert>
+	)
 
 	return (
 		<ThemeProvider theme={theme}>
@@ -157,6 +172,7 @@ export default function App() {
 					onChange={(_, v: string) => {
 						setTool(v as ToolKey)
 						setProcessedResult(null)
+						setProcessing(false)
 					}}
 					variant="scrollable"
 					scrollButtons="auto"
@@ -182,6 +198,7 @@ export default function App() {
 								onChange={(nextFile) => {
 									setFile(nextFile)
 									setProcessedResult(null)
+									setProcessing(false)
 								}}
 							/>
 						</Box>
@@ -191,19 +208,37 @@ export default function App() {
 							</Box>
 						) : null}
 					</Stack>
-					<Paper sx={{ width: '100%', maxWidth: 760, p: 2.5 }}>
-						{file ? (
-							<ActivePanel file={file} onResult={handleResult} />
-						) : (
-							<Alert severity="info">请先选择一张图片</Alert>
-						)}
-					</Paper>
-					{file ? (
-						<Box sx={{ width: '100%', maxWidth: 960 }}>
-							<InspectPanel file={file} />
+					{tool === 'compress' ? (
+						<Box sx={{ width: '100%', maxWidth: 760, px: 2.5 }}>
+							{activePanel}
 						</Box>
-					) : null}
+					) : (
+						<Paper sx={{ width: '100%', maxWidth: 760, p: 2.5 }}>
+							{activePanel}
+						</Paper>
+					)}
 				</Stack>
+				<Dialog
+					open={processing}
+					aria-labelledby="compression-progress-title"
+					slotProps={{
+						paper: { sx: { width: 360, maxWidth: 'calc(100% - 48px)' } },
+					}}
+				>
+					<DialogContent sx={{ px: 3, pt: 2.5, pb: 2 }}>
+						<Typography
+							id="compression-progress-title"
+							variant="subtitle1"
+							gutterBottom
+						>
+							正在压缩图片
+						</Typography>
+						<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+							请稍候，完成后将自动更新处理结果。
+						</Typography>
+						<LinearProgress aria-label="正在压缩图片" />
+					</DialogContent>
+				</Dialog>
 			</Container>
 		</ThemeProvider>
 	)

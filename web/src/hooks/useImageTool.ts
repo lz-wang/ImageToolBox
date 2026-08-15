@@ -36,17 +36,15 @@ export function useImageTool<O>(
 		async (file: File, options: O, extra?: Record<string, File>) => {
 			setLoading(true)
 			setError('')
-			if (urlRef.current) {
-				URL.revokeObjectURL(urlRef.current)
-				urlRef.current = null
-			}
-			setResult(null)
-			onResult?.(null)
 			try {
 				const res = await processor(file, options, extra)
+				const previousURL = urlRef.current
 				urlRef.current = res.url
 				setResult(res)
 				onResult?.(res)
+				if (previousURL) {
+					URL.revokeObjectURL(previousURL)
+				}
 			} catch (err) {
 				setError(err instanceof Error ? err.message : String(err))
 			} finally {

@@ -1,19 +1,12 @@
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import {
-	Box,
-	Button,
-	Dialog,
-	Paper,
-	Stack,
-	Tooltip,
-	Typography,
-} from '@mui/material'
+import { Box, Button, Paper, Stack, Tooltip, Typography } from '@mui/material'
 import type { DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useObjectUrl } from '../hooks/useObjectUrl'
 import { formatBytes } from '../lib/format'
 import { isImageFile } from '../lib/validate'
+import ImageLightbox from './ImageLightbox'
 
 interface ImageDropzoneProps {
 	file: File | null
@@ -243,33 +236,14 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 					</Typography>
 				</Stack>
 			)}
-			<Dialog
-				fullScreen
-				open={lightboxOpen}
-				onClose={() => setLightboxOpen(false)}
-				onClick={(event) => event.stopPropagation()}
-				aria-label="图片预览"
-				slotProps={{
-					paper: {
-						sx: {
-							bgcolor: 'rgba(0, 0, 0, 0.92)',
-							m: 0,
-						},
-					},
-				}}
-			>
-				<Box
-					component="img"
-					src={previewUrl}
-					alt={file?.name ?? '图片预览'}
-					sx={{
-						maxWidth: 'calc(100vw - 64px)',
-						maxHeight: 'calc(100vh - 64px)',
-						m: 'auto',
-						objectFit: 'contain',
-					}}
+			{file && previewUrl ? (
+				<ImageLightbox
+					file={file}
+					imageUrl={previewUrl}
+					open={lightboxOpen}
+					onClose={() => setLightboxOpen(false)}
 				/>
-			</Dialog>
+			) : null}
 		</Paper>
 	)
 }
