@@ -4,6 +4,7 @@ import { Box, Chip, IconButton, Stack, Typography } from '@mui/material'
 import type { DragEvent } from 'react'
 import { useRef, useState } from 'react'
 import { formatBytes } from '../lib/format'
+import { isImageFile } from '../lib/validate'
 
 interface BatchDropzoneProps {
 	files: File[]
@@ -16,9 +17,7 @@ export default function BatchDropzone({ files, onChange }: BatchDropzoneProps) {
 	const [dragOver, setDragOver] = useState(false)
 
 	const addFiles = (incoming: FileList | File[] | null) => {
-		const images = Array.from(incoming ?? []).filter((f) =>
-			f.type.startsWith('image/'),
-		)
+		const images = Array.from(incoming ?? []).filter(isImageFile)
 		if (images.length === 0) {
 			return
 		}

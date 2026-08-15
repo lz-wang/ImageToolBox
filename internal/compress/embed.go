@@ -1,8 +1,8 @@
 package compress
 
 import (
-	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -60,15 +60,16 @@ var binaryPaths = map[string]map[BinaryType]string{
 }
 
 var (
-	binariesFS     embed.FS
+	binariesFS     fs.FS
 	extractedPaths = make(map[BinaryType]string)
 	extractMutex   sync.Once
 	extractError   error
 )
 
-// InitBinaries 初始化二进制文件（从 main.go 调用）
-func InitBinaries(fs embed.FS) {
-	binariesFS = fs
+// InitBinaries 初始化二进制文件（从 main.go 调用，传入 //go:embed bins/** 的 embed.FS）。
+// 参数为 fs.FS 以便测试注入其他文件系统。
+func InitBinaries(source fs.FS) {
+	binariesFS = source
 }
 
 // getPlatformKey 获取当前平台的 key
@@ -114,7 +115,7 @@ func extractAllBinaries() error {
 	}
 
 	for binType, relPath := range paths {
-		data, err := binariesFS.ReadFile(relPath)
+		data, err := fs.ReadFile(binariesFS, relPath)
 		if err != nil {
 			return fmt.Errorf("failed to read embedded binary %s: %w", binType, err)
 		}

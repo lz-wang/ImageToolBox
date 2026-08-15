@@ -4,6 +4,7 @@ import type { DragEvent } from 'react'
 import { useRef, useState } from 'react'
 import { useObjectUrl } from '../hooks/useObjectUrl'
 import { formatBytes } from '../lib/format'
+import { isImageFile } from '../lib/validate'
 
 interface ImageDropzoneProps {
 	file: File | null
@@ -20,7 +21,7 @@ export default function ImageDropzone({ file, onChange }: ImageDropzoneProps) {
 		event.preventDefault()
 		setDragOver(false)
 		const dropped = event.dataTransfer.files?.[0]
-		if (dropped?.type.startsWith('image/')) {
+		if (dropped && isImageFile(dropped)) {
 			onChange(dropped)
 		}
 	}
