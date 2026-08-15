@@ -4,24 +4,48 @@ import {
 	Alert,
 	AppBar,
 	Box,
-	Button,
+	Container,
+	CssBaseline,
 	IconButton,
 	Paper,
 	Stack,
+	Tab,
+	Tabs,
 	Toolbar,
 	Tooltip,
 	Typography,
 } from '@mui/material'
-import CssBaseline from '@mui/material/CssBaseline'
 import type { PaletteMode } from '@mui/material/styles'
 import { ThemeProvider } from '@mui/material/styles'
 import { useMemo, useState } from 'react'
-import { fetchHealth } from './api/client'
+import ImageDropzone from './components/ImageDropzone'
 import { buildTheme } from './theme/theme'
+import CompressPanel from './tools/CompressPanel'
+import ConvertPanel from './tools/ConvertPanel'
+import CropPanel from './tools/CropPanel'
+import InspectPanel from './tools/InspectPanel'
+import ResizePanel from './tools/ResizePanel'
+import WatermarkPanel from './tools/WatermarkPanel'
+
+const TOOLS = [
+	{ key: 'compress', label: '压缩', Component: CompressPanel },
+	{ key: 'resize', label: '缩放', Component: ResizePanel },
+	{ key: 'crop', label: '裁剪', Component: CropPanel },
+	{ key: 'convert', label: '转换', Component: ConvertPanel },
+	{ key: 'watermark', label: '水印', Component: WatermarkPanel },
+	{ key: 'inspect', label: '检查', Component: InspectPanel },
+] as const
+
+type ToolKey = (typeof TOOLS)[number]['key']
 
 export default function App() {
 	const [mode, setMode] = useState<PaletteMode>('light')
+	const [file, setFile] = useState<File | null>(null)
+	const [tool, setTool] = useState<ToolKey>('compress')
 	const theme = useMemo(() => buildTheme(mode), [mode])
+
+	const active = TOOLS.find((t) => t.key === tool)
+	const ActivePanel = active?.Component ?? CompressPanel
 
 	return (
 		<ThemeProvider theme={theme}>
@@ -41,43 +65,33 @@ export default function App() {
 					</Tooltip>
 				</Toolbar>
 			</AppBar>
-			<Box sx={{ maxWidth: 960, mx: 'auto', p: 2 }}>
-				<Paper sx={{ p: 3 }}>
-					<Stack spacing={2}>
-						<Typography variant="h5">WebUI 骨架已就绪</Typography>
-						<Typography variant="body2" color="text.secondary">
-							图片工具面板（压缩、缩放、裁剪、格式转换、水印、元数据检查）将在后续阶段加入。
-						</Typography>
-						<HealthIndicator />
-					</Stack>
-				</Paper>
-			</Box>
+			<Container maxWidth="lg" sx={{ py: 3 }}>
+				<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+					<Box sx={{ flex: 1, minWidth: 0 }}>
+						<ImageDropzone file={file} onChange={setFile} />
+					</Box>
+					<Paper
+						sx={{ flex: 1.2, minWidth: 0, p: 2.5, alignSelf: 'flex-start' }}
+					>
+						<Tabs
+							value={tool}
+							onChange={(_, v: string) => setTool(v as ToolKey)}
+							variant="scrollable"
+							scrollButtons="auto"
+							sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+						>
+							{TOOLS.map((t) => (
+								<Tab key={t.key} value={t.key} label={t.label} />
+							))}
+						</Tabs>
+						{file ? (
+							<ActivePanel file={file} />
+						) : (
+							<Alert severity="info">请先选择一张图片</Alert>
+						)}
+					</Paper>
+				</Stack>
+			</Container>
 		</ThemeProvider>
-	)
-}
-
-function HealthIndicator() {
-	const [status, setStatus] = useState<'unknown' | 'ok' | 'error'>('unknown')
-	const [message, setMessage] = useState('')
-
-	const check = async () => {
-		try {
-			const result = await fetchHealth()
-			setStatus(result.status === 'ok' ? 'ok' : 'error')
-			setMessage(result.status)
-		} catch (err) {
-			setStatus('error')
-			setMessage(err instanceof Error ? err.message : String(err))
-		}
-	}
-
-	return (
-		<Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-			<Button variant="outlined" onClick={check}>
-				检查后端健康状态
-			</Button>
-			{status === 'ok' && <Alert severity="success">API 正常</Alert>}
-			{status === 'error' && <Alert severity="error">{message}</Alert>}
-		</Stack>
 	)
 }
