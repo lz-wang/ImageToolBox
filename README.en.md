@@ -326,8 +326,6 @@ The frontend bundle is embedded in the binary, so no extra deployment files are 
 ### Feature scope
 
 - **Image tools**: compress, resize, crop, format conversion, watermark (text/image, font upload supported); image metadata is shown automatically after upload — with Before/After comparison and size delta
-- **Batch processing**: batch resize / convert / watermark, results returned as a zip download
-- **Storage**: S3 object list / upload / download / delete, LskyPro upload (Copy URL / Markdown)
 
 ### Security boundary
 
