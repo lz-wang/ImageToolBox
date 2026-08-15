@@ -235,6 +235,83 @@ export function batchWatermark(
 	return processBatch('/api/v1/batch/watermark', files, options, extraFiles)
 }
 
+// ---------- 存储（S3 / Lsky，凭证仅存于服务端环境变量） ----------
+
+export interface S3Status {
+	configured: boolean
+	endpoint: string
+	region: string
+	bucket: string
+}
+
+export function fetchS3Status(): Promise<S3Status> {
+	return requestJSON<S3Status>('/api/v1/s3/status')
+}
+
+export interface S3Object {
+	key: string
+	size: number
+	last_modified: string
+	etag: string
+	storage_class: string
+}
+
+export async function fetchS3Objects(prefix = ''): Promise<S3Object[]> {
+	const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''
+	const result = await requestJSON<{ objects: S3Object[] | null }>(
+		`/api/v1/s3/objects${query}`,
+	)
+	return result.objects ?? []
+}
+
+export async function uploadS3Object(
+	file: File,
+	options: { key?: string; prefix?: string },
+): Promise<{ key: string }> {
+	const form = new FormData()
+	form.append('file', file)
+	form.append('options', JSON.stringify(options))
+	return requestJSON<{ key: string }>('/api/v1/s3/objects', {
+		method: 'POST',
+		body: form,
+	})
+}
+
+export function s3DownloadUrl(key: string): string {
+	return `/api/v1/s3/objects/download?key=${encodeURIComponent(key)}`
+}
+
+export async function deleteS3Object(key: string): Promise<void> {
+	const response = await fetch(
+		`/api/v1/s3/objects?key=${encodeURIComponent(key)}`,
+		{
+			method: 'DELETE',
+		},
+	)
+	if (!response.ok) {
+		throw new ApiError(await parseErrorMessage(response), response.status)
+	}
+}
+
+export interface LskyUploadResult {
+	name?: string
+	url: string
+	markdown: string
+}
+
+export async function uploadLskyImage(
+	file: File,
+	strategyId = 0,
+): Promise<LskyUploadResult> {
+	const form = new FormData()
+	form.append('file', file)
+	form.append('options', JSON.stringify({ strategyId }))
+	return requestJSON<LskyUploadResult>('/api/v1/lsky/images', {
+		method: 'POST',
+		body: form,
+	})
+}
+
 // ---------- inspect ----------
 
 export interface InspectResult {

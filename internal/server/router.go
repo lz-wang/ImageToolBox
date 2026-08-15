@@ -24,6 +24,15 @@ func registerAPIRoutes(api *gin.RouterGroup) {
 	api.POST("/batch/resize", handleBatchResize)
 	api.POST("/batch/convert", handleBatchConvert)
 	api.POST("/batch/watermark", handleBatchWatermark)
+
+	// 存储后端：资源式接口，凭证仅从服务端环境变量读取
+	api.GET("/s3/status", handleS3Status)
+	api.GET("/s3/objects", handleS3List)
+	api.POST("/s3/objects", handleS3Upload)
+	api.GET("/s3/objects/download", handleS3Download)
+	api.DELETE("/s3/objects", handleS3Delete)
+
+	api.POST("/lsky/images", handleLskyUpload)
 }
 
 func handleHealth(c *gin.Context) {

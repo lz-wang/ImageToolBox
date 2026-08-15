@@ -33,6 +33,9 @@ func (c *Config) LoadFromEnv() {
 			c.Region = "us-east-1"
 		}
 	}
+	if c.Bucket == "" {
+		c.Bucket = os.Getenv("ITB_S3_BUCKET")
+	}
 
 	// 自动检测 MinIO，默认启用路径样式
 	if c.Endpoint != "" && !c.ForcePathStyle {

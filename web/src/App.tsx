@@ -20,6 +20,8 @@ import { ThemeProvider } from '@mui/material/styles'
 import { useMemo, useState } from 'react'
 import BatchDropzone from './components/BatchDropzone'
 import ImageDropzone from './components/ImageDropzone'
+import LskyPanel from './storage/LskyPanel'
+import S3Panel from './storage/S3Panel'
 import { buildTheme } from './theme/theme'
 import BatchConvertPanel from './tools/BatchConvertPanel'
 import BatchResizePanel from './tools/BatchResizePanel'
@@ -34,6 +36,7 @@ import WatermarkPanel from './tools/WatermarkPanel'
 const SECTIONS = [
 	{ key: 'tools', label: '图片工具' },
 	{ key: 'batch', label: '批量处理' },
+	{ key: 'storage', label: '存储' },
 ] as const
 
 type SectionKey = (typeof SECTIONS)[number]['key']
@@ -64,6 +67,7 @@ export default function App() {
 	const [tool, setTool] = useState<ToolKey>('compress')
 	const [batchFiles, setBatchFiles] = useState<File[]>([])
 	const [batchTool, setBatchTool] = useState<BatchToolKey>('resize')
+	const [storageTool, setStorageTool] = useState<'s3' | 'lsky'>('s3')
 	const theme = useMemo(() => buildTheme(mode), [mode])
 
 	const active = TOOLS.find((t) => t.key === tool)
@@ -126,7 +130,7 @@ export default function App() {
 							)}
 						</Paper>
 					</Stack>
-				) : (
+				) : section === 'batch' ? (
 					<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
 						<Box sx={{ flex: 1, minWidth: 0 }}>
 							<BatchDropzone files={batchFiles} onChange={setBatchFiles} />
@@ -150,6 +154,18 @@ export default function App() {
 							)}
 						</Paper>
 					</Stack>
+				) : (
+					<Paper sx={{ p: 2.5 }}>
+						<Tabs
+							value={storageTool}
+							onChange={(_, v: string) => setStorageTool(v as 's3' | 'lsky')}
+							sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+						>
+							<Tab value="s3" label="S3" />
+							<Tab value="lsky" label="Lsky 图床" />
+						</Tabs>
+						{storageTool === 's3' ? <S3Panel /> : <LskyPanel />}
+					</Paper>
 				)}
 			</Container>
 		</ThemeProvider>
