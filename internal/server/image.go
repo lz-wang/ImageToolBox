@@ -11,7 +11,6 @@ import (
 	"imagetoolbox/internal/convert"
 	"imagetoolbox/internal/crop"
 	"imagetoolbox/internal/resize"
-	"imagetoolbox/internal/watermark"
 )
 
 // 请求结构为 Web 专用，与 CLI 的 cobra flag 全局变量完全隔离，
@@ -231,49 +230,8 @@ func handleWatermark(c *gin.Context) {
 	outName := outputFileName(inputPath, "_watermarked", "")
 	outputPath := filepath.Join(dir, outName)
 
-	mode := opts.Mode
-	if mode == "" {
-		mode = "position"
-	}
-
-	var procErr error
-	switch {
-	case strings.EqualFold(opts.Type, "image") || wmImagePath != "":
-		if mode != "position" {
-			fail(c, http.StatusBadRequest, "图片水印仅支持 position 模式")
-			return
-		}
-		_, procErr = watermark.AddImageWatermark(inputPath, outputPath, &watermark.ImageOptions{
-			ImagePath:   wmImagePath,
-			Opacity:     opts.Opacity,
-			Position:    watermark.Position(opts.Position),
-			ScaleRatio:  opts.Scale,
-			MarginRatio: opts.Margin,
-		})
-	case mode == "repeat":
-		_, procErr = watermark.AddRepeatWatermark(inputPath, outputPath, opts.Text, &watermark.RepeatOptions{
-			Color:    opts.Color,
-			Space:    opts.Space,
-			Angle:    opts.Angle,
-			Opacity:  opts.Opacity,
-			FontPath: fontPath,
-			FontSize: opts.FontSize,
-		})
-	case mode == "position":
-		_, procErr = watermark.AddPositionWatermark(inputPath, outputPath, opts.Text, &watermark.PositionOptions{
-			Opacity:     opts.Opacity,
-			Position:    watermark.Position(opts.Position),
-			FontPath:    fontPath,
-			FontSize:    opts.FontSize,
-			Color:       opts.Color,
-			MarginRatio: opts.Margin,
-		})
-	default:
-		fail(c, http.StatusBadRequest, "不支持的水印模式: %s", opts.Mode)
-		return
-	}
-	if procErr != nil {
-		fail(c, http.StatusBadRequest, "添加水印失败: %v", procErr)
+	if err := watermarkProcessor(opts, wmImagePath, fontPath)(inputPath, outputPath); err != nil {
+		fail(c, http.StatusBadRequest, "添加水印失败: %v", err)
 		return
 	}
 
