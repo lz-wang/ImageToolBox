@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"imagetoolbox/internal/compress"
@@ -38,115 +39,48 @@ func runCompress(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("必须指定输入文件路径 (-i)")
 	}
 
-	f, err := os.Open(inputFile)
-	if err != nil {
-		return fmt.Errorf("无法打开输入文件: %w", err)
-	}
-
-	format, err := compress.DetectFormat(f)
-	f.Close()
-	if err != nil {
-		return fmt.Errorf("无法检测图片格式: %w", err)
-	}
-
-	fmt.Printf("检测到格式: %s\n", format)
-
-	switch format {
-	case "png":
-		return compressPNGFile(inputFile, outputFile, quality)
-	case "jpeg":
-		return compressJPEGFile(inputFile, outputFile, quality)
-	default:
-		return fmt.Errorf("不支持的图片格式: %s", format)
-	}
-}
-
-func compressPNGFile(inPath, outPath string, q int) error {
-	input, err := os.Open(inPath)
-	if err != nil {
-		return err
-	}
-	defer input.Close()
-
-	var output *os.File
-	var outputPath string
-	var tmpFile *os.File
-
-	if outPath != "" {
-		output, err = os.Create(outPath)
+	outputPath := outputFile
+	tmpPath := ""
+	if outputPath == "" {
+		// 临时文件放在输入文件所在目录，保证 rename 不跨文件系统
+		tmp, err := os.CreateTemp(filepath.Dir(inputFile), ".itb-compress-*"+filepath.Ext(inputFile))
 		if err != nil {
-			return err
+			return fmt.Errorf("创建临时文件失败: %w", err)
 		}
-		defer output.Close()
-		outputPath = outPath
-	} else {
-		tmpFile, err = os.CreateTemp("", "imagetoolbox-*.png")
-		if err != nil {
-			return err
-		}
-		output = tmpFile
-		outputPath = inPath
+		tmpPath = tmp.Name()
+		tmp.Close()
+		outputPath = tmpPath
 	}
 
-	opts := compress.PNGOptions{
-		Quality:     q,
-		OxiPngLevel: 4,
-		Input:       input,
-		Output:      output,
-	}
-
-	if err := compress.CompressPNG(opts); err != nil {
+	result, err := compress.CompressFile(inputFile, outputPath, compress.FileOptions{Quality: quality})
+	if err != nil {
+		if tmpPath != "" {
+			os.Remove(tmpPath)
+		}
 		return err
 	}
 
-	if tmpFile != nil {
-		tmpFile.Close()
-		os.Rename(tmpFile.Name(), inPath)
+	if tmpPath != "" {
+		if err := os.Rename(tmpPath, inputFile); err != nil {
+			os.Remove(tmpPath)
+			return fmt.Errorf("覆盖原文件失败: %w", err)
+		}
 	}
 
-	fmt.Printf("压缩完成: %s\n", outputPath)
+	fmt.Printf("检测到格式: %s\n", result.Format)
+	fmt.Printf("压缩完成: %s (%s → %s)\n", inputFile, formatSize(result.InputSize), formatSize(result.OutputSize))
 	return nil
 }
 
-func compressJPEGFile(inPath, outPath string, q int) error {
-	var output *os.File
-	var outputPath string
-	var tmpFile *os.File
-	var err error
-
-	if outPath != "" {
-		output, err = os.Create(outPath)
-		if err != nil {
-			return err
-		}
-		defer output.Close()
-		outputPath = outPath
-	} else {
-		tmpFile, err = os.CreateTemp("", "imagetoolbox-*.jpg")
-		if err != nil {
-			return err
-		}
-		output = tmpFile
-		outputPath = inPath
+func formatSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
 	}
-
-	opts := compress.JPEGOptions{
-		Quality:     q,
-		Progressive: true,
-		Optimize:    true,
-		InputPath:   inPath,
-		Output:      output,
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
 	}
-
-	if err := compress.CompressJPEG(opts); err != nil {
-		return err
-	}
-
-	if tmpFile != nil {
-		tmpFile.Close()
-		os.Rename(tmpFile.Name(), inPath)
-	}
-
-	fmt.Printf("压缩完成: %s\n", outputPath)
-	return nil
+	return fmt.Sprintf("%.1f %ciB", float64(size)/float64(div), "KMGTPE"[exp])
 }
