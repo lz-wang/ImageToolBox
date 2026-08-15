@@ -1,6 +1,6 @@
 ---
 name: itb
-description: Use the `itb` CLI in image-processing workflows. Trigger when a user asks to compress, crop, resize, convert, watermark, batch-process images, upload images to S3-compatible storage, upload images to LskyPro, or choose the right `itb` command/flags for an image workflow.
+description: Use the `itb` CLI in image-processing workflows. Trigger when a user asks to compress, crop, resize, convert, watermark, batch-process images, upload images to S3-compatible storage, upload images to LskyPro, launch the `itb serve` WebUI, or choose the right `itb` command/flags for an image workflow.
 ---
 
 # ITB
@@ -20,9 +20,12 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `batch` for repeated `resize`, `convert`, or `watermark` over directories.
    - `s3` for S3-compatible upload/download/list/delete.
    - `lsky upload` for LskyPro image hosting.
+   - `serve` for the interactive local WebUI (browser-based, same processing core as the CLI).
 4. Prefer explicit `-o` / `--output` for single-file transformations so follow-up steps can use predictable paths.
 5. For multi-step local image pipelines, write intermediate outputs to a temporary or task-specific output directory and run commands in sequence.
 6. Verify outputs with file existence, dimensions/format checks, or a visual preview when the result is user-facing.
+
+CLI vs WebUI: use CLI commands for scripted/automated work; suggest `itb serve` when the user wants to interactively browse, tweak parameters, and preview results in a browser.
 
 ## Command Use
 
@@ -50,4 +53,5 @@ itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to we
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` and `ITB_LSKY_*` credentials.
 - Use `--force-path-style` for MinIO-style endpoints when needed.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
+- `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks. S3/Lsky secrets stay server-side (env vars) and are never returned to the browser.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.

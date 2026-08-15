@@ -304,6 +304,78 @@ Batch run `resize`, `convert`, `watermark`; the output directory preserves the r
 
 </details>
 
+## WebUI (itb serve)
+
+Besides the CLI, `itb` ships a local-first WebUI that shares exactly the same Go image-processing core (the WebUI does not spawn CLI subprocesses; it calls the domain packages directly).
+
+```bash
+# Start the WebUI (default http://127.0.0.1:8080)
+./itb serve
+
+# Custom listen address
+./itb serve --addr 127.0.0.1:9000
+
+# Open the browser after startup
+./itb serve --open
+```
+
+The frontend bundle is embedded in the binary, so no extra deployment files are needed; CI releases still publish a single `itb` executable.
+
+![WebUI](docs/screenshots/webui.png)
+
+### Feature scope
+
+- **Image tools**: compress, resize, crop, format conversion, watermark (text/image, font upload supported), metadata inspection — with Before/After comparison and size delta
+- **Batch processing**: batch resize / convert / watermark, results returned as a zip download
+- **Storage**: S3 object list / upload / download / delete, LskyPro upload (Copy URL / Markdown)
+
+### Security boundary
+
+By default the server binds to `127.0.0.1` only; do not expose it to untrusted networks. S3 and Lsky credentials are read from environment variables on the **server side only** — secrets/tokens never reach the browser:
+
+```bash
+ITB_S3_ENDPOINT           # S3 endpoint URL
+ITB_S3_ACCESS_KEY_ID      # Access Key ID
+ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_BUCKET             # Bucket name
+ITB_S3_REGION             # Region (default us-east-1)
+
+ITB_LSKY_URL              # LskyPro URL
+ITB_LSKY_TOKEN            # LskyPro API token
+```
+
+<details>
+<summary>Command options and HTTP API</summary>
+
+| Option | Default | Description |
+|------|--------|------|
+| `--addr` | `127.0.0.1:8080` | Listen address |
+| `--open` | `false` | Open the browser after startup |
+
+The backend API uses the `/api/v1` prefix, for example the health check:
+
+```bash
+curl http://127.0.0.1:8080/api/v1/health
+```
+
+Image endpoints (`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect` and `batch/*`) accept `multipart/form-data`: `file` (or `files[]`) plus `options` (a JSON string); results are streamed back as raw image bytes.
+
+</details>
+
+<details>
+<summary>Building from source</summary>
+
+```bash
+make build    # Build the WebUI (npm) then compile itb
+make serve    # Build and start the WebUI
+make check    # go vet + frontend type-check + lint
+make test     # go test + frontend tests
+```
+
+For frontend development, run `cd web && npm run dev` (the Vite dev server proxies `/api` to `127.0.0.1:8080`).
+
+</details>
+
 ## S3-compatible storage
 
 Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, Tencent Cloud COS, etc.
@@ -315,6 +387,7 @@ ITB_S3_ENDPOINT           # S3 endpoint URL (optional)
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # Region (default us-east-1)
+ITB_S3_BUCKET             # Bucket name (can also be set via -b)
 ```
 
 <details>

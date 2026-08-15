@@ -304,6 +304,78 @@ brew install lz-wang/tap/itb
 
 </details>
 
+## WebUI（itb serve）
+
+除了 CLI，`itb` 还内置一个本地优先的 WebUI，与 CLI 共享完全相同的 Go 图片处理核心（WebUI 不执行 CLI 子进程，而是直接调用领域包）。
+
+```bash
+# 启动 WebUI（默认 http://127.0.0.1:8080）
+./itb serve
+
+# 指定监听地址
+./itb serve --addr 127.0.0.1:9000
+
+# 启动后自动打开浏览器
+./itb serve --open
+```
+
+前端产物已内嵌进二进制，无需额外部署文件；CI Release 仍然只发布单个 `itb` 可执行文件。
+
+![WebUI](docs/screenshots/webui.png)
+
+### 功能范围
+
+- **图片工具**：压缩、缩放、裁剪、格式转换、水印（文字/图片，支持上传字体）、元数据检查，带 Before/After 对比与体积变化展示
+- **批量处理**：批量缩放 / 转换 / 水印，结果打包为 zip 下载
+- **存储**：S3 对象列表 / 上传 / 下载 / 删除，LskyPro 上传（Copy URL / Markdown）
+
+### 安全边界
+
+默认只监听 `127.0.0.1`，请勿绑定到不可信网络。S3 与 Lsky 凭证只在**服务端**从环境变量读取，Secret/Token 永远不会进入浏览器：
+
+```bash
+ITB_S3_ENDPOINT           # S3 端点 URL
+ITB_S3_ACCESS_KEY_ID      # Access Key ID
+ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_BUCKET             # 存储桶名称
+ITB_S3_REGION             # 区域（默认 us-east-1）
+
+ITB_LSKY_URL              # LskyPro 地址
+ITB_LSKY_TOKEN            # LskyPro API Token
+```
+
+<details>
+<summary>命令参数与 HTTP API</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--addr` | `127.0.0.1:8080` | 监听地址 |
+| `--open` | `false` | 启动后自动打开浏览器 |
+
+WebUI 后端 API 统一前缀 `/api/v1`，例如健康检查：
+
+```bash
+curl http://127.0.0.1:8080/api/v1/health
+```
+
+图片处理端点（`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect` 及 `batch/*`）使用 `multipart/form-data`：`file`（或 `files[]`）+ `options`（JSON 字符串），处理结果直接以图片二进制流返回。
+
+</details>
+
+<details>
+<summary>从源码构建</summary>
+
+```bash
+make build    # 构建 WebUI（npm）后编译 itb
+make serve    # 构建并启动 WebUI
+make check    # go vet + 前端 type-check + lint
+make test     # go test + 前端测试
+```
+
+本地开发前端时可用 `cd web && npm run dev`（Vite 开发服务器会把 `/api` 代理到 `127.0.0.1:8080`）。
+
+</details>
+
 ## S3 兼容存储操作
 
 支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
@@ -315,6 +387,7 @@ ITB_S3_ENDPOINT           # S3 端点 URL（可选）
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # 区域（默认 us-east-1）
+ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
 ```
 
 <details>

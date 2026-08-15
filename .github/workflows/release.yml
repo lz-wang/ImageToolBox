@@ -133,6 +133,20 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build WebUI
+        shell: bash
+        run: |
+          cd web
+          npm ci
+          npm run build
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 

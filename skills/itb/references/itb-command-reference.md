@@ -166,6 +166,7 @@ ITB_S3_ENDPOINT
 ITB_S3_ACCESS_KEY_ID
 ITB_S3_SECRET_ACCESS_KEY
 ITB_S3_REGION
+ITB_S3_BUCKET
 ```
 
 Common flags:
@@ -216,3 +217,28 @@ Flags:
 - `--token`: API token; prefer `ITB_LSKY_TOKEN`.
 - `-s, --strategy`: storage strategy ID; default `0`.
 - `-o, --output`: `markdown`, `url`, or `json`; default `markdown`.
+
+## Serve (WebUI)
+
+Starts the local-first WebUI. It calls the same Go domain packages as the CLI (no subprocesses) and embeds the built frontend, so a single binary is all you need.
+
+Examples:
+
+```bash
+itb serve
+itb serve --addr 127.0.0.1:9000
+itb serve --open
+curl http://127.0.0.1:8080/api/v1/health
+```
+
+Flags:
+
+- `--addr`: listen address; default `127.0.0.1:8080`. Keep it on loopback unless the network is trusted.
+- `--open`: open the browser after startup; default `false`.
+
+Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect), batch resize/convert/watermark returned as a zip, and storage (S3 list/upload/download/delete, LskyPro upload).
+
+Security notes:
+
+- Credentials for S3/Lsky are read from `ITB_S3_*` / `ITB_LSKY_*` environment variables on the server only; secrets are never sent to the browser.
+- The WebUI is stateless: uploads land in per-request temp directories that are removed after the response.
