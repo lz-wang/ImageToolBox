@@ -176,6 +176,32 @@ export default function ImageLightbox({
 		setScale((current) => Math.min(5, Math.max(0.25, current + amount)))
 	}
 
+	/**
+	 * 以指针位置为缩放中心调整倍率：缩放时同步修正平移量，
+	 * 使指针所指的图像内容在缩放前后保持在同一屏幕位置。
+	 */
+	const zoomAtPointer = (clientX: number, clientY: number, amount: number) => {
+		const next = Math.min(5, Math.max(0.25, scale + amount))
+		if (next === scale) return
+
+		const stage = stageRef.current
+		if (!stage) {
+			setScale(next)
+			return
+		}
+
+		const rect = stage.getBoundingClientRect()
+		const pointerX = clientX - (rect.left + rect.width / 2)
+		const pointerY = clientY - (rect.top + rect.height / 2)
+		const ratio = next / scale
+
+		setPosition({
+			x: pointerX + (position.x - pointerX) * ratio,
+			y: pointerY + (position.y - pointerY) * ratio,
+		})
+		setScale(next)
+	}
+
 	const resetView = () => {
 		setScale(1)
 		setRotation(0)
@@ -259,7 +285,11 @@ export default function ImageLightbox({
 					}}
 					onWheel={(event) => {
 						event.preventDefault()
-						adjustScale(event.deltaY > 0 ? -0.1 : 0.1)
+						zoomAtPointer(
+							event.clientX,
+							event.clientY,
+							event.deltaY > 0 ? -0.1 : 0.1,
+						)
 					}}
 					sx={{
 						maxWidth: 'calc(100vw - 64px)',
