@@ -26,6 +26,9 @@ interface ImageLightboxProps {
 	onClose: () => void
 }
 
+/** 平移边界计算中，图片至少保留在舞台内的可见尺寸（px）。 */
+const MIN_VISIBLE_SIZE = 64
+
 /** 原图与处理结果共用的全屏图片预览。 */
 export default function ImageLightbox({
 	file,
@@ -108,18 +111,53 @@ export default function ImageLightbox({
 		return () => observer.disconnect()
 	}, [open])
 
-	/** 将平移限制在「旋转+缩放后的图片包围盒」不脱离舞台的范围内。 */
+	/**
+	 * 限制平移，使图片可以自由移动，但至少保留一部分处于舞台内，
+	 * 避免图片被完全拖出视口后无法找回。
+	 */
 	const clampPan = useCallback(
 		(pos: { x: number; y: number }) => {
+			if (
+				stageSize.width === 0 ||
+				stageSize.height === 0 ||
+				imageSize.width === 0 ||
+				imageSize.height === 0
+			) {
+				return pos
+			}
+
 			const rad = ((((rotation % 360) + 360) % 360) * Math.PI) / 180
 			const cos = Math.abs(Math.cos(rad))
 			const sin = Math.abs(Math.sin(rad))
+
 			const rotatedWidth =
 				(imageSize.width * cos + imageSize.height * sin) * scale
+
 			const rotatedHeight =
 				(imageSize.width * sin + imageSize.height * cos) * scale
-			const maxX = Math.max(0, (rotatedWidth - stageSize.width) / 2)
-			const maxY = Math.max(0, (rotatedHeight - stageSize.height) / 2)
+
+			const minVisibleX = Math.min(
+				MIN_VISIBLE_SIZE,
+				rotatedWidth,
+				stageSize.width,
+			)
+
+			const minVisibleY = Math.min(
+				MIN_VISIBLE_SIZE,
+				rotatedHeight,
+				stageSize.height,
+			)
+
+			const maxX = Math.max(
+				0,
+				(stageSize.width + rotatedWidth) / 2 - minVisibleX,
+			)
+
+			const maxY = Math.max(
+				0,
+				(stageSize.height + rotatedHeight) / 2 - minVisibleY,
+			)
+
 			return {
 				x: Math.min(maxX, Math.max(-maxX, pos.x)),
 				y: Math.min(maxY, Math.max(-maxY, pos.y)),
@@ -128,7 +166,7 @@ export default function ImageLightbox({
 		[imageSize, rotation, scale, stageSize],
 	)
 
-	// 缩放、旋转或尺寸变化后，把越界的平移收回允许范围（图片完整可见时归零）
+	// 缩放、旋转或尺寸变化后，把越界的平移收回允许范围
 	useEffect(() => {
 		setPosition((current) => clampPan(current))
 	}, [clampPan])
