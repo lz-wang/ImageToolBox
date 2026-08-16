@@ -43,6 +43,7 @@ export default function ImageLightbox({
 	const [rotation, setRotation] = useState(0)
 	const [position, setPosition] = useState({ x: 0, y: 0 })
 	const [showInfo, setShowInfo] = useState(false)
+	const [dragging, setDragging] = useState(false)
 	const dragStart = useRef<{
 		x: number
 		y: number
@@ -217,7 +218,11 @@ export default function ImageLightbox({
 					alt={file.name}
 					draggable={false}
 					onPointerDown={(event) => {
+						event.preventDefault()
 						event.currentTarget.setPointerCapture(event.pointerId)
+
+						setDragging(true)
+
 						dragStart.current = {
 							x: event.clientX,
 							y: event.clientY,
@@ -242,12 +247,15 @@ export default function ImageLightbox({
 					}}
 					onPointerUp={(event) => {
 						dragStart.current = null
+						setDragging(false)
+
 						if (event.currentTarget.hasPointerCapture(event.pointerId)) {
 							event.currentTarget.releasePointerCapture(event.pointerId)
 						}
 					}}
 					onPointerCancel={() => {
 						dragStart.current = null
+						setDragging(false)
 					}}
 					onWheel={(event) => {
 						event.preventDefault()
@@ -257,11 +265,11 @@ export default function ImageLightbox({
 						maxWidth: 'calc(100vw - 64px)',
 						maxHeight: 'calc(100dvh - 120px)',
 						objectFit: 'contain',
-						cursor: 'grab',
+						cursor: dragging ? 'grabbing' : 'grab',
 						userSelect: 'none',
 						touchAction: 'none',
 						transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
-						transition: dragStart.current ? 'none' : 'transform 160ms ease-out',
+						transition: dragging ? 'none' : 'transform 160ms ease-out',
 					}}
 				/>
 			</Box>
