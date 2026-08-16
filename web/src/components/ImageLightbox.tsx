@@ -104,57 +104,70 @@ export default function ImageLightbox({
 						bgcolor: 'rgba(0, 0, 0, 0.92)',
 						m: 0,
 						position: 'relative',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
+						overflow: 'hidden',
 					},
 				},
 			}}
 		>
+			{/* 可变换图片层：裁剪图片 transform 产生的 overflow */}
 			<Box
-				component="img"
-				src={imageUrl}
-				alt={file.name}
-				draggable={false}
-				onPointerDown={(event) => {
-					event.currentTarget.setPointerCapture(event.pointerId)
-					dragStart.current = {
-						x: event.clientX,
-						y: event.clientY,
-						originX: position.x,
-						originY: position.y,
-					}
-				}}
-				onPointerMove={(event) => {
-					if (!dragStart.current) return
-					setPosition({
-						x: dragStart.current.originX + event.clientX - dragStart.current.x,
-						y: dragStart.current.originY + event.clientY - dragStart.current.y,
-					})
-				}}
-				onPointerUp={(event) => {
-					dragStart.current = null
-					event.currentTarget.releasePointerCapture(event.pointerId)
-				}}
-				onPointerCancel={() => {
-					dragStart.current = null
-				}}
-				onWheel={(event) => {
-					event.preventDefault()
-					adjustScale(event.deltaY > 0 ? -0.1 : 0.1)
-				}}
 				sx={{
-					maxWidth: 'calc(100vw - 64px)',
-					maxHeight: 'calc(100vh - 120px)',
-					m: 'auto',
-					objectFit: 'contain',
-					cursor: 'grab',
-					userSelect: 'none',
-					touchAction: 'none',
-					transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
-					transition: dragStart.current ? 'none' : 'transform 160ms ease-out',
+					position: 'absolute',
+					inset: 0,
+					overflow: 'hidden',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
 				}}
-			/>
+			>
+				<Box
+					component="img"
+					src={imageUrl}
+					alt={file.name}
+					draggable={false}
+					onPointerDown={(event) => {
+						event.currentTarget.setPointerCapture(event.pointerId)
+						dragStart.current = {
+							x: event.clientX,
+							y: event.clientY,
+							originX: position.x,
+							originY: position.y,
+						}
+					}}
+					onPointerMove={(event) => {
+						if (!dragStart.current) return
+						setPosition({
+							x:
+								dragStart.current.originX + event.clientX - dragStart.current.x,
+							y:
+								dragStart.current.originY + event.clientY - dragStart.current.y,
+						})
+					}}
+					onPointerUp={(event) => {
+						dragStart.current = null
+						if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+							event.currentTarget.releasePointerCapture(event.pointerId)
+						}
+					}}
+					onPointerCancel={() => {
+						dragStart.current = null
+					}}
+					onWheel={(event) => {
+						event.preventDefault()
+						adjustScale(event.deltaY > 0 ? -0.1 : 0.1)
+					}}
+					sx={{
+						maxWidth: 'calc(100vw - 64px)',
+						maxHeight: 'calc(100dvh - 120px)',
+						objectFit: 'contain',
+						cursor: 'grab',
+						userSelect: 'none',
+						touchAction: 'none',
+						transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+						transition: dragStart.current ? 'none' : 'transform 160ms ease-out',
+					}}
+				/>
+			</Box>
 			<Tooltip title="关闭预览">
 				<IconButton
 					aria-label="关闭图片预览"
@@ -163,6 +176,7 @@ export default function ImageLightbox({
 						position: 'absolute',
 						top: 12,
 						right: 12,
+						zIndex: 2,
 						color: 'text.primary',
 					}}
 				>
@@ -177,6 +191,7 @@ export default function ImageLightbox({
 					bottom: 24,
 					left: '50%',
 					transform: 'translateX(-50%)',
+					zIndex: 2,
 					display: 'flex',
 					gap: 0.5,
 					p: 0.5,
@@ -233,9 +248,10 @@ export default function ImageLightbox({
 						position: 'absolute',
 						top: 64,
 						right: 24,
+						zIndex: 2,
 						width: 280,
 						maxWidth: 'calc(100vw - 48px)',
-						maxHeight: 'calc(100vh - 88px)',
+						maxHeight: 'calc(100dvh - 88px)',
 						overflowY: 'auto',
 						p: 2,
 						borderRadius: 2,
