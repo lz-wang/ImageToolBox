@@ -125,9 +125,22 @@ export default function App() {
 			<CssBaseline />
 			<AppBar position="static">
 				<Toolbar>
-					<Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-						Image Tool Box
-					</Typography>
+					<Stack
+						direction="row"
+						spacing={1.25}
+						sx={{ flexGrow: 1, alignItems: 'center' }}
+					>
+						<Box
+							component="img"
+							src="/logo.svg"
+							alt=""
+							aria-hidden="true"
+							sx={{ width: 32, height: 32 }}
+						/>
+						<Typography variant="h6" component="div">
+							Image Tool Box
+						</Typography>
+					</Stack>
 					<Tooltip title={`主题：${currentThemeOption?.label ?? '跟随设备'}`}>
 						<IconButton
 							color="inherit"

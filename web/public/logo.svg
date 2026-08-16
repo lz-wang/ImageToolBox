@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Image Tool Box</title>
+  <desc id="desc">A framed landscape assembled inside four crop marks</desc>
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <path d="M13 25v-8a4 4 0 0 1 4-4h8v4h-7a1 1 0 0 0-1 1v7h-4ZM39 13h8a4 4 0 0 1 4 4v8h-4v-7a1 1 0 0 0-1-1h-7v-4ZM51 39v8a4 4 0 0 1-4 4h-8v-4h7a1 1 0 0 0 1-1v-7h4ZM25 51h-8a4 4 0 0 1-4-4v-8h4v7a1 1 0 0 0 1 1h7v4Z" fill="#D9FFF7"/>
+  <path d="m19 44 10.5-13 7.2 8 5.3-5.6L48 44H19Z" fill="#2DD4BF"/>
+  <path d="m19 44 10.5-13 4.1 4.6L27 44h-8Z" fill="#5EEAD4"/>
+  <circle cx="41.5" cy="24.5" r="4.5" fill="#FBBF24"/>
+</svg>

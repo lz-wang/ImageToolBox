@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/logo.svg" width="112" height="112" alt="Image Tool Box Logo">
+</p>
+
 # Go Image Toolbox
 
 > **中文文档**：[README.md](./README.md)
