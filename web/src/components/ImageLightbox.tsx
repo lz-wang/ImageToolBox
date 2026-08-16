@@ -14,7 +14,7 @@ import {
 	Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InspectResult } from '../api/client'
 import { inspectImage } from '../api/client'
 import { formatBytes } from '../lib/format'
@@ -46,6 +46,10 @@ export default function ImageLightbox({
 		originX: number
 		originY: number
 	} | null>(null)
+	const stageRef = useRef<HTMLDivElement>(null)
+	const imageRef = useRef<HTMLImageElement>(null)
+	const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
+	const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
 
 	useEffect(() => {
 		if (!open) return
@@ -82,6 +86,53 @@ export default function ImageLightbox({
 		setShowInfo(false)
 	}, [open])
 
+	// 跟踪图片布局尺寸（transform 前的基准）与舞台尺寸，作为平移边界依据
+	useEffect(() => {
+		if (!open) return
+		const stage = stageRef.current
+		const image = imageRef.current
+		if (!stage || !image) return
+
+		const measure = () => {
+			setStageSize({ width: stage.clientWidth, height: stage.clientHeight })
+			setImageSize({
+				width: image.clientWidth || image.naturalWidth,
+				height: image.clientHeight || image.naturalHeight,
+			})
+		}
+
+		measure()
+		const observer = new ResizeObserver(measure)
+		observer.observe(stage)
+		observer.observe(image)
+		return () => observer.disconnect()
+	}, [open])
+
+	/** 将平移限制在「旋转+缩放后的图片包围盒」不脱离舞台的范围内。 */
+	const clampPan = useCallback(
+		(pos: { x: number; y: number }) => {
+			const rad = ((((rotation % 360) + 360) % 360) * Math.PI) / 180
+			const cos = Math.abs(Math.cos(rad))
+			const sin = Math.abs(Math.sin(rad))
+			const rotatedWidth =
+				(imageSize.width * cos + imageSize.height * sin) * scale
+			const rotatedHeight =
+				(imageSize.width * sin + imageSize.height * cos) * scale
+			const maxX = Math.max(0, (rotatedWidth - stageSize.width) / 2)
+			const maxY = Math.max(0, (rotatedHeight - stageSize.height) / 2)
+			return {
+				x: Math.min(maxX, Math.max(-maxX, pos.x)),
+				y: Math.min(maxY, Math.max(-maxY, pos.y)),
+			}
+		},
+		[imageSize, rotation, scale, stageSize],
+	)
+
+	// 缩放、旋转或尺寸变化后，把越界的平移收回允许范围（图片完整可见时归零）
+	useEffect(() => {
+		setPosition((current) => clampPan(current))
+	}, [clampPan])
+
 	const adjustScale = (amount: number) => {
 		setScale((current) => Math.min(5, Math.max(0.25, current + amount)))
 	}
@@ -111,6 +162,7 @@ export default function ImageLightbox({
 		>
 			{/* 可变换图片层：裁剪图片 transform 产生的 overflow */}
 			<Box
+				ref={stageRef}
 				sx={{
 					position: 'absolute',
 					inset: 0,
@@ -122,6 +174,7 @@ export default function ImageLightbox({
 			>
 				<Box
 					component="img"
+					ref={imageRef}
 					src={imageUrl}
 					alt={file.name}
 					draggable={false}
@@ -136,12 +189,18 @@ export default function ImageLightbox({
 					}}
 					onPointerMove={(event) => {
 						if (!dragStart.current) return
-						setPosition({
-							x:
-								dragStart.current.originX + event.clientX - dragStart.current.x,
-							y:
-								dragStart.current.originY + event.clientY - dragStart.current.y,
-						})
+						setPosition(
+							clampPan({
+								x:
+									dragStart.current.originX +
+									event.clientX -
+									dragStart.current.x,
+								y:
+									dragStart.current.originY +
+									event.clientY -
+									dragStart.current.y,
+							}),
+						)
 					}}
 					onPointerUp={(event) => {
 						dragStart.current = null
