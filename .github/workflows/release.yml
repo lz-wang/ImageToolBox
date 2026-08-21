@@ -392,6 +392,25 @@ jobs:
           $checksum = "$hash  $(Split-Path -Leaf $archive)`n"
           [System.IO.File]::WriteAllText("$archive.sha256", $checksum, [System.Text.UTF8Encoding]::new($false))
 
+      - name: Resolve WebDAV archive name
+        id: archive
+        shell: bash
+        run: |
+          target="${{ matrix.target.name }}"
+          echo "target=${target//-/_}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload archive and checksum to WebDAV
+        continue-on-error: true
+        uses: bxb100/action-upload-webdav@v1
+        with:
+          webdav_address: ${{ secrets.WEBDAV_SERVER }}
+          webdav_username: ${{ secrets.WEBDAV_USERNAME }}
+          webdav_password: ${{ secrets.WEBDAV_PASSWORD }}
+          webdav_upload_path: "/Shares/github/${{ github.repository }}/${{ needs.prepare.outputs.version }}"
+          files: |
+            release-assets/itb_${{ needs.prepare.outputs.version }}_${{ steps.archive.outputs.target }}.${{ matrix.target.archive_ext }}
+            release-assets/itb_${{ needs.prepare.outputs.version }}_${{ steps.archive.outputs.target }}.${{ matrix.target.archive_ext }}.sha256
+
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
