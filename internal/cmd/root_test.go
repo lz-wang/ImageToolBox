@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -23,7 +24,8 @@ func runContract(args ...string) error {
 	return testApp().Run(context.Background(), append([]string{"itb"}, args...))
 }
 
-func TestRootHelpListsCommands(t *testing.T) {
+// TestRootCommands 检查根命令注册的子命令清单。
+func TestRootCommands(t *testing.T) {
 	app := testApp()
 
 	want := []string{"compress", "resize", "crop", "convert", "watermark", "inspect", "s3", "serve", "version"}
@@ -37,6 +39,30 @@ func TestRootHelpListsCommands(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("root command missing subcommand %q", name)
+		}
+	}
+}
+
+// TestRootHelpOutput 真正执行 `itb --help`，验证命令清单出现在
+// 帮助输出中、已删除的命令不再被宣传。
+func TestRootHelpOutput(t *testing.T) {
+	app := testApp()
+	var buf bytes.Buffer
+	app.Writer = &buf
+
+	if err := app.Run(context.Background(), []string{"itb", "--help"}); err != nil {
+		t.Fatalf("help failed: %v", err)
+	}
+
+	out := buf.String()
+	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "inspect", "s3", "serve", "version"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("help output missing command %q", name)
+		}
+	}
+	for _, name := range []string{"batch", "lsky"} {
+		if strings.Contains(out, name) {
+			t.Errorf("help output should not mention removed command %q", name)
 		}
 	}
 }
