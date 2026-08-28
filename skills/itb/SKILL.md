@@ -1,6 +1,6 @@
 ---
 name: itb
-description: Use the `itb` CLI in image-processing workflows. Trigger when a user asks to compress, crop, resize, convert, watermark, batch-process images, upload images to LskyPro, launch the `itb serve` WebUI, or choose the right `itb` command/flags for an image workflow.
+description: Use the `itb` CLI in image-processing workflows. Trigger when a user asks to compress, crop, resize, convert, watermark, batch-process images, upload images to S3-compatible storage, upload images to LskyPro, launch the `itb serve` WebUI, or choose the right `itb` command/flags for an image workflow.
 ---
 
 # ITB
@@ -18,6 +18,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion.
    - `watermark` for text or image watermarking.
    - `batch` for repeated `resize`, `convert`, or `watermark` over directories.
+   - `s3` for S3-compatible upload/download/list/stat/delete.
    - `lsky upload` for LskyPro image hosting.
    - `serve` for the interactive local WebUI (browser-based, same processing core as the CLI).
 4. Prefer explicit `-o` / `--output` for single-file transformations so follow-up steps can use predictable paths.
@@ -48,7 +49,9 @@ itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to we
 ## Safety Rules
 
 - Do not omit `-o` with `compress` unless overwriting the original is intended; `compress` overwrites input when no output is provided.
-- Do not print secrets. Prefer environment variables for `ITB_LSKY_*` credentials.
+- Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
+- Do not print secrets. Prefer environment variables for `ITB_S3_*` and `ITB_LSKY_*` credentials.
+- Use `--force-path-style` for MinIO-style endpoints when needed.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
 - `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.

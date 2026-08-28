@@ -15,7 +15,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "itb",
 	Short: "图片处理工具箱",
-	Long: `一个图片处理 CLI 工具箱，提供压缩、水印、图床上传等功能。
+	Long: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
 
 功能:
   - crop: 图片裁剪，基于锚点和百分比保留目标区域
@@ -25,6 +25,7 @@ var rootCmd = &cobra.Command{
   - watermark: 添加文字水印，支持位置和重复平铺两种模式
   - inspect: 检查图片元数据和文件 hash
   - batch: 批量执行 resize/convert/watermark
+  - s3: S3 兼容存储操作（上传、下载、删除、列表）
   - lsky: 上传图片到 LskyPro 图床`,
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }

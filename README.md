@@ -367,6 +367,170 @@ make test     # go test + 前端测试
 
 </details>
 
+## S3 兼容存储操作
+
+支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
+
+### 环境变量
+
+```bash
+ITB_S3_ENDPOINT           # S3 端点 URL（可选）
+ITB_S3_ACCESS_KEY_ID      # Access Key ID
+ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_REGION             # 区域（默认 us-east-1）
+ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
+```
+
+<details>
+<summary>公共参数</summary>
+
+所有 S3 子命令共享以下参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-e, --endpoint` | (必填) | S3 端点 URL |
+| `-a, --access-key` | (环境变量) | Access Key ID |
+| `-s, --secret-key` | (环境变量) | Secret Access Key |
+| `-r, --region` | `us-east-1` | 区域 |
+| `-b, --bucket` | (必填) | 存储桶名称 |
+| `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要） |
+
+</details>
+
+### 上传文件
+
+```bash
+# 上传文件到存储桶
+./itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
+
+# 指定对象键名（默认使用文件名）
+./itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+
+# 指定 Content-Type
+./itb s3 upload -i data.json -b my-bucket --content-type application/json
+
+# 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
+./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+
+# 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
+./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+```
+
+上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
+`--skip-unchanged` 依赖该值判断远端对象与本地是否一致；默认行为仍是无条件覆盖。
+
+<details>
+<summary>upload 参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-i, --input` | (必填) | 本地文件路径 |
+| `-k, --key` | 文件名 | 对象键名 |
+| `--content-type` | 自动检测 | 内容类型 |
+| `--skip-existing` | `false` | 对象键已存在即跳过上传 |
+| `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
+
+</details>
+
+### 下载文件
+
+```bash
+# 下载文件
+./itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
+
+# 使用对象键名作为本地文件名
+./itb s3 download -b my-bucket -k images/photo.jpg
+```
+
+<details>
+<summary>download 参数</summary>
+
+| 参数 | 说明 |
+|------|------|
+| `-k, --key` | 对象键名（必填） |
+| `-o, --output` | 本地输出路径（默认使用对象键名） |
+
+</details>
+
+### 删除对象
+
+```bash
+# 删除对象（需要确认）
+./itb s3 delete -b my-bucket -k photo.jpg
+
+# 强制删除（不需要确认）
+./itb s3 delete -b my-bucket -k photo.jpg -f
+```
+
+<details>
+<summary>delete 参数</summary>
+
+| 参数 | 说明 |
+|------|------|
+| `-k, --key` | 对象键名（必填） |
+| `-f, --force` | 强制删除，不确认 |
+
+</details>
+
+### 列出对象
+
+```bash
+# 列出所有对象
+./itb s3 list -b my-bucket
+
+# 按前缀过滤
+./itb s3 list -b my-bucket -p images/
+
+# JSON 格式输出
+./itb s3 list -b my-bucket --format json
+```
+
+<details>
+<summary>list 参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-p, --prefix` | | 对象键前缀 |
+| `--max-keys` | `1000` | 最大返回数量 |
+| `--format` | `table` | 输出格式：`table` / `json` / `plain` |
+
+</details>
+
+### 查看对象元数据
+
+```bash
+# 查看单个对象的完整元数据（只发一次 HEAD 请求，不下载内容）
+./itb s3 stat -b my-bucket -k images/photo.jpg
+
+# JSON 格式输出
+./itb s3 stat -b my-bucket -k images/photo.jpg --format json
+```
+
+stat 始终按精确对象键查询，对象不存在时不回退到 list 推断。返回的元数据包括
+Size、ETag、Content-Type、Storage Class、Cache-Control、Version ID 与用户 Metadata。
+
+<details>
+<summary>stat 参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-k, --key` | (必填) | 对象键名 |
+| `--format` | `table` | 输出格式：`table` / `json` |
+
+</details>
+
+<details>
+<summary>云服务商配置示例</summary>
+
+| 云服务商 | Endpoint 示例 | ForcePathStyle |
+|---------|---------------|----------------|
+| AWS S3 | `https://s3.amazonaws.com` | `false` |
+| MinIO | `http://localhost:9000` | `true` |
+| 阿里云 OSS | `https://oss-cn-hangzhou.aliyuncs.com` | `false` |
+| 腾讯云 COS | `https://cos.ap-guangzhou.myqcloud.com` | `false` |
+
+</details>
+
 ## LskyPro 上传
 
 支持上传图片到 LskyPro 图床，兼容直接传站点根地址或完整的 `/api/v1` 地址。

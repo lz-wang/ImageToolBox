@@ -155,6 +155,56 @@ Common flags:
 
 Task-specific batch flags mirror the matching single-file command, except output paths are generated automatically.
 
+## S3-Compatible Storage
+
+Supports AWS S3, MinIO, Alibaba OSS, Tencent COS, and other S3-compatible services.
+
+Environment variables:
+
+```bash
+ITB_S3_ENDPOINT
+ITB_S3_ACCESS_KEY_ID
+ITB_S3_SECRET_ACCESS_KEY
+ITB_S3_REGION
+ITB_S3_BUCKET
+```
+
+Common flags:
+
+- `-e, --endpoint`: S3 endpoint URL.
+- `-a, --access-key`: access key; prefer environment variables.
+- `-s, --secret-key`: secret key; prefer environment variables.
+- `-r, --region`: default `us-east-1`.
+- `-b, --bucket`: required bucket.
+- `--force-path-style`: often required for MinIO.
+
+Examples:
+
+```bash
+itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000 --force-path-style
+itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
+itb s3 list -b my-bucket -p images/ --format json
+itb s3 stat -b my-bucket -k images/photo.jpg
+itb s3 stat -b my-bucket -k images/photo.jpg --format json
+itb s3 delete -b my-bucket -k images/photo.jpg
+itb s3 delete -b my-bucket -k images/photo.jpg -f
+```
+
+Use `s3 delete -f` only for explicitly requested non-interactive deletion.
+
+`s3 stat` shows full metadata of one object with a single HEAD request (no
+content transfer) and never falls back to list inference; prefer it over
+`s3 list`/`s3 download` when only checking whether an object exists or
+inspecting its metadata.
+
+`s3 upload` stores the file's SHA-256 in `x-amz-meta-itb-sha256` metadata by
+default. `--skip-existing` skips when the key exists; `--skip-unchanged`
+skips only when that metadata hash matches the local file (never rely on
+ETag for this). Default upload always overwrites.
+
 ## LskyPro Upload
 
 Environment variables:

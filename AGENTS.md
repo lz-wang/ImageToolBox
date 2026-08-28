@@ -34,9 +34,9 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 ```
 
 - `internal/cmd`：所有 `cobra.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
-- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`batch`、`lsky`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 cobra**。这种解耦使 `batch` 与 Web API 能直接复用领域包的处理函数。
+- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`batch`、`s3`、`lsky`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 cobra**。这种解耦使 `batch` 与 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
-- `internal/lsky`：图床上传后端，通过 `cmd/lsky.go` 暴露为子命令，凭证优先读环境变量。
+- `internal/s3`、`internal/lsky`：存储后端，通过 `cmd/s3.go`、`cmd/lsky.go` 暴露为子命令，凭证优先读环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不再提供任何存储相关 API。
 - `internal/server`：`itb serve` 的 Gin HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程；静态资源 SPA 回退。
 - `web/`：React 19 + TypeScript + Vite + MUI + Emotion + Biome 前端，构建产物经 `//go:embed all:web/dist` 内嵌（`web/dist/.placeholder` 是未构建时的兜底，必须保留在 git 中）。
 

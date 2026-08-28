@@ -6,8 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- 移除 S3 兼容存储功能及 `itb s3` 命令（upload/download/delete/list/stat）与 `ITB_S3_*` 环境变量，`aws-sdk-go-v2`/`smithy-go` 依赖随之全部移除。
-- WebUI 收敛为图像处理功能（压缩/缩放/裁剪/转换/水印），删除 `/api/v1/s3/*` 接口与前端 S3 面板。
+- WebUI 移除 S3 面板与 `/api/v1/s3/*` 接口；WebUI 收敛为图像处理功能（压缩/缩放/裁剪/转换/水印）。`itb s3` CLI 与 `ITB_S3_*` 环境变量不受影响。
 - WebUI 移除 Lsky 上传接口 `/api/v1/lsky/images`、前端 `LskyPanel` 与整个 `web/src/storage/` 目录；Lsky 上传仍可通过 `itb lsky` CLI 使用。
 
 ## [v0.4.1] - 2026-08-13
