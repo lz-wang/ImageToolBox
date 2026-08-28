@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -27,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cmd.Execute(version, staticFS); err != nil {
+	if err := cmd.Execute(context.Background(), version, staticFS); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

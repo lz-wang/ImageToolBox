@@ -1,65 +1,78 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/convert"
 )
 
-var (
-	convertInputFile  string
-	convertOutputFile string
-	convertTo         string
-	convertQuality    int
-	convertLossless   bool
-	convertBackground string
-)
+func newConvertCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "convert",
+		Usage: "转换图片格式",
+		Description: `转换图片格式。
 
-var convertCmd = &cobra.Command{
-	Use:   "convert",
-	Short: "转换图片格式",
-	Example: `  itb convert -i photo.png --to webp
+示例:
+  itb convert -i photo.png --to webp
   itb convert -i photo.png --to jpg --background "#FFFFFF"
   itb convert -i photo.jpg --to png -o converted.png`,
-	RunE: runConvert,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "input",
+				Aliases:  []string{"i"},
+				Usage:    "输入图片文件路径",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "输出图片文件路径",
+			},
+			&cli.StringFlag{
+				Name:     "to",
+				Usage:    "目标格式: jpg/jpeg/png/webp",
+				Required: true,
+			},
+			&cli.IntFlag{
+				Name:    "quality",
+				Aliases: []string{"q"},
+				Value:   80,
+				Usage:   "输出质量 (1-100)",
+			},
+			&cli.BoolFlag{
+				Name:  "lossless",
+				Usage: "使用无损编码（webp/png）",
+			},
+			&cli.StringFlag{
+				Name:  "background",
+				Value: "#FFFFFF",
+				Usage: "透明图转不透明格式时的背景色",
+			},
+		},
+		Action: runConvert,
+	}
 }
 
-func init() {
-	rootCmd.AddCommand(convertCmd)
+func runConvert(ctx context.Context, cmd *cli.Command) error {
+	inputFile := cmd.String("input")
+	to := cmd.String("to")
 
-	convertCmd.Flags().StringVarP(&convertInputFile, "input", "i", "", "输入图片文件路径")
-	convertCmd.Flags().StringVarP(&convertOutputFile, "output", "o", "", "输出图片文件路径")
-	convertCmd.Flags().StringVar(&convertTo, "to", "", "目标格式: jpg/jpeg/png/webp")
-	convertCmd.Flags().IntVarP(&convertQuality, "quality", "q", 80, "输出质量 (1-100)")
-	convertCmd.Flags().BoolVar(&convertLossless, "lossless", false, "使用无损编码（webp/png）")
-	convertCmd.Flags().StringVar(&convertBackground, "background", "#FFFFFF", "透明图转不透明格式时的背景色")
-	convertCmd.MarkFlagRequired("input")
-	convertCmd.MarkFlagRequired("to")
-}
-
-func runConvert(cmd *cobra.Command, args []string) error {
-	if convertInputFile == "" {
-		return fmt.Errorf("必须指定输入文件路径 (-i)")
-	}
-	if convertTo == "" {
-		return fmt.Errorf("必须指定目标格式 (--to)")
-	}
-
-	outputPath := convertOutputFile
+	outputPath := cmd.String("output")
 	if outputPath == "" {
 		var err error
-		outputPath, err = convert.DefaultOutputPath(convertInputFile, convertTo)
+		outputPath, err = convert.DefaultOutputPath(inputFile, to)
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := convert.ConvertFile(convertInputFile, outputPath, convert.Options{
-		To:         convertTo,
-		Quality:    convertQuality,
-		Lossless:   convertLossless,
-		Background: convertBackground,
+	if err := convert.ConvertFile(inputFile, outputPath, convert.Options{
+		To:         to,
+		Quality:    cmd.Int("quality"),
+		Lossless:   cmd.Bool("lossless"),
+		Background: cmd.String("background"),
 	}); err != nil {
 		return fmt.Errorf("转换失败: %w", err)
 	}

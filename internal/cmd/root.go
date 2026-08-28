@@ -1,21 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"io/fs"
+	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 )
 
-var (
-	// Version 由 main 通过 Execute 传入
-	version string
-)
-
-// rootCmd 根命令
-var rootCmd = &cobra.Command{
-	Use:   "itb",
-	Short: "图片处理工具箱",
-	Long: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
+// New 构造 itb 根命令。version 由 main 注入，staticFS 为 WebUI
+// 静态资源（web/dist），仅 serve 命令使用。
+func New(version string, staticFS fs.FS) *cli.Command {
+	return &cli.Command{
+		Name:  "itb",
+		Usage: "图片处理工具箱",
+		Description: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
 
 功能:
   - crop: 图片裁剪，基于锚点和百分比保留目标区域
@@ -25,13 +24,21 @@ var rootCmd = &cobra.Command{
   - watermark: 添加文字水印，支持位置和重复平铺两种模式
   - inspect: 检查图片元数据和文件 hash
   - s3: S3 兼容存储操作（上传、下载、删除、列表）`,
-	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+		Commands: []*cli.Command{
+			newCompressCommand(),
+			newResizeCommand(),
+			newCropCommand(),
+			newConvertCommand(),
+			newWatermarkCommand(),
+			newInspectCommand(),
+			newS3Command(),
+			newServeCommand(staticFS),
+			newVersionCommand(version),
+		},
+	}
 }
 
-// Execute 执行根命令。staticFS 为 WebUI 静态资源（web/dist），
-// 仅 serve 命令使用。
-func Execute(v string, staticFS fs.FS) error {
-	version = v
-	webFS = staticFS
-	return rootCmd.Execute()
+// Execute 运行根命令。
+func Execute(ctx context.Context, version string, staticFS fs.FS) error {
+	return New(version, staticFS).Run(ctx, os.Args)
 }

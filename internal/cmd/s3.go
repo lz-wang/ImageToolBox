@@ -6,76 +6,75 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/s3"
 )
 
-// s3 公共参数
-var (
-	s3Endpoint       string
-	s3AccessKey      string
-	s3SecretKey      string
-	s3Region         string
-	s3Bucket         string
-	s3ForcePathStyle bool
-)
-
-// s3 upload 参数
-var (
-	s3UploadInput         string
-	s3UploadKey           string
-	s3UploadContentType   string
-	s3UploadSkipExisting  bool
-	s3UploadSkipUnchanged bool
-)
-
-// s3 download 参数
-var (
-	s3DownloadKey    string
-	s3DownloadOutput string
-)
-
-// s3 delete 参数
-var (
-	s3DeleteKey   string
-	s3DeleteForce bool
-)
-
-// s3 list 参数
-var (
-	s3ListPrefix  string
-	s3ListMaxKeys int
-	s3ListFormat  string
-)
-
-// s3 stat 参数
-var (
-	s3StatKey    string
-	s3StatFormat string
-)
-
-// S3 命令
-var s3Cmd = &cobra.Command{
-	Use:   "s3",
-	Short: "S3 兼容存储操作",
-	Long: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
+func newS3Command() *cli.Command {
+	return &cli.Command{
+		Name:  "s3",
+		Usage: "S3 兼容存储操作",
+		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
 环境变量支持:
   ITB_S3_ENDPOINT           自定义端点
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
   ITB_S3_REGION             区域（默认 us-east-1）`,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "endpoint",
+				Aliases: []string{"e"},
+				Usage:   "S3 端点 URL",
+			},
+			&cli.StringFlag{
+				Name:    "access-key",
+				Aliases: []string{"a"},
+				Usage:   "Access Key ID（默认从环境变量读取）",
+			},
+			&cli.StringFlag{
+				Name:    "secret-key",
+				Aliases: []string{"s"},
+				Usage:   "Secret Access Key（默认从环境变量读取）",
+			},
+			&cli.StringFlag{
+				Name:    "region",
+				Aliases: []string{"r"},
+				Usage:   "区域（默认从 ITB_S3_REGION 读取，未设置时为 us-east-1）",
+			},
+			&cli.StringFlag{
+				Name:     "bucket",
+				Aliases:  []string{"b"},
+				Usage:    "存储桶名称",
+				Required: true,
+			},
+			&cli.BoolFlag{
+				Name:  "force-path-style",
+				Usage: "强制路径样式 URL（MinIO 需要）",
+			},
+		},
+		Commands: []*cli.Command{
+			newS3UploadCommand(),
+			newS3DownloadCommand(),
+			newS3DeleteCommand(),
+			newS3ListCommand(),
+			newS3StatCommand(),
+		},
+	}
 }
 
-var s3UploadCmd = &cobra.Command{
-	Use:   "upload",
-	Short: "上传文件到存储桶",
-	Long: `上传本地文件到 S3 兼容存储桶。
+func newS3UploadCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "upload",
+		Usage: "上传文件到存储桶",
+		Description: `上传本地文件到 S3 兼容存储桶。
 
 默认无条件覆盖同名对象。上传时会把本地文件的 SHA-256 写入对象
 metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
---skip-existing 与 --skip-unchanged 互斥，同时使用会报参数错误。`,
-	Example: `  # 上传文件
+--skip-existing 与 --skip-unchanged 互斥，同时使用会报参数错误。
+
+示例:
+  # 上传文件
   itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
 
   # 指定对象键名
@@ -89,38 +88,112 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 
   # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
   itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged`,
-	RunE: runS3Upload,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "input",
+				Aliases:  []string{"i"},
+				Usage:    "本地文件路径",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "key",
+				Aliases: []string{"k"},
+				Usage:   "对象键名（默认使用文件名）",
+			},
+			&cli.StringFlag{
+				Name:  "content-type",
+				Usage: "内容类型（自动检测）",
+			},
+		},
+		// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
+		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
+			{
+				Flags: [][]cli.Flag{
+					{
+						&cli.BoolFlag{
+							Name:  "skip-existing",
+							Usage: "对象键已存在即跳过上传",
+						},
+					},
+					{
+						&cli.BoolFlag{
+							Name:  "skip-unchanged",
+							Usage: "内容一致才跳过上传（比对 itb-sha256 metadata）",
+						},
+					},
+				},
+			},
+		},
+		Action: runS3Upload,
+	}
 }
 
-var s3DownloadCmd = &cobra.Command{
-	Use:   "download",
-	Short: "从存储桶下载文件",
-	Long:  `从 S3 兼容存储桶下载文件到本地。`,
-	Example: `  # 下载文件
+func newS3DownloadCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "download",
+		Usage: "从存储桶下载文件",
+		Description: `从 S3 兼容存储桶下载文件到本地。
+
+示例:
+  # 下载文件
   itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
 
   # 使用默认文件名
   itb s3 download -b my-bucket -k images/photo.jpg`,
-	RunE: runS3Download,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "key",
+				Aliases:  []string{"k"},
+				Usage:    "对象键名",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "本地输出路径（默认使用对象键名）",
+			},
+		},
+		Action: runS3Download,
+	}
 }
 
-var s3DeleteCmd = &cobra.Command{
-	Use:   "delete",
-	Short: "从存储桶删除对象",
-	Long:  `从 S3 兼容存储桶删除指定对象。`,
-	Example: `  # 删除对象（需要确认）
+func newS3DeleteCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "delete",
+		Usage: "从存储桶删除对象",
+		Description: `从 S3 兼容存储桶删除指定对象。
+
+示例:
+  # 删除对象（需要确认）
   itb s3 delete -b my-bucket -k photo.jpg
 
   # 强制删除（不需要确认）
   itb s3 delete -b my-bucket -k photo.jpg -f`,
-	RunE: runS3Delete,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "key",
+				Aliases:  []string{"k"},
+				Usage:    "对象键名",
+				Required: true,
+			},
+			&cli.BoolFlag{
+				Name:    "force",
+				Aliases: []string{"f"},
+				Usage:   "强制删除，不确认",
+			},
+		},
+		Action: runS3Delete,
+	}
 }
 
-var s3ListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "列出存储桶中的对象",
-	Long:  `列出 S3 兼容存储桶中的对象。`,
-	Example: `  # 列出所有对象
+func newS3ListCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "list",
+		Usage: "列出存储桶中的对象",
+		Description: `列出 S3 兼容存储桶中的对象。
+
+示例:
+  # 列出所有对象
   itb s3 list -b my-bucket
 
   # 按前缀过滤
@@ -128,78 +201,66 @@ var s3ListCmd = &cobra.Command{
 
   # JSON 格式输出
   itb s3 list -b my-bucket --format json`,
-	RunE: runS3List,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "prefix",
+				Aliases: []string{"p"},
+				Usage:   "对象键前缀",
+			},
+			&cli.IntFlag{
+				Name:  "max-keys",
+				Value: 1000,
+				Usage: "最大返回数量",
+			},
+			&cli.StringFlag{
+				Name:  "format",
+				Value: "table",
+				Usage: "输出格式: table/json/plain",
+			},
+		},
+		Action: runS3List,
+	}
 }
 
-var s3StatCmd = &cobra.Command{
-	Use:   "stat",
-	Short: "查看对象元数据（不下载内容）",
-	Long: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
+func newS3StatCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "stat",
+		Usage: "查看对象元数据（不下载内容）",
+		Description: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
 
-对象不存在时不回退到 list 推断，始终按精确对象键查询。`,
-	Example: `  # 查看对象元数据
+对象不存在时不回退到 list 推断，始终按精确对象键查询。
+
+示例:
+  # 查看对象元数据
   itb s3 stat -b my-bucket -k images/photo.jpg
 
   # JSON 格式输出
   itb s3 stat -b my-bucket -k images/photo.jpg --format json`,
-	RunE: runS3Stat,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "key",
+				Aliases:  []string{"k"},
+				Usage:    "对象键名",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:  "format",
+				Value: "table",
+				Usage: "输出格式: table/json",
+			},
+		},
+		Action: runS3Stat,
+	}
 }
 
-func init() {
-	rootCmd.AddCommand(s3Cmd)
-
-	// 添加子命令
-	s3Cmd.AddCommand(s3UploadCmd, s3DownloadCmd, s3DeleteCmd, s3ListCmd, s3StatCmd)
-
-	// S3 公共参数使用 PersistentFlags（子命令自动继承）
-	s3Cmd.PersistentFlags().StringVarP(&s3Endpoint, "endpoint", "e", "", "S3 端点 URL")
-	s3Cmd.PersistentFlags().StringVarP(&s3AccessKey, "access-key", "a", "", "Access Key ID（默认从环境变量读取）")
-	s3Cmd.PersistentFlags().StringVarP(&s3SecretKey, "secret-key", "s", "", "Secret Access Key（默认从环境变量读取）")
-	s3Cmd.PersistentFlags().StringVarP(&s3Region, "region", "r", "", "区域（默认从 ITB_S3_REGION 读取，未设置时为 us-east-1）")
-	s3Cmd.PersistentFlags().StringVarP(&s3Bucket, "bucket", "b", "", "存储桶名称")
-	s3Cmd.PersistentFlags().BoolVar(&s3ForcePathStyle, "force-path-style", false, "强制路径样式 URL（MinIO 需要）")
-	s3Cmd.MarkPersistentFlagRequired("bucket")
-
-	// S3 upload 参数
-	s3UploadCmd.Flags().StringVarP(&s3UploadInput, "input", "i", "", "本地文件路径")
-	s3UploadCmd.Flags().StringVarP(&s3UploadKey, "key", "k", "", "对象键名（默认使用文件名）")
-	s3UploadCmd.Flags().StringVar(&s3UploadContentType, "content-type", "", "内容类型（自动检测）")
-	s3UploadCmd.Flags().BoolVar(&s3UploadSkipExisting, "skip-existing", false, "对象键已存在即跳过上传")
-	s3UploadCmd.Flags().BoolVar(&s3UploadSkipUnchanged, "skip-unchanged", false, "内容一致才跳过上传（比对 itb-sha256 metadata）")
-	s3UploadCmd.MarkFlagRequired("input")
-
-	// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
-	s3UploadCmd.MarkFlagsMutuallyExclusive("skip-existing", "skip-unchanged")
-
-	// S3 download 参数
-	s3DownloadCmd.Flags().StringVarP(&s3DownloadKey, "key", "k", "", "对象键名")
-	s3DownloadCmd.Flags().StringVarP(&s3DownloadOutput, "output", "o", "", "本地输出路径（默认使用对象键名）")
-	s3DownloadCmd.MarkFlagRequired("key")
-
-	// S3 delete 参数
-	s3DeleteCmd.Flags().StringVarP(&s3DeleteKey, "key", "k", "", "对象键名")
-	s3DeleteCmd.Flags().BoolVarP(&s3DeleteForce, "force", "f", false, "强制删除，不确认")
-	s3DeleteCmd.MarkFlagRequired("key")
-
-	// S3 list 参数
-	s3ListCmd.Flags().StringVarP(&s3ListPrefix, "prefix", "p", "", "对象键前缀")
-	s3ListCmd.Flags().IntVar(&s3ListMaxKeys, "max-keys", 1000, "最大返回数量")
-	s3ListCmd.Flags().StringVar(&s3ListFormat, "format", "table", "输出格式: table/json/plain")
-
-	// S3 stat 参数
-	s3StatCmd.Flags().StringVarP(&s3StatKey, "key", "k", "", "对象键名")
-	s3StatCmd.Flags().StringVar(&s3StatFormat, "format", "table", "输出格式: table/json")
-	s3StatCmd.MarkFlagRequired("key")
-}
-
-func newS3Client(ctx context.Context) (*s3.Client, error) {
+func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 	cfg := &s3.Config{
-		Endpoint:        s3Endpoint,
-		AccessKeyID:     s3AccessKey,
-		SecretAccessKey: s3SecretKey,
-		Region:          s3Region,
-		Bucket:          s3Bucket,
-		ForcePathStyle:  s3ForcePathStyle,
+		Endpoint:        cmd.String("endpoint"),
+		AccessKeyID:     cmd.String("access-key"),
+		SecretAccessKey: cmd.String("secret-key"),
+		Region:          cmd.String("region"),
+		Bucket:          cmd.String("bucket"),
+		ForcePathStyle:  cmd.Bool("force-path-style"),
 	}
 	cfg.LoadFromEnv()
 
@@ -210,59 +271,51 @@ func newS3Client(ctx context.Context) (*s3.Client, error) {
 	return s3.NewClient(ctx, cfg)
 }
 
-func runS3Upload(cmd *cobra.Command, args []string) error {
-	if s3UploadInput == "" {
-		return fmt.Errorf("必须指定输入文件路径 (-i)")
-	}
-
-	client, err := newS3Client(cmd.Context())
+func runS3Upload(ctx context.Context, cmd *cli.Command) error {
+	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
 	// 默认使用文件名作为对象键
-	key := s3UploadKey
+	input := cmd.String("input")
+	key := cmd.String("key")
 	if key == "" {
-		key = filepath.Base(s3UploadInput)
+		key = filepath.Base(input)
 	}
 
 	opts := &s3.UploadOptions{
-		ContentType:   s3UploadContentType,
-		SkipExisting:  s3UploadSkipExisting,
-		SkipUnchanged: s3UploadSkipUnchanged,
+		ContentType:   cmd.String("content-type"),
+		SkipExisting:  cmd.Bool("skip-existing"),
+		SkipUnchanged: cmd.Bool("skip-unchanged"),
 	}
 
-	_, err = s3.Upload(cmd.Context(), client, s3UploadInput, key, opts)
+	_, err = s3.Upload(ctx, client, input, key, opts)
 	return err
 }
 
-func runS3Download(cmd *cobra.Command, args []string) error {
-	if s3DownloadKey == "" {
-		return fmt.Errorf("必须指定对象键名 (-k)")
-	}
-
-	client, err := newS3Client(cmd.Context())
+func runS3Download(ctx context.Context, cmd *cli.Command) error {
+	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
 	// 默认使用对象键名作为本地文件名
-	output := s3DownloadOutput
+	key := cmd.String("key")
+	output := cmd.String("output")
 	if output == "" {
-		output = filepath.Base(s3DownloadKey)
+		output = filepath.Base(key)
 	}
 
-	return s3.Download(cmd.Context(), client, s3DownloadKey, output, nil)
+	return s3.Download(ctx, client, key, output, nil)
 }
 
-func runS3Delete(cmd *cobra.Command, args []string) error {
-	if s3DeleteKey == "" {
-		return fmt.Errorf("必须指定对象键名 (-k)")
-	}
+func runS3Delete(ctx context.Context, cmd *cli.Command) error {
+	key := cmd.String("key")
 
 	// 确认删除
-	if !s3DeleteForce {
-		fmt.Printf("确定要删除 s3://%s/%s 吗？(y/N): ", s3Bucket, s3DeleteKey)
+	if !cmd.Bool("force") {
+		fmt.Printf("确定要删除 s3://%s/%s 吗？(y/N): ", cmd.String("bucket"), key)
 		var confirm string
 		fmt.Scanln(&confirm)
 		if strings.ToLower(confirm) != "y" {
@@ -271,49 +324,45 @@ func runS3Delete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := newS3Client(cmd.Context())
+	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
-	return s3.Delete(cmd.Context(), client, s3DeleteKey, nil)
+	return s3.Delete(ctx, client, key, nil)
 }
 
-func runS3List(cmd *cobra.Command, args []string) error {
-	client, err := newS3Client(cmd.Context())
+func runS3List(ctx context.Context, cmd *cli.Command) error {
+	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
 	opts := &s3.ListOptions{
-		Prefix:  s3ListPrefix,
-		MaxKeys: int32(s3ListMaxKeys),
+		Prefix:  cmd.String("prefix"),
+		MaxKeys: int32(cmd.Int("max-keys")),
 	}
 
-	objects, err := s3.List(cmd.Context(), client, opts)
+	objects, err := s3.List(ctx, client, opts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(s3.FormatOutput(objects, s3ListFormat))
+	fmt.Print(s3.FormatOutput(objects, cmd.String("format")))
 	return nil
 }
 
-func runS3Stat(cmd *cobra.Command, args []string) error {
-	if s3StatKey == "" {
-		return fmt.Errorf("必须指定对象键名 (-k)")
-	}
-
-	client, err := newS3Client(cmd.Context())
+func runS3Stat(ctx context.Context, cmd *cli.Command) error {
+	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
-	info, err := s3.Stat(cmd.Context(), client, s3StatKey)
+	info, err := s3.Stat(ctx, client, cmd.String("key"))
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(s3.FormatStatOutput(info, s3StatFormat))
+	fmt.Print(s3.FormatStatOutput(info, cmd.String("format")))
 	return nil
 }

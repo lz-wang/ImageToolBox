@@ -1,69 +1,88 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/resize"
 )
 
-var (
-	resizeInputFile  string
-	resizeOutputFile string
-	resizeWidth      int
-	resizeHeight     int
-	resizePercent    string
-	resizeMode       string
-	resizeAnchor     string
-	resizeFilter     string
-)
+func newResizeCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "resize",
+		Usage: "调整图片尺寸",
+		Description: `调整图片尺寸。
 
-var resizeCmd = &cobra.Command{
-	Use:   "resize",
-	Short: "调整图片尺寸",
-	Example: `  itb resize -i photo.jpg --width 1200
+示例:
+  itb resize -i photo.jpg --width 1200
   itb resize -i photo.png --height 800
   itb resize -i photo.jpg --percent 50%
   itb resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top`,
-	RunE: runResize,
-}
-
-func init() {
-	rootCmd.AddCommand(resizeCmd)
-
-	resizeCmd.Flags().StringVarP(&resizeInputFile, "input", "i", "", "输入图片文件路径")
-	resizeCmd.Flags().StringVarP(&resizeOutputFile, "output", "o", "", "输出图片文件路径（默认在原文件名后加 _resized）")
-	resizeCmd.Flags().IntVar(&resizeWidth, "width", 0, "目标宽度")
-	resizeCmd.Flags().IntVar(&resizeHeight, "height", 0, "目标高度")
-	resizeCmd.Flags().StringVar(&resizePercent, "percent", "", "按比例缩放，例如 50%")
-	resizeCmd.Flags().StringVar(&resizeMode, "mode", "fit", "缩放模式: fit/fill/stretch")
-	resizeCmd.Flags().StringVar(&resizeAnchor, "anchor", "center", "填充模式锚点: left/right/top/bottom/top-left/top-right/bottom-left/bottom-right/center")
-	resizeCmd.Flags().StringVar(&resizeFilter, "filter", "lanczos", "采样器: nearest/linear/catmullrom/lanczos")
-	resizeCmd.MarkFlagRequired("input")
-}
-
-func runResize(cmd *cobra.Command, args []string) error {
-	if resizeInputFile == "" {
-		return fmt.Errorf("必须指定输入文件路径 (-i)")
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "input",
+				Aliases:  []string{"i"},
+				Usage:    "输入图片文件路径",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "输出图片文件路径（默认在原文件名后加 _resized）",
+			},
+			&cli.IntFlag{
+				Name:  "width",
+				Usage: "目标宽度",
+			},
+			&cli.IntFlag{
+				Name:  "height",
+				Usage: "目标高度",
+			},
+			&cli.StringFlag{
+				Name:  "percent",
+				Usage: "按比例缩放，例如 50%",
+			},
+			&cli.StringFlag{
+				Name:  "mode",
+				Value: "fit",
+				Usage: "缩放模式: fit/fill/stretch",
+			},
+			&cli.StringFlag{
+				Name:  "anchor",
+				Value: "center",
+				Usage: "填充模式锚点: left/right/top/bottom/top-left/top-right/bottom-left/bottom-right/center",
+			},
+			&cli.StringFlag{
+				Name:  "filter",
+				Value: "lanczos",
+				Usage: "采样器: nearest/linear/catmullrom/lanczos",
+			},
+		},
+		Action: runResize,
 	}
+}
 
-	outputPath := resizeOutputFile
+func runResize(ctx context.Context, cmd *cli.Command) error {
+	inputFile := cmd.String("input")
+
+	outputPath := cmd.String("output")
 	if outputPath == "" {
-		ext := filepath.Ext(resizeInputFile)
-		base := strings.TrimSuffix(filepath.Base(resizeInputFile), ext)
-		dir := filepath.Dir(resizeInputFile)
+		ext := filepath.Ext(inputFile)
+		base := strings.TrimSuffix(filepath.Base(inputFile), ext)
+		dir := filepath.Dir(inputFile)
 		outputPath = filepath.Join(dir, base+"_resized"+ext)
 	}
 
-	err := resize.ResizeFile(resizeInputFile, outputPath, resize.Options{
-		Width:   resizeWidth,
-		Height:  resizeHeight,
-		Percent: resizePercent,
-		Mode:    resize.Mode(resizeMode),
-		Anchor:  resizeAnchor,
-		Filter:  resizeFilter,
+	err := resize.ResizeFile(inputFile, outputPath, resize.Options{
+		Width:   cmd.Int("width"),
+		Height:  cmd.Int("height"),
+		Percent: cmd.String("percent"),
+		Mode:    resize.Mode(cmd.String("mode")),
+		Anchor:  cmd.String("anchor"),
+		Filter:  cmd.String("filter"),
 	})
 	if err != nil {
 		return fmt.Errorf("调整尺寸失败: %w", err)

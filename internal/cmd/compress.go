@@ -1,45 +1,53 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/compress"
 )
 
-var (
-	inputFile  string
-	outputFile string
-	quality    int
-)
+func newCompressCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "compress",
+		Usage: "自动检测并压缩图片",
+		Description: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
 
-var compressCmd = &cobra.Command{
-	Use:   "compress",
-	Short: "自动检测并压缩图片",
-	Long: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
+无需指定图片类型，程序会通过读取文件头自动判断。
 
-无需指定图片类型，程序会通过读取文件头自动判断。`,
-	Example: `  itb compress -i photo.png
+示例:
+  itb compress -i photo.png
   itb compress -i photo.jpg -o compressed.jpg -q 90`,
-	RunE: runCompress,
-}
-
-func init() {
-	rootCmd.AddCommand(compressCmd)
-
-	compressCmd.Flags().StringVarP(&inputFile, "input", "i", "", "输入图片文件路径")
-	compressCmd.Flags().StringVarP(&outputFile, "output", "o", "", "输出图片文件路径")
-	compressCmd.Flags().IntVarP(&quality, "quality", "q", 80, "压缩质量 (1-100)")
-}
-
-func runCompress(cmd *cobra.Command, args []string) error {
-	if inputFile == "" {
-		return fmt.Errorf("必须指定输入文件路径 (-i)")
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "input",
+				Aliases:  []string{"i"},
+				Usage:    "输入图片文件路径",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "输出图片文件路径",
+			},
+			&cli.IntFlag{
+				Name:    "quality",
+				Aliases: []string{"q"},
+				Value:   80,
+				Usage:   "压缩质量 (1-100)",
+			},
+		},
+		Action: runCompress,
 	}
+}
 
-	outputPath := outputFile
+func runCompress(ctx context.Context, cmd *cli.Command) error {
+	inputFile := cmd.String("input")
+
+	outputPath := cmd.String("output")
 	tmpPath := ""
 	if outputPath == "" {
 		// 临时文件放在输入文件所在目录，保证 rename 不跨文件系统
@@ -52,7 +60,7 @@ func runCompress(cmd *cobra.Command, args []string) error {
 		outputPath = tmpPath
 	}
 
-	result, err := compress.CompressFile(inputFile, outputPath, compress.FileOptions{Quality: quality})
+	result, err := compress.CompressFile(inputFile, outputPath, compress.FileOptions{Quality: cmd.Int("quality")})
 	if err != nil {
 		if tmpPath != "" {
 			os.Remove(tmpPath)

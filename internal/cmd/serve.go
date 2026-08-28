@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -9,49 +10,51 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/server"
 )
 
-var (
-	serveAddr string
-	serveOpen bool
+func newServeCommand(staticFS fs.FS) *cli.Command {
+	return &cli.Command{
+		Name:  "serve",
+		Usage: "启动 Image Tool Box WebUI",
+		Description: `启动本地 WebUI，在浏览器中交互式使用图片处理能力。
 
-	// webFS 前端静态资源（web/dist），由 main 通过 Execute 注入。
-	// 只在进程启动时写入、serve 命令读取，不承载请求级状态。
-	webFS fs.FS
-)
+默认只监听 127.0.0.1，请勿绑定到不可信网络。
 
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "启动 Image Tool Box WebUI",
-	Long: `启动本地 WebUI，在浏览器中交互式使用图片处理能力。
-
-默认只监听 127.0.0.1，请勿绑定到不可信网络。`,
-	Example: `  itb serve
+示例:
+  itb serve
   itb serve --addr 127.0.0.1:9000
   itb serve --open`,
-	RunE: runServe,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "addr",
+				Value: "127.0.0.1:8080",
+				Usage: "监听地址",
+			},
+			&cli.BoolFlag{
+				Name:  "open",
+				Usage: "启动后自动打开浏览器",
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runServe(ctx, cmd, staticFS)
+		},
+	}
 }
 
-func init() {
-	rootCmd.AddCommand(serveCmd)
-
-	serveCmd.Flags().StringVar(&serveAddr, "addr", "127.0.0.1:8080", "监听地址")
-	serveCmd.Flags().BoolVar(&serveOpen, "open", false, "启动后自动打开浏览器")
-}
-
-func runServe(cmd *cobra.Command, args []string) error {
+func runServe(_ context.Context, cmd *cli.Command, staticFS fs.FS) error {
+	addr := cmd.String("addr")
 	srv := &http.Server{
-		Addr:    serveAddr,
-		Handler: server.New(webFS).Handler(),
+		Addr:    addr,
+		Handler: server.New(staticFS).Handler(),
 	}
 
-	url := "http://" + serveAddr
+	url := "http://" + addr
 	fmt.Printf("Image Tool Box WebUI 已启动: %s\n", url)
 	fmt.Println("按 Ctrl+C 停止")
 
-	if serveOpen {
+	if cmd.Bool("open") {
 		go openBrowser(url)
 	}
 
