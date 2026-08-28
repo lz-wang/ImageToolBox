@@ -272,7 +272,7 @@ Read file info, basic image info, detailed metadata, and file hash.
 ./itb inspect -i photo.jpg --format plain
 
 # Disable detailed data
-./itb inspect -i photo.jpg --detail=false
+./itb inspect -i photo.jpg --no-detail
 
 # Skip hash computation
 ./itb inspect -i photo.jpg --no-hash
@@ -284,8 +284,9 @@ Read file info, basic image info, detailed metadata, and file hash.
 | Option | Default | Description |
 |------|--------|------|
 | `-i, --input` | (required) | Input image path |
-| `--format` | `table` | Output format: `table` / `json` / `plain` |
-| `--detail` | `true` | Print detailed metadata |
+| `--format` | `table` | Output format: `table` / `json` / `plain` (`plain` prints only the SHA-256) |
+| `--no-detail` | `false` | Skip detailed metadata (takes precedence over `--detail`) |
+| `--detail` | `true` | Kept for compatibility; equivalent to not passing `--no-detail` |
 | `--no-hash` | `false` | Skip file hash computation |
 | `--strict` | `false` | Return an error immediately if image parsing fails |
 

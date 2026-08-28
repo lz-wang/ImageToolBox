@@ -12,6 +12,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"imagetoolbox/internal/inspect"
 	"imagetoolbox/internal/s3"
 )
 
@@ -404,20 +405,58 @@ func TestS3Validators(t *testing.T) {
 	}
 }
 
-func TestInspectAlias(t *testing.T) {
+// metadata alias 已移除：inspect 的能力远大于"元数据"，
+// 无意义的历史 alias 不再进入 public command contract。
+func TestInspectAliasRemoved(t *testing.T) {
 	app := testApp()
-	found := false
 	for _, sub := range app.Commands {
-		if sub.Name == "inspect" {
-			for _, alias := range sub.Aliases {
-				if alias == "metadata" {
-					found = true
+		if sub.Name != "inspect" {
+			continue
+		}
+		for _, alias := range sub.Aliases {
+			if alias == "metadata" {
+				t.Fatal("inspect command should no longer have alias metadata")
+			}
+		}
+		return
+	}
+	t.Fatal("inspect command not found")
+}
+
+// --no-detail 优先于 --detail，--detail=false 兼容保留。
+func TestInspectNoDetailFlag(t *testing.T) {
+	run := func(args ...string) inspect.Options {
+		t.Helper()
+		var got inspect.Options
+		app := testApp()
+		for _, sub := range app.Commands {
+			if sub.Name == "inspect" {
+				sub.Action = func(ctx context.Context, cmd *cli.Command) error {
+					got = inspect.Options{
+						Detail: cmd.Bool("detail") && !cmd.Bool("no-detail"),
+						NoHash: cmd.Bool("no-hash"),
+					}
+					return nil
 				}
 			}
 		}
+		if err := app.Run(context.Background(), append([]string{"itb"}, args...)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		return got
 	}
-	if !found {
-		t.Fatal("inspect command missing alias metadata")
+
+	if got := run("inspect", "-i", "nope.jpg"); !got.Detail {
+		t.Fatal("detail should default to true")
+	}
+	if got := run("inspect", "-i", "nope.jpg", "--no-detail"); got.Detail {
+		t.Fatal("--no-detail should disable detail")
+	}
+	if got := run("inspect", "-i", "nope.jpg", "--detail", "--no-detail"); got.Detail {
+		t.Fatal("--no-detail should take precedence over --detail")
+	}
+	if got := run("inspect", "-i", "nope.jpg", "--detail=false"); got.Detail {
+		t.Fatal("--detail=false should disable detail")
 	}
 }
 

@@ -13,9 +13,8 @@ import (
 
 func newInspectCommand() *cli.Command {
 	return &cli.Command{
-		Name:    "inspect",
-		Aliases: []string{"metadata"},
-		Usage:   "查看图片信息、元数据和文件哈希",
+		Name:  "inspect",
+		Usage: "查看图片信息、元数据和文件哈希",
 		Description: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
 
 该命令为只读操作，不会修改原始图片。
@@ -24,7 +23,7 @@ func newInspectCommand() *cli.Command {
   itb inspect -i photo.jpg
   itb inspect -i photo.jpg --format json
   itb inspect -i photo.jpg --format plain
-  itb inspect -i photo.jpg --detail=false
+  itb inspect -i photo.jpg --no-detail
   itb inspect -i photo.jpg --no-hash`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -42,7 +41,11 @@ func newInspectCommand() *cli.Command {
 			&cli.BoolFlag{
 				Name:  "detail",
 				Value: true,
-				Usage: "输出详细元数据",
+				Usage: "输出详细元数据（兼容保留，关闭请使用 --no-detail）",
+			},
+			&cli.BoolFlag{
+				Name:  "no-detail",
+				Usage: "不输出详细元数据（优先于 --detail）",
 			},
 			&cli.BoolFlag{
 				Name:  "no-hash",
@@ -59,7 +62,7 @@ func newInspectCommand() *cli.Command {
 
 func runInspect(ctx context.Context, cmd *cli.Command) error {
 	result, err := inspect.File(cmd.String("input"), inspect.Options{
-		Detail: cmd.Bool("detail"),
+		Detail: cmd.Bool("detail") && !cmd.Bool("no-detail"),
 		NoHash: cmd.Bool("no-hash"),
 		Strict: cmd.Bool("strict"),
 	})

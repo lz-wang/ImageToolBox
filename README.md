@@ -272,7 +272,7 @@ brew install lz-wang/tap/itb
 ./itb inspect -i photo.jpg --format plain
 
 # 关闭详细数据
-./itb inspect -i photo.jpg --detail=false
+./itb inspect -i photo.jpg --no-detail
 
 # 不计算 hash
 ./itb inspect -i photo.jpg --no-hash
@@ -284,8 +284,9 @@ brew install lz-wang/tap/itb
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `-i, --input` | (必填) | 输入图片路径 |
-| `--format` | `table` | 输出格式：`table` / `json` / `plain` |
-| `--detail` | `true` | 输出详细元数据 |
+| `--format` | `table` | 输出格式：`table` / `json` / `plain`（`plain` 仅输出 SHA-256） |
+| `--no-detail` | `false` | 不输出详细元数据（优先于 `--detail`） |
+| `--detail` | `true` | 兼容保留，等价于不传 `--no-detail` |
 | `--no-hash` | `false` | 不计算文件 hash |
 | `--strict` | `false` | 图像解析失败时直接返回错误 |
 
