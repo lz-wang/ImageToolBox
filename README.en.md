@@ -217,14 +217,14 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 | Option | Default | Description |
 |------|--------|------|
 | `-i, --input` | (required) | Input image path |
-| `-t, --text` | (required) | Watermark text |
+| `-t, --text` | Required unless using `--image` | Watermark text |
 | `-o, --output` | `*_watermarked.*` | Output path; appends `_watermarked` to the original name by default |
 | `-m, --mode` | `position` | Watermark mode: `position` / `repeat` |
 | `--color` | (auto) | Watermark color, e.g. `#FF0000`; empty = auto black/white |
 | `--opacity` | `0.5` | Opacity, range 0–1 |
 | `--font-size` | `0` | Font size; `0` = computed from the image |
 | `--font` | (auto) | Font file path; empty = auto system font |
-| `--image` | | Image watermark path; mutually exclusive with `--text` |
+| `--image` | Required unless using `--text` | Image watermark path |
 | `--scale` | `0.2` | Image watermark scale, relative to the shorter side of the base image |
 | `--tile` | `false` | Tile image watermark (not supported in this version) |
 
