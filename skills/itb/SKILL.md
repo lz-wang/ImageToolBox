@@ -40,7 +40,7 @@ itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0
 
 ## Safety Rules
 
-- Do not omit `-o` with `compress` unless overwriting the original is intended; `compress` overwrites input when no output is provided.
+- `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` is mutually exclusive with `-o`/`--output`).
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials.
 - Use `--force-path-style` for MinIO-style endpoints when needed.

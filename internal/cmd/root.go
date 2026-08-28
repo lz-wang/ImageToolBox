@@ -13,17 +13,12 @@ import (
 func New(version string, staticFS fs.FS) *cli.Command {
 	return &cli.Command{
 		Name:  "itb",
-		Usage: "图片处理工具箱",
-		Description: `一个图片处理 CLI 工具箱，提供压缩、水印、S3 存储操作等功能。
+		Usage: "图片处理与 S3 存储工具箱",
+		// 命令清单由 urfave 根据 Commands 自动生成，
+		// 禁止在 Description 中手写命令目录，避免与注册表漂移。
+		Description: `Image Tool Box 提供本地图像处理、图片检查、S3 兼容存储操作和本地 WebUI。
 
-功能:
-  - crop: 图片裁剪，基于锚点和百分比保留目标区域
-  - resize: 图片缩放，支持 fit/fill/stretch
-  - compress: 图片压缩（PNG/JPEG），基于 pngquant、oxipng 和 libjpeg-turbo
-  - convert: 图片格式转换，支持 JPEG/PNG/WEBP
-  - watermark: 添加文字水印，支持位置和重复平铺两种模式
-  - inspect: 检查图片元数据和文件 hash
-  - s3: S3 兼容存储操作（上传、下载、删除、列表）`,
+使用 "itb <command> --help" 查看具体命令帮助。`,
 		Commands: []*cli.Command{
 			newCompressCommand(),
 			newResizeCommand(),

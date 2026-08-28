@@ -13,16 +13,14 @@ import (
 func newWatermarkCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "watermark",
-		Usage: "为图片添加水印",
-		Description: `为图片添加文字水印，支持两种模式：
+		Usage: "添加文字或图片水印",
+		Description: `为图片添加文字或图片水印。
 
-1. position（默认）: 单点位置水印，在指定位置添加水印
-   - 自动根据背景亮度选择黑/白文字
-   - 支持指定自定义颜色
+文字水印支持两种模式:
+  position（默认）  单点位置水印
+  repeat            重复平铺水印
 
-2. repeat: 重复平铺水印，文字以平铺方式覆盖整张图片
-   - 支持旋转角度和间距调整
-   - 需要指定字体文件路径
+图片水印当前仅支持 position 模式。
 
 示例:
   # 位置水印（默认右下角，智能颜色）
@@ -32,7 +30,10 @@ func newWatermarkCommand() *cli.Command {
   itb watermark -i photo.png -t "Copyright" --position center --opacity 0.8
 
   # 重复平铺水印
-  itb watermark -i photo.png -t "WATERMARK" --mode repeat --font /path/to/font.ttf
+  itb watermark -i photo.png -t "WATERMARK" --mode repeat
+
+  # 图片水印
+  itb watermark -i photo.jpg --image logo.png --scale 0.2
 
   # 指定输出路径
   itb watermark -i photo.jpg -t "Author" -o output.jpg`,
@@ -56,48 +57,44 @@ func newWatermarkCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "color",
-				Usage: "水印颜色（空表示自动选择）",
+				Usage: "文字水印颜色；未指定时自动选择",
 			},
 			&cli.IntFlag{
 				Name:  "space",
-				Usage: "平铺间距（0表示自动计算）",
+				Usage: "平铺间距（仅文字 repeat 模式；0=自动计算）",
 			},
 			&cli.IntFlag{
 				Name:  "angle",
 				Value: 30,
-				Usage: "旋转角度（repeat模式）",
+				Usage: "旋转角度，单位为度（仅文字 repeat 模式）",
 			},
 			&cli.FloatFlag{
 				Name:  "opacity",
 				Value: 0.5,
-				Usage: "透明度 (0~1)",
+				Usage: "水印透明度，范围 0~1",
 			},
 			&cli.StringFlag{
 				Name:  "font",
-				Usage: "字体文件路径",
+				Usage: "文字水印字体文件；未指定时自动使用可用的默认字体",
 			},
 			&cli.IntFlag{
 				Name:  "font-size",
-				Usage: "字体大小（0表示自动计算）",
+				Usage: "文字水印字号（0=自动计算）",
 			},
 			&cli.StringFlag{
 				Name:  "position",
 				Value: "bottom-right",
-				Usage: "水印位置: bottom-right/bottom-left/top-right/top-left/center",
+				Usage: "水印位置（position 模式）: bottom-right/bottom-left/top-right/top-left/center",
 			},
 			&cli.FloatFlag{
 				Name:  "margin",
 				Value: 0.04,
-				Usage: "边距比例（position模式）",
+				Usage: "边距比例（position 模式）",
 			},
 			&cli.FloatFlag{
 				Name:  "scale",
 				Value: 0.2,
-				Usage: "图片水印缩放比例（相对底图短边）",
-			},
-			&cli.BoolFlag{
-				Name:  "tile",
-				Usage: "图片水印平铺（当前版本暂不支持）",
+				Usage: "图片水印尺寸比例，相对底图短边",
 			},
 		},
 		// --text 与 --image 二选一且必须提供其一，由框架统一校验
@@ -145,9 +142,6 @@ func runWatermark(ctx context.Context, cmd *cli.Command) error {
 	case imagePath != "":
 		if mode != "position" {
 			return fmt.Errorf("图片水印仅支持 position 模式")
-		}
-		if cmd.Bool("tile") {
-			return fmt.Errorf("图片平铺水印暂不支持")
 		}
 		opacity := cmd.Float("opacity")
 		scale := cmd.Float("scale")

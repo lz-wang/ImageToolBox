@@ -17,7 +17,7 @@ import (
 func newServeCommand(staticFS fs.FS) *cli.Command {
 	return &cli.Command{
 		Name:  "serve",
-		Usage: "启动 Image Tool Box WebUI",
+		Usage: "启动本地 WebUI",
 		Description: `启动本地 WebUI，在浏览器中交互式使用图片处理能力。
 
 默认只监听 127.0.0.1，请勿绑定到不可信网络。

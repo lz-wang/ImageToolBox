@@ -13,35 +13,39 @@ import (
 func newS3Command() *cli.Command {
 	return &cli.Command{
 		Name:  "s3",
-		Usage: "S3 兼容存储操作",
+		Usage: "操作 S3 兼容对象存储",
 		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
-配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值
+配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值；
+环境变量可满足 endpoint / access-key / secret-key / bucket 的必填校验。
 
 环境变量支持:
-  ITB_S3_ENDPOINT           自定义端点
+  ITB_S3_ENDPOINT           S3 端点 URL
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
   ITB_S3_REGION             区域（默认 us-east-1）
   ITB_S3_BUCKET             存储桶名称（可省略 --bucket）`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "endpoint",
-				Aliases: []string{"e"},
-				Usage:   "S3 端点 URL",
-				Sources: cli.EnvVars("ITB_S3_ENDPOINT"),
+				Name:     "endpoint",
+				Aliases:  []string{"e"},
+				Usage:    "S3 端点 URL",
+				Sources:  cli.EnvVars("ITB_S3_ENDPOINT"),
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:    "access-key",
-				Aliases: []string{"a"},
-				Usage:   "Access Key ID",
-				Sources: cli.EnvVars("ITB_S3_ACCESS_KEY_ID"),
+				Name:     "access-key",
+				Aliases:  []string{"a"},
+				Usage:    "Access Key ID",
+				Sources:  cli.EnvVars("ITB_S3_ACCESS_KEY_ID"),
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:    "secret-key",
-				Aliases: []string{"s"},
-				Usage:   "Secret Access Key",
-				Sources: cli.EnvVars("ITB_S3_SECRET_ACCESS_KEY"),
+				Name:     "secret-key",
+				Aliases:  []string{"s"},
+				Usage:    "Secret Access Key（建议使用 ITB_S3_SECRET_ACCESS_KEY 环境变量）",
+				Sources:  cli.EnvVars("ITB_S3_SECRET_ACCESS_KEY"),
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "region",
@@ -158,7 +162,7 @@ func newS3DownloadCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "本地输出路径（默认使用对象键名）",
+				Usage:   "本地输出路径（默认保存到当前目录，文件名取对象键最后一段）",
 			},
 		},
 		Action: runS3Download,

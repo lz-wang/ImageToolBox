@@ -36,17 +36,20 @@ brew install lz-wang/tap/itb
 
 ## Compress images
 
-Auto-detects the image format (PNG/JPEG) and compresses it:
+Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original file by default:
 
 ```bash
-# Compress a PNG (overwrites the original)
+# Compress a PNG (writes photo_compressed.png)
 ./itb compress -i photo.png
 
-# Compress a JPEG (overwrites the original)
+# Compress a JPEG (writes photo_compressed.jpg)
 ./itb compress -i photo.jpg
 
 # Specify the output file
 ./itb compress -i photo.png -o compressed.png
+
+# Overwrite the original (mutually exclusive with --output)
+./itb compress -i photo.jpg --in-place
 
 # Specify compression quality (1-100, default 80)
 ./itb compress -i photo.jpg -q 90
@@ -55,11 +58,12 @@ Auto-detects the image format (PNG/JPEG) and compresses it:
 <details>
 <summary>Options & compression pipeline</summary>
 
-| Option | Description |
-|------|------|
-| `-i, --input` | Input image file path |
-| `-o, --output` | Output image file path (overwrites the original if omitted) |
-| `-q, --quality` | Compression quality 1-100 (default 80) |
+| Option | Default | Description |
+|------|--------|------|
+| `-i, --input` | (required) | Input image file path |
+| `-o, --output` | `*_compressed.*` | Output path; appends `_compressed` to the original name by default |
+| `--in-place` | `false` | Overwrite the input file (mutually exclusive with `--output`) |
+| `-q, --quality` | `80` | Compression quality 1-100 |
 
 **Compression pipeline**
 
@@ -131,12 +135,20 @@ Resize by width/height, by percentage, or using different modes.
 |------|--------|------|
 | `-i, --input` | (required) | Input image path |
 | `-o, --output` | `*_resized.*` | Output path |
-| `--width` | | Target width |
-| `--height` | | Target height |
+| `--width` | | Target width (pixels) |
+| `--height` | | Target height (pixels) |
 | `--percent` | | Scale by percentage, e.g. `50%` |
 | `--mode` | `fit` | Resize mode: `fit` / `fill` / `stretch` |
 | `--anchor` | `center` | Anchor for `fill` mode |
 | `--filter` | `lanczos` | Resampler: `nearest` / `linear` / `catmullrom` / `lanczos` |
+
+**Rules**
+
+- Either `--percent` or at least one of `--width` / `--height` must be provided
+- `--percent` cannot be combined with `--width` / `--height`
+- `fit` accepts a single dimension and preserves the aspect ratio
+- `fill` requires both width and height
+- `stretch` does not preserve the aspect ratio when both dimensions are given
 
 </details>
 
@@ -171,7 +183,7 @@ Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`.
 
 ## Watermark
 
-Add text watermarks to images, supporting two modes: position (single point) and repeated tile.
+Add text or image watermarks to images; text watermarks support two modes — position (single point) and repeated tile — while image watermarks support the position mode only.
 
 ### Position watermark (position)
 
@@ -223,10 +235,9 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 | `--color` | (auto) | Watermark color, e.g. `#FF0000`; empty = auto black/white |
 | `--opacity` | `0.5` | Opacity, range 0–1 |
 | `--font-size` | `0` | Font size; `0` = computed from the image |
-| `--font` | (auto) | Font file path; empty = auto system font |
+| `--font` | (auto) | Font file path; empty = auto-selects an available default font |
 | `--image` | Required unless using `--text` | Image watermark path |
 | `--scale` | `0.2` | Image watermark scale, relative to the shorter side of the base image |
-| `--tile` | `false` | Tile image watermark (not supported in this version) |
 
 **position mode options**
 
@@ -344,14 +355,14 @@ Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, T
 ### Environment variables
 
 ```bash
-ITB_S3_ENDPOINT           # S3 endpoint URL (optional)
+ITB_S3_ENDPOINT           # S3 endpoint URL
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # Region (default us-east-1)
 ITB_S3_BUCKET             # Bucket name (can omit -b)
 ```
 
-Priority: CLI flag > `ITB_S3_*` environment variables > defaults; environment variables satisfy required flags such as `--bucket`.
+Priority: CLI flag > `ITB_S3_*` environment variables > defaults; environment variables satisfy the required checks for `--endpoint` / `--access-key` / `--secret-key` / `--bucket`.
 
 <details>
 <summary>Common options</summary>
@@ -360,9 +371,9 @@ All S3 subcommands share the following options:
 
 | Option | Default | Description |
 |------|--------|------|
-| `-e, --endpoint` | (required) | S3 endpoint URL |
-| `-a, --access-key` | (env var) | Access Key ID |
-| `-s, --secret-key` | (env var) | Secret Access Key |
+| `-e, --endpoint` | (required) | S3 endpoint URL (or `ITB_S3_ENDPOINT`) |
+| `-a, --access-key` | (required) | Access Key ID (or `ITB_S3_ACCESS_KEY_ID`) |
+| `-s, --secret-key` | (required) | Secret Access Key (or `ITB_S3_SECRET_ACCESS_KEY`) |
 | `-r, --region` | `us-east-1` | Region |
 | `-b, --bucket` | (required) | Bucket name (or `ITB_S3_BUCKET`) |
 | `--force-path-style` | `false` | Force path-style URL (required by MinIO) |
@@ -413,7 +424,7 @@ combining them is rejected as a flag error.
 # Download a file
 ./itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
 
-# Use the object key as the local file name
+# Without -o, saves to the current directory using the last segment of the key (photo.jpg)
 ./itb s3 download -b my-bucket -k images/photo.jpg
 ```
 
@@ -423,7 +434,7 @@ combining them is rejected as a flag error.
 | Option | Description |
 |------|------|
 | `-k, --key` | Object key (required) |
-| `-o, --output` | Local output path (defaults to the object key) |
+| `-o, --output` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
 
 </details>
 

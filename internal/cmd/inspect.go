@@ -15,7 +15,7 @@ func newInspectCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "inspect",
 		Aliases: []string{"metadata"},
-		Usage:   "检查图片元数据和文件 hash",
+		Usage:   "查看图片信息、元数据和文件哈希",
 		Description: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
 
 该命令为只读操作，不会修改原始图片。

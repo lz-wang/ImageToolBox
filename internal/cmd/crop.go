@@ -16,7 +16,12 @@ func newCropCommand() *cli.Command {
 		Usage: "按锚点和百分比裁剪图片",
 		Description: `按指定锚点和百分比裁剪图片。
 
-宽高仅支持百分比，例如 40%。
+宽高仅支持百分比，范围为 (0,100]，例如 40%。
+
+规则:
+  - left / right      必须提供 --width，且不能提供 --height
+  - top / bottom      必须提供 --height，且不能提供 --width
+  - 角点 / center     必须同时提供 --width 和 --height
 
 示例:
   itb crop -i a.jpg --anchor left --width 40%

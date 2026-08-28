@@ -9,17 +9,20 @@ itb version
 
 ## Compress
 
-Compress PNG/JPEG. If `-o` is omitted, the input file is overwritten.
+Compress PNG/JPEG. By default the input is kept and the result is written next to it as `<name>_compressed.<ext>`; pass `--in-place` to overwrite the input.
 
 ```bash
+itb compress -i photo.png
 itb compress -i photo.png -o compressed.png
 itb compress -i photo.jpg -o compressed.jpg -q 90
+itb compress -i photo.jpg --in-place
 ```
 
 Flags:
 
 - `-i, --input`: input image path.
-- `-o, --output`: output image path; omit only for intentional overwrite.
+- `-o, --output`: output image path; default adds `_compressed`.
+- `--in-place`: overwrite the input file; mutually exclusive with `--output`.
 - `-q, --quality`: quality `1-100`, default `80`.
 
 Pipeline:
@@ -124,10 +127,9 @@ Flags:
 - `--color`: watermark color; empty auto-selects black/white.
 - `--opacity`: `0` to `1`; default `0.5`.
 - `--font-size`: `0` means auto-size.
-- `--font`: font file path; empty uses system font.
+- `--font`: font file path; empty auto-selects an available default font.
 - `--image`: image watermark path.
 - `--scale`: image watermark scale based on base image short edge; default `0.2`.
-- `--tile`: image tiling flag, currently unsupported.
 - `--position`: `bottom-right`, `bottom-left`, `top-right`, `top-left`, `center`; default `bottom-right`.
 - `--margin`: margin ratio based on short edge; default `0.04`.
 - `--angle`: repeat text angle; default `30`.
@@ -151,11 +153,11 @@ Priority: CLI flag > `ITB_S3_*` environment variables > defaults. Environment va
 
 Common flags:
 
-- `-e, --endpoint`: S3 endpoint URL.
-- `-a, --access-key`: access key; prefer environment variables.
-- `-s, --secret-key`: secret key; prefer environment variables.
+- `-e, --endpoint`: required S3 endpoint URL (or `ITB_S3_ENDPOINT`).
+- `-a, --access-key`: required access key; prefer the `ITB_S3_ACCESS_KEY_ID` environment variable.
+- `-s, --secret-key`: required secret key; prefer the `ITB_S3_SECRET_ACCESS_KEY` environment variable.
 - `-r, --region`: default `us-east-1`.
-- `-b, --bucket`: required bucket.
+- `-b, --bucket`: required bucket (or `ITB_S3_BUCKET`).
 - `--force-path-style`: often required for MinIO.
 
 Examples:
@@ -166,6 +168,7 @@ itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
 itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
+itb s3 download -b my-bucket -k images/photo.jpg   # saves ./photo.jpg (last key segment)
 itb s3 list -b my-bucket -p images/ --format json
 itb s3 stat -b my-bucket -k images/photo.jpg
 itb s3 stat -b my-bucket -k images/photo.jpg --format json

@@ -16,6 +16,13 @@ func newResizeCommand() *cli.Command {
 		Usage: "调整图片尺寸",
 		Description: `调整图片尺寸。
 
+尺寸规则:
+  - 必须指定 --percent，或至少指定 --width / --height 之一
+  - --percent 不能与 --width / --height 同时使用
+  - fit 支持仅指定宽度或高度，并保持宽高比
+  - fill 必须同时指定宽度和高度
+  - stretch 同时指定宽高时不保持原始宽高比
+
 示例:
   itb resize -i photo.jpg --width 1200
   itb resize -i photo.png --height 800
@@ -35,11 +42,11 @@ func newResizeCommand() *cli.Command {
 			},
 			&cli.IntFlag{
 				Name:  "width",
-				Usage: "目标宽度",
+				Usage: "目标宽度（像素）",
 			},
 			&cli.IntFlag{
 				Name:  "height",
-				Usage: "目标高度",
+				Usage: "目标高度（像素）",
 			},
 			&cli.StringFlag{
 				Name:  "percent",

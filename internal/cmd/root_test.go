@@ -100,6 +100,9 @@ func TestRemovedCommandsExitNonZero(t *testing.T) {
 }
 
 func TestRequiredFlags(t *testing.T) {
+	// 清空宿主环境的 ITB_S3_*，避免环境变量满足 required flag 导致误报
+	setS3Env(t, nil)
+
 	tests := []struct {
 		name string
 		args []string
@@ -110,6 +113,8 @@ func TestRequiredFlags(t *testing.T) {
 		{"s3 download 缺 --key", []string{"s3", "-b", "x", "download"}},
 		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}},
 		{"s3 upload 缺 --input", []string{"s3", "-b", "x", "upload"}},
+		{"s3 缺 --endpoint", []string{"s3", "-b", "x", "list"}},
+		{"s3 缺 --access-key", []string{"s3", "-b", "x", "-e", "http://localhost:9000", "list"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,24 +130,30 @@ func TestRequiredFlags(t *testing.T) {
 }
 
 func TestS3ParentFlagParsing(t *testing.T) {
+	// endpoint / access-key / secret-key 与 bucket 一样都是 s3 父命令的
+	// required flag；这里通过环境变量满足前三者，验证 bucket 无论前置
+	// 还是后置于子命令都能被解析继承。
+	env := map[string]string{
+		"ITB_S3_ENDPOINT":          "http://localhost:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+	}
+
 	tests := []struct {
 		name string
 		args []string
 	}{
-		// bucket 为 s3 父命令 required flag，upload 子命令须能继承
-		{"父级 flag 前置", []string{"s3", "-b", "test", "upload", "-i", "nonexistent.jpg"}},
-		{"父级 flag 后置", []string{"s3", "upload", "-i", "nonexistent.jpg", "-b", "test"}},
+		{"父级 flag 前置", []string{"s3", "-b", "test", "list"}},
+		{"父级 flag 后置", []string{"s3", "list", "-b", "test"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runContract(tt.args...)
-			if err == nil {
-				t.Fatal("expected error from missing endpoint, got nil")
+			got, err := runS3ConfigCapture(t, env, tt.args...)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
-			// flag 解析失败会报 "Required flag ... not set"，
-			// 而 endpoint is required 说明 bucket 已正确继承并进入 Config 校验。
-			if strings.Contains(err.Error(), "Required flag") {
-				t.Fatalf("parent flag not inherited: %v", err)
+			if got.Bucket != "test" {
+				t.Fatalf("parent flag -b not inherited, got bucket %q", got.Bucket)
 			}
 		})
 	}

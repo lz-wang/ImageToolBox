@@ -36,17 +36,20 @@ brew install lz-wang/tap/itb
 
 ## 压缩图片
 
-自动检测图片格式（PNG/JPEG）并压缩：
+自动检测图片格式（PNG/JPEG）并压缩，默认保留原文件：
 
 ```bash
-# 压缩 PNG 图片（覆盖原文件）
+# 压缩 PNG 图片（输出 photo_compressed.png）
 ./itb compress -i photo.png
 
-# 压缩 JPEG 图片（覆盖原文件）
+# 压缩 JPEG 图片（输出 photo_compressed.jpg）
 ./itb compress -i photo.jpg
 
 # 指定输出文件
 ./itb compress -i photo.png -o compressed.png
+
+# 覆盖原文件（与 --output 互斥）
+./itb compress -i photo.jpg --in-place
 
 # 指定压缩质量（1-100，默认 80）
 ./itb compress -i photo.jpg -q 90
@@ -55,11 +58,12 @@ brew install lz-wang/tap/itb
 <details>
 <summary>命令参数与压缩管道</summary>
 
-| 参数 | 说明 |
-|------|------|
-| `-i, --input` | 输入图片文件路径 |
-| `-o, --output` | 输出图片文件路径（不指定则覆盖原文件） |
-| `-q, --quality` | 压缩质量 1-100（默认 80） |
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-i, --input` | (必填) | 输入图片文件路径 |
+| `-o, --output` | `*_compressed.*` | 输出路径，默认在原文件名后加 `_compressed` |
+| `--in-place` | `false` | 覆盖输入文件（与 `--output` 互斥） |
+| `-q, --quality` | `80` | 压缩质量 1-100 |
 
 **压缩管道**
 
@@ -131,12 +135,20 @@ brew install lz-wang/tap/itb
 |------|--------|------|
 | `-i, --input` | (必填) | 输入图片路径 |
 | `-o, --output` | `*_resized.*` | 输出路径 |
-| `--width` | | 目标宽度 |
-| `--height` | | 目标高度 |
+| `--width` | | 目标宽度（像素） |
+| `--height` | | 目标高度（像素） |
 | `--percent` | | 按比例缩放，例如 `50%` |
 | `--mode` | `fit` | 缩放模式：`fit` / `fill` / `stretch` |
 | `--anchor` | `center` | `fill` 模式的锚点 |
 | `--filter` | `lanczos` | 采样器：`nearest` / `linear` / `catmullrom` / `lanczos` |
+
+**参数规则**
+
+- 必须指定 `--percent`，或至少指定 `--width` / `--height` 之一
+- `--percent` 不能与 `--width` / `--height` 同时使用
+- `fit` 支持仅指定宽度或高度，并保持宽高比
+- `fill` 必须同时指定宽度和高度
+- `stretch` 同时指定宽高时不保持原始宽高比
 
 </details>
 
@@ -171,7 +183,7 @@ brew install lz-wang/tap/itb
 
 ## 图像水印
 
-为图片添加文字水印，支持两种模式：位置水印（单点）和重复平铺水印。
+为图片添加文字或图片水印；文字水印支持两种模式：位置水印（单点）和重复平铺水印，图片水印仅支持位置水印。
 
 ### 位置水印（position）
 
@@ -223,10 +235,9 @@ brew install lz-wang/tap/itb
 | `--color` | (自动) | 水印颜色，如 `#FF0000`；空则自动选择黑/白 |
 | `--opacity` | `0.5` | 透明度，范围 0~1 |
 | `--font-size` | `0` | 字体大小，`0` 表示根据图片自动计算 |
-| `--font` | (自动) | 字体文件路径，空则自动使用系统字体 |
+| `--font` | (自动) | 字体文件路径，空则自动使用可用的默认字体 |
 | `--image` | 与 `--text` 二选一 | 图片水印路径 |
 | `--scale` | `0.2` | 图片水印缩放比例，基于底图短边 |
-| `--tile` | `false` | 图片平铺水印，当前版本暂不支持 |
 
 **position 模式参数**
 
@@ -344,14 +355,14 @@ make test     # go test + 前端测试
 ### 环境变量
 
 ```bash
-ITB_S3_ENDPOINT           # S3 端点 URL（可选）
+ITB_S3_ENDPOINT           # S3 端点 URL
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # 区域（默认 us-east-1）
 ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 ```
 
-配置优先级：CLI flag > `ITB_S3_*` 环境变量 > 默认值；环境变量可满足 `--bucket` 等必填校验。
+配置优先级：CLI flag > `ITB_S3_*` 环境变量 > 默认值；环境变量可满足 `--endpoint` / `--access-key` / `--secret-key` / `--bucket` 的必填校验。
 
 <details>
 <summary>公共参数</summary>
@@ -360,9 +371,9 @@ ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-e, --endpoint` | (必填) | S3 端点 URL |
-| `-a, --access-key` | (环境变量) | Access Key ID |
-| `-s, --secret-key` | (环境变量) | Secret Access Key |
+| `-e, --endpoint` | (必填) | S3 端点 URL（或 `ITB_S3_ENDPOINT`） |
+| `-a, --access-key` | (必填) | Access Key ID（或 `ITB_S3_ACCESS_KEY_ID`） |
+| `-s, --secret-key` | (必填) | Secret Access Key（或 `ITB_S3_SECRET_ACCESS_KEY`） |
 | `-r, --region` | `us-east-1` | 区域 |
 | `-b, --bucket` | (必填) | 存储桶名称（或 `ITB_S3_BUCKET`） |
 | `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要） |
@@ -411,7 +422,7 @@ ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 # 下载文件
 ./itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
 
-# 使用对象键名作为本地文件名
+# 未指定 -o 时保存到当前目录，文件名取对象键最后一段（photo.jpg）
 ./itb s3 download -b my-bucket -k images/photo.jpg
 ```
 
@@ -421,7 +432,7 @@ ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 | 参数 | 说明 |
 |------|------|
 | `-k, --key` | 对象键名（必填） |
-| `-o, --output` | 本地输出路径（默认使用对象键名） |
+| `-o, --output` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
 
 </details>
 
