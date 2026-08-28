@@ -12,8 +12,10 @@ import (
 // 静态资源（web/dist），仅 serve 命令使用。
 func New(version string, staticFS fs.FS) *cli.Command {
 	return &cli.Command{
-		Name:  "itb",
-		Usage: "图片处理与 S3 存储工具箱",
+		Name:    "itb",
+		Usage:   "图片处理与 S3 存储工具箱",
+		Version: version,
+		Suggest: true,
 		// 命令清单由 urfave 根据 Commands 自动生成，
 		// 禁止在 Description 中手写命令目录，避免与注册表漂移。
 		Description: `Image Tool Box 提供本地图像处理、图片检查、S3 兼容存储操作和本地 WebUI。

@@ -311,6 +311,99 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
+// 根命令设置 Version 后，--version / -v 与 version 子命令等价。
+func TestVersionFlag(t *testing.T) {
+	for _, arg := range []string{"--version", "-v"} {
+		t.Run(arg, func(t *testing.T) {
+			app := testApp()
+			var buf bytes.Buffer
+			app.Writer = &buf
+			if err := app.Run(context.Background(), []string{"itb", arg}); err != nil {
+				t.Fatalf("%s failed: %v", arg, err)
+			}
+			if out := buf.String(); !strings.Contains(out, "1.2.3") {
+				t.Fatalf("expected version in output, got %q", out)
+			}
+		})
+	}
+}
+
+// TestFlagValidators 验证枚举与范围校验在 CLI 层生效，
+// 且报错先于文件 IO（输入文件不存在也不影响参数错误优先暴露）。
+func TestFlagValidators(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{"resize 非法 mode", []string{"resize", "-i", "nope.jpg", "--mode", "abc"}, "--mode 仅支持"},
+		{"resize 非法 filter", []string{"resize", "-i", "nope.jpg", "--filter", "bicubic"}, "--filter 仅支持"},
+		{"resize 非法 anchor", []string{"resize", "-i", "nope.jpg", "--anchor", "middle"}, "--anchor 仅支持"},
+		{"resize width 非正数", []string{"resize", "-i", "nope.jpg", "--width", "0"}, "--width 必须大于 0"},
+		{"resize height 非正数", []string{"resize", "-i", "nope.jpg", "--height", "-3"}, "--height 必须大于 0"},
+		{"resize percent 缺百分号", []string{"resize", "-i", "nope.jpg", "--percent", "50"}, "百分比格式"},
+		{"crop 非法 anchor", []string{"crop", "-i", "nope.jpg", "--anchor", "middle", "--width", "40%"}, "--anchor 仅支持"},
+		{"crop width 超上限", []string{"crop", "-i", "nope.jpg", "--anchor", "left", "--width", "140%"}, "(0,100]"},
+		{"crop height 缺百分号", []string{"crop", "-i", "nope.jpg", "--anchor", "top", "--height", "40"}, "百分比格式"},
+		{"convert 非法格式", []string{"convert", "-i", "nope.png", "--to", "gif"}, "--to 仅支持"},
+		{"convert quality 超范围", []string{"convert", "-i", "nope.png", "--to", "png", "-q", "0"}, "--quality 必须在"},
+		{"compress quality 超范围", []string{"compress", "-i", "nope.png", "-q", "101"}, "--quality 必须在"},
+		{"watermark 非法 mode", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "tile"}, "--mode 仅支持"},
+		{"watermark opacity 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--opacity", "1.5"}, "--opacity 必须在"},
+		{"watermark 非法 position", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--position", "middle"}, "--position 仅支持"},
+		{"watermark scale 非正数", []string{"watermark", "-i", "nope.jpg", "--image", "logo.png", "--scale", "0"}, "--scale 必须大于 0"},
+		{"watermark font-size 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "-1"}, "不能为负数"},
+		{"watermark space 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "repeat", "--space", "-5"}, "不能为负数"},
+		{"inspect 非法 format", []string{"inspect", "-i", "nope.jpg", "--format", "xml"}, "--format 仅支持"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runContract(tt.args...)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected %q in error, got: %v", tt.wantErr, err)
+			}
+			// 参数错误必须先于文件 IO 报出
+			if strings.Contains(err.Error(), "nope") || strings.Contains(err.Error(), "打开输入图片") {
+				t.Fatalf("validator should fire before file IO, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestS3Validators 验证 S3 子命令的 format / max-keys 校验。
+func TestS3Validators(t *testing.T) {
+	setS3Env(t, map[string]string{
+		"ITB_S3_ENDPOINT":          "http://localhost:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	})
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{"list 非法 format", []string{"s3", "list", "--format", "xml"}, "--format 仅支持"},
+		{"list max-keys 非正数", []string{"s3", "list", "--max-keys", "0"}, "--max-keys 必须大于 0"},
+		{"stat 非法 format", []string{"s3", "stat", "-k", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runContract(tt.args...)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected %q in error, got: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestInspectAlias(t *testing.T) {
 	app := testApp()
 	found := false

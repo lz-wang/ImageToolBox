@@ -12,8 +12,9 @@ import (
 
 func newS3Command() *cli.Command {
 	return &cli.Command{
-		Name:  "s3",
-		Usage: "操作 S3 兼容对象存储",
+		Name:    "s3",
+		Usage:   "操作 S3 兼容对象存储",
+		Suggest: true,
 		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
 配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值；
@@ -23,13 +24,13 @@ func newS3Command() *cli.Command {
   ITB_S3_ENDPOINT           S3 端点 URL
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
-  ITB_S3_REGION             区域（默认 us-east-1）
+  ITB_S3_REGION             区域
   ITB_S3_BUCKET             存储桶名称（可省略 --bucket）`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "endpoint",
 				Aliases:  []string{"e"},
-				Usage:    "S3 端点 URL",
+				Usage:    "S3 端点 `URL`",
 				Sources:  cli.EnvVars("ITB_S3_ENDPOINT"),
 				Required: true,
 			},
@@ -50,7 +51,8 @@ func newS3Command() *cli.Command {
 			&cli.StringFlag{
 				Name:    "region",
 				Aliases: []string{"r"},
-				Usage:   "区域（默认 us-east-1）",
+				Value:   "us-east-1",
+				Usage:   "S3 区域 `REGION`",
 				Sources: cli.EnvVars("ITB_S3_REGION"),
 			},
 			&cli.StringFlag{
@@ -104,13 +106,13 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 			&cli.StringFlag{
 				Name:     "input",
 				Aliases:  []string{"i"},
-				Usage:    "本地文件路径",
+				Usage:    "本地文件 `FILE`",
 				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "key",
 				Aliases: []string{"k"},
-				Usage:   "对象键名（默认使用文件名）",
+				Usage:   "对象键 `KEY`（默认使用文件名）",
 			},
 			&cli.StringFlag{
 				Name:  "content-type",
@@ -156,13 +158,13 @@ func newS3DownloadCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "key",
 				Aliases:  []string{"k"},
-				Usage:    "对象键名",
+				Usage:    "对象键 `KEY`",
 				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "本地输出路径（默认保存到当前目录，文件名取对象键最后一段）",
+				Usage:   "本地输出 `FILE`（默认保存到当前目录，文件名取对象键最后一段）",
 			},
 		},
 		Action: runS3Download,
@@ -185,7 +187,7 @@ func newS3DeleteCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "key",
 				Aliases:  []string{"k"},
-				Usage:    "对象键名",
+				Usage:    "对象键 `KEY`",
 				Required: true,
 			},
 			&cli.BoolFlag{
@@ -217,17 +219,19 @@ func newS3ListCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "prefix",
 				Aliases: []string{"p"},
-				Usage:   "对象键前缀",
+				Usage:   "对象键前缀 `PREFIX`",
 			},
 			&cli.IntFlag{
-				Name:  "max-keys",
-				Value: 1000,
-				Usage: "最大返回数量",
+				Name:      "max-keys",
+				Value:     1000,
+				Usage:     "最大返回数量",
+				Validator: positiveIntValidator("max-keys"),
 			},
 			&cli.StringFlag{
-				Name:  "format",
-				Value: "table",
-				Usage: "输出格式: table/json/plain",
+				Name:      "format",
+				Value:     "table",
+				Usage:     "输出格式 `FORMAT`: table/json/plain",
+				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 		},
 		Action: runS3List,
@@ -252,13 +256,14 @@ func newS3StatCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "key",
 				Aliases:  []string{"k"},
-				Usage:    "对象键名",
+				Usage:    "对象键 `KEY`",
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "format",
-				Value: "table",
-				Usage: "输出格式: table/json",
+				Name:      "format",
+				Value:     "table",
+				Usage:     "输出格式 `FORMAT`: table/json",
+				Validator: enumValidator("format", "table", "json"),
 			},
 		},
 		Action: runS3Stat,

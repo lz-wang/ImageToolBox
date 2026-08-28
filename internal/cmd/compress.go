@@ -38,7 +38,7 @@ func newCompressCommand() *cli.Command {
 						&cli.StringFlag{
 							Name:    "output",
 							Aliases: []string{"o"},
-							Usage:   "输出图片文件路径（默认在原文件名后加 _compressed）",
+							Usage:   "输出图片 `FILE`（默认在原文件名后加 _compressed）",
 						},
 					},
 					{
@@ -54,14 +54,15 @@ func newCompressCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "input",
 				Aliases:  []string{"i"},
-				Usage:    "输入图片文件路径",
+				Usage:    "输入图片 `FILE`",
 				Required: true,
 			},
 			&cli.IntFlag{
-				Name:    "quality",
-				Aliases: []string{"q"},
-				Value:   80,
-				Usage:   "压缩质量 (1-100)",
+				Name:      "quality",
+				Aliases:   []string{"q"},
+				Value:     80,
+				Usage:     "压缩质量 (1-100)",
+				Validator: intRangeValidator("quality", 1, 100),
 			},
 		},
 		Action: runCompress,

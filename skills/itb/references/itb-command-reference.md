@@ -4,6 +4,7 @@ Use `itb` from the current shell path, or `./itb` when the executable is in the 
 
 ```bash
 itb --help
+itb --version
 itb version
 ```
 

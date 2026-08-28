@@ -25,6 +25,8 @@ brew tap lz-wang/tap
 brew install lz-wang/tap/itb
 ```
 
+安装完成后可运行 `itb --version`（或 `itb version`）验证。
+
 > [!WARNING]
 > **macOS 运行提示**
 >

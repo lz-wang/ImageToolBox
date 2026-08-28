@@ -30,13 +30,14 @@ func newInspectCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "input",
 				Aliases:  []string{"i"},
-				Usage:    "输入图片文件路径",
+				Usage:    "输入图片 `FILE`",
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "format",
-				Value: "table",
-				Usage: "输出格式: table/json/plain",
+				Name:      "format",
+				Value:     "table",
+				Usage:     "输出格式 `FORMAT`: table/json/plain（plain 仅输出 SHA-256）",
+				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 			&cli.BoolFlag{
 				Name:  "detail",

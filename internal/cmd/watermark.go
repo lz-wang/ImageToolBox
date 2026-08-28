@@ -41,27 +41,29 @@ func newWatermarkCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:     "input",
 				Aliases:  []string{"i"},
-				Usage:    "输入图片文件路径",
+				Usage:    "输入图片 `FILE`",
 				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "输出图片文件路径（默认在原文件名后加 _watermarked）",
+				Usage:   "输出图片 `FILE`（默认在原文件名后加 _watermarked）",
 			},
 			&cli.StringFlag{
-				Name:    "mode",
-				Aliases: []string{"m"},
-				Value:   "position",
-				Usage:   "水印模式: position（位置）/ repeat（重复平铺）",
+				Name:      "mode",
+				Aliases:   []string{"m"},
+				Value:     "position",
+				Usage:     "水印模式 `MODE`: position（位置）/ repeat（重复平铺）",
+				Validator: enumValidator("mode", "position", "repeat"),
 			},
 			&cli.StringFlag{
 				Name:  "color",
 				Usage: "文字水印颜色；未指定时自动选择",
 			},
 			&cli.IntFlag{
-				Name:  "space",
-				Usage: "平铺间距（仅文字 repeat 模式；0=自动计算）",
+				Name:      "space",
+				Usage:     "平铺间距（仅文字 repeat 模式；0=自动计算）",
+				Validator: nonNegativeIntValidator("space"),
 			},
 			&cli.IntFlag{
 				Name:  "angle",
@@ -69,22 +71,25 @@ func newWatermarkCommand() *cli.Command {
 				Usage: "旋转角度，单位为度（仅文字 repeat 模式）",
 			},
 			&cli.FloatFlag{
-				Name:  "opacity",
-				Value: 0.5,
-				Usage: "水印透明度，范围 0~1",
+				Name:      "opacity",
+				Value:     0.5,
+				Usage:     "水印透明度，范围 0~1",
+				Validator: floatRangeValidator("opacity", 0, 1),
 			},
 			&cli.StringFlag{
 				Name:  "font",
-				Usage: "文字水印字体文件；未指定时自动使用可用的默认字体",
+				Usage: "文字水印字体 `FILE`；未指定时自动使用可用的默认字体",
 			},
 			&cli.IntFlag{
-				Name:  "font-size",
-				Usage: "文字水印字号（0=自动计算）",
+				Name:      "font-size",
+				Usage:     "文字水印字号（0=自动计算）",
+				Validator: nonNegativeIntValidator("font-size"),
 			},
 			&cli.StringFlag{
-				Name:  "position",
-				Value: "bottom-right",
-				Usage: "水印位置（position 模式）: bottom-right/bottom-left/top-right/top-left/center",
+				Name:      "position",
+				Value:     "bottom-right",
+				Usage:     "水印位置（position 模式）: bottom-right/bottom-left/top-right/top-left/center",
+				Validator: enumValidator("position", "bottom-right", "bottom-left", "top-right", "top-left", "center"),
 			},
 			&cli.FloatFlag{
 				Name:  "margin",
@@ -92,9 +97,10 @@ func newWatermarkCommand() *cli.Command {
 				Usage: "边距比例（position 模式）",
 			},
 			&cli.FloatFlag{
-				Name:  "scale",
-				Value: 0.2,
-				Usage: "图片水印尺寸比例，相对底图短边",
+				Name:      "scale",
+				Value:     0.2,
+				Usage:     "图片水印尺寸比例，相对底图短边",
+				Validator: positiveFloatValidator("scale"),
 			},
 		},
 		// --text 与 --image 二选一且必须提供其一，由框架统一校验
@@ -112,7 +118,7 @@ func newWatermarkCommand() *cli.Command {
 					{
 						&cli.StringFlag{
 							Name:  "image",
-							Usage: "图片水印路径",
+							Usage: "图片水印 `FILE`",
 						},
 					},
 				},
