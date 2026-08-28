@@ -60,8 +60,14 @@ type UploadResult struct {
 
 // Upload 上传文件到存储桶。
 //
-// 上传前计算本地文件 SHA-256 并随对象写入 itb-sha256 用户 metadata，
-// 供后续 --skip-unchanged 比对。默认无条件覆盖已存在对象；
+// 执行顺序：open → HEAD preflight（仅启用跳过语义时）→ SHA-256 →
+// Seek(0) → PUT，整个函数只打开一次文件。HEAD 必须先于 hash：
+// --skip-existing 命中时在 hash 之前直接返回，0 字节本地内容读取；
+// --skip-unchanged 复用同一次 HEAD 结果，单次上传最多
+// 1 × HEAD + 1 × PUT。
+//
+// 上传时把本地文件 SHA-256 写入 itb-sha256 用户 metadata，供后续
+// --skip-unchanged 比对。默认无条件覆盖已存在对象；
 // SkipExisting/SkipUnchanged 只增加跳过语义，不改变默认行为。
 func Upload(ctx context.Context, client *Client, inputPath string, key string, opts *UploadOptions) (*UploadResult, error) {
 	if inputPath == "" {
@@ -71,34 +77,44 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		return nil, ErrMissingKey
 	}
 
-	sha256Value, err := fileSHA256(inputPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// 仅在启用跳过语义时做 1 次 HEAD preflight
-	if opts != nil && (opts.SkipExisting || opts.SkipUnchanged) {
-		skip, reason, err := shouldSkipUpload(ctx, client, key, sha256Value, opts)
-		if err != nil {
-			return nil, err
-		}
-		if skip {
-			fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", inputPath, client.bucket, key, reason)
-			return &UploadResult{Skipped: true, Reason: reason}, nil
-		}
-	}
-
-	// 打开本地文件
+	// 打开文件但不读取内容，输入文件不存在时立即报错
 	file, err := os.Open(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open input file: %w", err)
 	}
 	defer file.Close()
 
-	// 获取文件信息
 	fileInfo, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	// HEAD preflight 必须发生在 hash 之前
+	var remote *StatInfo
+
+	if opts != nil && (opts.SkipExisting || opts.SkipUnchanged) {
+		remote, err = statUploadTarget(ctx, client, key)
+		if err != nil {
+			return nil, err
+		}
+
+		if remote != nil && opts.SkipExisting {
+			return skippedUpload(inputPath, client, key, "object already exists"), nil
+		}
+	}
+
+	sha256Value, err := readerSHA256(file)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts != nil && opts.SkipUnchanged && isUnchanged(remote, sha256Value) {
+		return skippedUpload(inputPath, client, key, "content unchanged (itb-sha256 match)"), nil
+	}
+
+	// hash 已消费文件内容，回卷到起点后再交给 PutObject
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to rewind input file: %w", err)
 	}
 
 	// 自动检测 Content type
@@ -137,46 +153,37 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	return &UploadResult{}, nil
 }
 
-// shouldSkipUpload 用一次 HeadObject 判断是否跳过上传。
-// 对象不存在（404）时正常上传；403 等权限错误原样返回，绝不当作"不存在"。
-func shouldSkipUpload(ctx context.Context, client *Client, key, localSHA256 string, opts *UploadOptions) (bool, string, error) {
-	remote, err := Stat(ctx, client, key)
+// skippedUpload 打印跳过信息并构造 Skipped 结果。
+func skippedUpload(inputPath string, client *Client, key, reason string) *UploadResult {
+	fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", inputPath, client.bucket, key, reason)
+	return &UploadResult{Skipped: true, Reason: reason}
+}
+
+// statUploadTarget 对上传目标执行 1 次 HeadObject preflight。
+// 对象不存在（404）返回 nil，由调用方继续上传；
+// 403 等权限错误原样返回，绝不当作"不存在"。
+func statUploadTarget(ctx context.Context, client *Client, key string) (*StatInfo, error) {
+	info, err := Stat(ctx, client, key)
 	if err != nil {
 		if errors.Is(err, ErrObjectNotFound) {
-			return false, "", nil
+			return nil, nil
 		}
-		return false, "", err
+		return nil, err
 	}
-	skip, reason := decideSkip(remote, localSHA256, opts)
-	return skip, reason, nil
+	return info, nil
 }
 
-// decideSkip 根据远端对象状态与跳过选项决定是否跳过上传（纯函数），
-// 返回是否跳过及原因。
-func decideSkip(remote *StatInfo, localSHA256 string, opts *UploadOptions) (bool, string) {
-	if opts == nil || remote == nil {
-		return false, ""
-	}
-	if opts.SkipExisting {
-		return true, "object already exists"
-	}
-	if opts.SkipUnchanged && remote.Metadata != nil &&
-		remote.Metadata[MetadataSHA256Key] == localSHA256 {
-		return true, "content unchanged (itb-sha256 match)"
-	}
-	return false, ""
+// isUnchanged 判断远端对象的 itb-sha256 metadata 与本地哈希是否一致。
+func isUnchanged(remote *StatInfo, localSHA256 string) bool {
+	return remote != nil &&
+		remote.Metadata != nil &&
+		remote.Metadata[MetadataSHA256Key] == localSHA256
 }
 
-// fileSHA256 计算文件内容的 SHA-256，返回十六进制编码。
-func fileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to open input file: %w", err)
-	}
-	defer file.Close()
-
+// readerSHA256 计算读取内容的 SHA-256，返回十六进制编码。
+func readerSHA256(r io.Reader) (string, error) {
 	h := sha256.New()
-	if _, err := io.Copy(h, file); err != nil {
+	if _, err := io.Copy(h, r); err != nil {
 		return "", fmt.Errorf("failed to hash input file: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
