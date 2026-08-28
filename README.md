@@ -418,6 +418,7 @@ ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
 
 上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
 `--skip-unchanged` 依赖该值判断远端对象与本地是否一致；默认行为仍是无条件覆盖。
+`--skip-existing` 与 `--skip-unchanged` 是互斥的上传策略，同时使用会报参数错误。
 
 <details>
 <summary>upload 参数</summary>

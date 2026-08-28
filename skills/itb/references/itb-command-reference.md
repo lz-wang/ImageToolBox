@@ -203,7 +203,8 @@ inspecting its metadata.
 `s3 upload` stores the file's SHA-256 in `x-amz-meta-itb-sha256` metadata by
 default. `--skip-existing` skips when the key exists; `--skip-unchanged`
 skips only when that metadata hash matches the local file (never rely on
-ETag for this). Default upload always overwrites.
+ETag for this). Default upload always overwrites. The two skip flags are
+mutually exclusive — combining them is a flag error.
 
 ## LskyPro Upload
 

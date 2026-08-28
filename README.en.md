@@ -418,7 +418,9 @@ All S3 subcommands share the following options:
 
 Every upload stores the local file's SHA-256 in object user metadata
 (`x-amz-meta-itb-sha256`), which `--skip-unchanged` compares against;
-the default behavior remains unconditional overwrite.
+the default behavior remains unconditional overwrite. `--skip-existing`
+and `--skip-unchanged` are mutually exclusive upload strategies;
+combining them is rejected as a flag error.
 
 <details>
 <summary>upload options</summary>

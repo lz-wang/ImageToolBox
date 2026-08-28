@@ -22,10 +22,10 @@ var (
 
 // s3 upload 参数
 var (
-	s3UploadInput        string
-	s3UploadKey          string
-	s3UploadContentType  string
-	s3UploadSkipExisting bool
+	s3UploadInput         string
+	s3UploadKey           string
+	s3UploadContentType   string
+	s3UploadSkipExisting  bool
 	s3UploadSkipUnchanged bool
 )
 
@@ -50,7 +50,7 @@ var (
 
 // s3 stat 参数
 var (
-	s3StatKey   string
+	s3StatKey    string
 	s3StatFormat string
 )
 
@@ -73,7 +73,8 @@ var s3UploadCmd = &cobra.Command{
 	Long: `上传本地文件到 S3 兼容存储桶。
 
 默认无条件覆盖同名对象。上传时会把本地文件的 SHA-256 写入对象
-metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。`,
+metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
+--skip-existing 与 --skip-unchanged 互斥，同时使用会报参数错误。`,
 	Example: `  # 上传文件
   itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
 
@@ -166,6 +167,9 @@ func init() {
 	s3UploadCmd.Flags().BoolVar(&s3UploadSkipExisting, "skip-existing", false, "对象键已存在即跳过上传")
 	s3UploadCmd.Flags().BoolVar(&s3UploadSkipUnchanged, "skip-unchanged", false, "内容一致才跳过上传（比对 itb-sha256 metadata）")
 	s3UploadCmd.MarkFlagRequired("input")
+
+	// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
+	s3UploadCmd.MarkFlagsMutuallyExclusive("skip-existing", "skip-unchanged")
 
 	// S3 download 参数
 	s3DownloadCmd.Flags().StringVarP(&s3DownloadKey, "key", "k", "", "对象键名")
