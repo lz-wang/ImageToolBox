@@ -17,7 +17,7 @@ type DownloadOptions struct {
 }
 
 // Get 获取对象内容流（GetObject），调用方负责关闭返回的 Body。
-// 供 Web 层把 S3 响应直接流式转发给浏览器，
+// Download 以及其他需要流式消费对象内容的调用方可复用此函数，
 // 避免"落盘临时文件 + 整文件读入内存"的开销。
 func Get(ctx context.Context, client *Client, key string) (*s3.GetObjectOutput, error) {
 	if key == "" {
