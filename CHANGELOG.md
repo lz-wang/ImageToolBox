@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Removed
+
+- 移除 S3 兼容存储功能及 `itb s3` 命令（upload/download/delete/list/stat）与 `ITB_S3_*` 环境变量，`aws-sdk-go-v2`/`smithy-go` 依赖随之全部移除。
+- WebUI 收敛为图像处理功能（压缩/缩放/裁剪/转换/水印），删除 `/api/v1/s3/*` 接口与前端 S3 面板。
+
 ## [v0.4.1] - 2026-08-13
 
 ### Added
