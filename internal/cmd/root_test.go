@@ -10,6 +10,8 @@ import (
 	"testing/fstest"
 
 	"github.com/urfave/cli/v3"
+
+	"imagetoolbox/internal/s3"
 )
 
 func testApp() *cli.Command {
@@ -118,6 +120,120 @@ func TestS3ParentFlagParsing(t *testing.T) {
 			}
 		})
 	}
+}
+
+// setS3Env 显式设置测试所需的 ITB_S3_* 环境变量：map 中存在的键被
+// 设置，其余键一律取消设置（含恢复），避免宿主环境泄漏进测试。
+func setS3Env(t *testing.T, env map[string]string) {
+	t.Helper()
+
+	for _, k := range []string{"ITB_S3_ENDPOINT", "ITB_S3_ACCESS_KEY_ID", "ITB_S3_SECRET_ACCESS_KEY", "ITB_S3_REGION", "ITB_S3_BUCKET"} {
+		if v, ok := env[k]; ok {
+			t.Setenv(k, v)
+			continue
+		}
+		if orig, had := os.LookupEnv(k); had {
+			os.Unsetenv(k)
+			t.Cleanup(func() { os.Setenv(k, orig) })
+		}
+	}
+}
+
+// runS3ConfigCapture 把 `s3 list` 的 Action 替换为配置捕获，返回 Action
+// 内解析到的父级配置，用于断言 flag 与 ITB_S3_* 环境变量的解析结果。
+func runS3ConfigCapture(t *testing.T, env map[string]string, args ...string) (s3.Config, error) {
+	t.Helper()
+
+	setS3Env(t, env)
+
+	var got s3.Config
+	app := testApp()
+	for _, sub := range app.Commands {
+		if sub.Name != "s3" {
+			continue
+		}
+		for _, list := range sub.Commands {
+			if list.Name != "list" {
+				continue
+			}
+			list.Action = func(ctx context.Context, cmd *cli.Command) error {
+				got = s3.Config{
+					Endpoint:        cmd.String("endpoint"),
+					AccessKeyID:     cmd.String("access-key"),
+					SecretAccessKey: cmd.String("secret-key"),
+					Region:          cmd.String("region"),
+					Bucket:          cmd.String("bucket"),
+					ForcePathStyle:  cmd.Bool("force-path-style"),
+				}
+				return nil
+			}
+		}
+	}
+
+	err := app.Run(context.Background(), append([]string{"itb"}, args...))
+	return got, err
+}
+
+// ITB_S3_* 由 CLI 层（urfave/cli Sources）解析：环境变量可满足
+// required flag（bucket），优先级为 CLI flag > 环境变量 > 默认值。
+func TestS3EnvSources(t *testing.T) {
+	envAll := map[string]string{
+		"ITB_S3_ENDPOINT":          "http://env-endpoint:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "env-ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "env-sk",
+		"ITB_S3_REGION":            "env-region",
+		"ITB_S3_BUCKET":            "env-bucket",
+	}
+
+	t.Run("环境变量注入全部父级配置并满足 required bucket", func(t *testing.T) {
+		got, err := runS3ConfigCapture(t, envAll, "s3", "list")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := s3.Config{
+			Endpoint:        "http://env-endpoint:9000",
+			AccessKeyID:     "env-ak",
+			SecretAccessKey: "env-sk",
+			Region:          "env-region",
+			Bucket:          "env-bucket",
+		}
+		if got != want {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("CLI flag 优先于环境变量", func(t *testing.T) {
+		got, err := runS3ConfigCapture(t, envAll,
+			"s3", "list",
+			"-e", "http://flag-endpoint:9000",
+			"-a", "flag-ak",
+			"-s", "flag-sk",
+			"-r", "flag-region",
+			"-b", "flag-bucket")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := s3.Config{
+			Endpoint:        "http://flag-endpoint:9000",
+			AccessKeyID:     "flag-ak",
+			SecretAccessKey: "flag-sk",
+			Region:          "flag-region",
+			Bucket:          "flag-bucket",
+		}
+		if got != want {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("无环境变量且无 flag 时 bucket required 报错", func(t *testing.T) {
+		_, err := runS3ConfigCapture(t, nil, "s3", "list")
+		if err == nil {
+			t.Fatal("expected required flag error, got nil")
+		}
+		if !strings.Contains(err.Error(), "Required flag") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestS3SkipFlagsMutuallyExclusive(t *testing.T) {

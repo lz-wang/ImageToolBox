@@ -16,36 +16,44 @@ func newS3Command() *cli.Command {
 		Usage: "S3 兼容存储操作",
 		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
+配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值
+
 环境变量支持:
   ITB_S3_ENDPOINT           自定义端点
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
-  ITB_S3_REGION             区域（默认 us-east-1）`,
+  ITB_S3_REGION             区域（默认 us-east-1）
+  ITB_S3_BUCKET             存储桶名称（可省略 --bucket）`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "endpoint",
 				Aliases: []string{"e"},
 				Usage:   "S3 端点 URL",
+				Sources: cli.EnvVars("ITB_S3_ENDPOINT"),
 			},
 			&cli.StringFlag{
 				Name:    "access-key",
 				Aliases: []string{"a"},
-				Usage:   "Access Key ID（默认从环境变量读取）",
+				Usage:   "Access Key ID",
+				Sources: cli.EnvVars("ITB_S3_ACCESS_KEY_ID"),
 			},
 			&cli.StringFlag{
 				Name:    "secret-key",
 				Aliases: []string{"s"},
-				Usage:   "Secret Access Key（默认从环境变量读取）",
+				Usage:   "Secret Access Key",
+				Sources: cli.EnvVars("ITB_S3_SECRET_ACCESS_KEY"),
 			},
 			&cli.StringFlag{
 				Name:    "region",
 				Aliases: []string{"r"},
-				Usage:   "区域（默认从 ITB_S3_REGION 读取，未设置时为 us-east-1）",
+				Usage:   "区域（默认 us-east-1）",
+				Sources: cli.EnvVars("ITB_S3_REGION"),
 			},
 			&cli.StringFlag{
 				Name:     "bucket",
 				Aliases:  []string{"b"},
 				Usage:    "存储桶名称",
+				Sources:  cli.EnvVars("ITB_S3_BUCKET"),
 				Required: true,
 			},
 			&cli.BoolFlag{
@@ -254,6 +262,7 @@ func newS3StatCommand() *cli.Command {
 }
 
 func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
+	// ITB_S3_* 已由 flag 的 Sources 在 CLI 层解析，这里只做领域归一化
 	cfg := &s3.Config{
 		Endpoint:        cmd.String("endpoint"),
 		AccessKeyID:     cmd.String("access-key"),
@@ -262,7 +271,7 @@ func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 		Bucket:          cmd.String("bucket"),
 		ForcePathStyle:  cmd.Bool("force-path-style"),
 	}
-	cfg.LoadFromEnv()
+	cfg.Normalize()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err

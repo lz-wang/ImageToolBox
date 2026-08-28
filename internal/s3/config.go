@@ -2,7 +2,6 @@ package s3
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -16,25 +15,13 @@ type Config struct {
 	ForcePathStyle  bool   // 是否强制路径样式（MinIO 需要）
 }
 
-// LoadFromEnv 从环境变量加载配置
-func (c *Config) LoadFromEnv() {
-	if c.Endpoint == "" {
-		c.Endpoint = os.Getenv("ITB_S3_ENDPOINT")
-	}
-	if c.AccessKeyID == "" {
-		c.AccessKeyID = os.Getenv("ITB_S3_ACCESS_KEY_ID")
-	}
-	if c.SecretAccessKey == "" {
-		c.SecretAccessKey = os.Getenv("ITB_S3_SECRET_ACCESS_KEY")
-	}
+// Normalize 归一化配置：补全 region 默认值，并按端点自动启用路径样式。
+//
+// 环境变量不在领域层读取：ITB_S3_* 由 CLI 层（urfave/cli 的
+// Sources）解析注入，优先级为 CLI flag > 环境变量 > 默认值。
+func (c *Config) Normalize() {
 	if c.Region == "" {
-		c.Region = os.Getenv("ITB_S3_REGION")
-		if c.Region == "" {
-			c.Region = "us-east-1"
-		}
-	}
-	if c.Bucket == "" {
-		c.Bucket = os.Getenv("ITB_S3_BUCKET")
+		c.Region = "us-east-1"
 	}
 
 	// 自动检测 MinIO，默认启用路径样式

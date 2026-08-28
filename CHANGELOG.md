@@ -14,6 +14,10 @@ All notable changes to this project will be documented in this file.
 
 - CLI 框架由 `spf13/cobra` 迁移至 `urfave/cli/v3`，命令树在 `cmd.New()` 中显式构造，移除包级 flag 全局变量与 `init()` 注册；用户可见命令与 `itb version` 输出保持不变。
 
+### Fixed
+
+- S3 配置来源统一到 CLI 层：`ITB_S3_*` 环境变量改由 urfave/cli `Sources` 绑定，`ITB_S3_BUCKET` 等环境变量现在能真正满足 `--bucket` 等 required flag 校验（此前因 Action 前置校验而失效），优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 不再读取环境变量，收敛为纯领域包。
+
 ## [v0.4.1] - 2026-08-13
 
 ### Added

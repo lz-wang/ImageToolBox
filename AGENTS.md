@@ -36,7 +36,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 - `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
 - 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
-- `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令，凭证优先读环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不提供任何存储相关 API。
+- `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不提供任何存储相关 API。
 - `internal/server`：`itb serve` 的 Gin HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程；静态资源 SPA 回退。
 - `web/`：React 19 + TypeScript + Vite + MUI + Emotion + Biome 前端，构建产物经 `//go:embed all:web/dist` 内嵌（`web/dist/.placeholder` 是未构建时的兜底，必须保留在 git 中）。
 

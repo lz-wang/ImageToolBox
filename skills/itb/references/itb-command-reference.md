@@ -147,6 +147,8 @@ ITB_S3_REGION
 ITB_S3_BUCKET
 ```
 
+Priority: CLI flag > `ITB_S3_*` environment variables > defaults. Environment variables satisfy required flags such as `--bucket`.
+
 Common flags:
 
 - `-e, --endpoint`: S3 endpoint URL.

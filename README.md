@@ -348,8 +348,10 @@ ITB_S3_ENDPOINT           # S3 端点 URL（可选）
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # 区域（默认 us-east-1）
-ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
+ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 ```
+
+配置优先级：CLI flag > `ITB_S3_*` 环境变量 > 默认值；环境变量可满足 `--bucket` 等必填校验。
 
 <details>
 <summary>公共参数</summary>
@@ -362,7 +364,7 @@ ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
 | `-a, --access-key` | (环境变量) | Access Key ID |
 | `-s, --secret-key` | (环境变量) | Secret Access Key |
 | `-r, --region` | `us-east-1` | 区域 |
-| `-b, --bucket` | (必填) | 存储桶名称 |
+| `-b, --bucket` | (必填) | 存储桶名称（或 `ITB_S3_BUCKET`） |
 | `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要） |
 
 </details>

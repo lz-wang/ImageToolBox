@@ -6,116 +6,60 @@ import (
 	"testing"
 )
 
-func TestLoadFromEnv(t *testing.T) {
+func TestNormalize(t *testing.T) {
 	tests := []struct {
-		name   string
-		config Config
-		env    map[string]string
-		want   Config
+		name string
+		cfg  Config
+		want Config
 	}{
 		{
-			name: "flag 已设值时 env 不覆盖",
-			config: Config{
-				Endpoint:        "flag-endpoint",
-				AccessKeyID:     "flag-ak",
-				SecretAccessKey: "flag-sk",
-				Region:          "flag-region",
-			},
-			env: map[string]string{
-				"ITB_S3_ENDPOINT":          "env-endpoint",
-				"ITB_S3_ACCESS_KEY_ID":     "env-ak",
-				"ITB_S3_SECRET_ACCESS_KEY": "env-sk",
-				"ITB_S3_REGION":            "env-region",
-			},
-			want: Config{
-				Endpoint:        "flag-endpoint",
-				AccessKeyID:     "flag-ak",
-				SecretAccessKey: "flag-sk",
-				Region:          "flag-region",
-			},
+			name: "region 为空时默认 us-east-1",
+			cfg:  Config{Endpoint: "e", AccessKeyID: "a", SecretAccessKey: "s", Bucket: "b"},
+			want: Config{Endpoint: "e", AccessKeyID: "a", SecretAccessKey: "s", Region: "us-east-1", Bucket: "b"},
 		},
 		{
-			name:   "flag 为空时从 ITB_S3_* 读取",
-			config: Config{},
-			env: map[string]string{
-				"ITB_S3_ENDPOINT":          "env-endpoint",
-				"ITB_S3_ACCESS_KEY_ID":     "env-ak",
-				"ITB_S3_SECRET_ACCESS_KEY": "env-sk",
-				"ITB_S3_REGION":            "env-region",
-			},
-			want: Config{
-				Endpoint:        "env-endpoint",
-				AccessKeyID:     "env-ak",
-				SecretAccessKey: "env-sk",
-				Region:          "env-region",
-			},
+			name: "region 已设值时保持不变",
+			cfg:  Config{Endpoint: "e", Region: "cn-north-1"},
+			want: Config{Endpoint: "e", Region: "cn-north-1"},
 		},
 		{
-			name:   "region 为空且无 env 时 fallback us-east-1",
-			config: Config{},
-			env: map[string]string{
-				"ITB_S3_ENDPOINT":          "e",
-				"ITB_S3_ACCESS_KEY_ID":     "a",
-				"ITB_S3_SECRET_ACCESS_KEY": "s",
-				"ITB_S3_REGION":            "",
-			},
-			want: Config{
-				Endpoint:        "e",
-				AccessKeyID:     "a",
-				SecretAccessKey: "s",
-				Region:          "us-east-1",
-			},
+			name: "localhost 自动启用路径样式",
+			cfg:  Config{Endpoint: "http://localhost:9000"},
+			want: Config{Endpoint: "http://localhost:9000", Region: "us-east-1", ForcePathStyle: true},
 		},
 		{
-			name:   "旧变量名 S3_* 不再被读取",
-			config: Config{},
-			env: map[string]string{
-				"S3_ENDPOINT":              "old-endpoint",
-				"S3_ACCESS_KEY_ID":         "old-ak",
-				"S3_SECRET_ACCESS_KEY":     "old-sk",
-				"S3_REGION":                "old-region",
-				"ITB_S3_ENDPOINT":          "",
-				"ITB_S3_ACCESS_KEY_ID":     "",
-				"ITB_S3_SECRET_ACCESS_KEY": "",
-				"ITB_S3_REGION":            "",
-			},
+			name: "127.0.0.1 自动启用路径样式",
+			cfg:  Config{Endpoint: "http://127.0.0.1:9000"},
+			want: Config{Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", ForcePathStyle: true},
+		},
+		{
+			name: ":9000 自动启用路径样式",
+			cfg:  Config{Endpoint: "http://minio:9000"},
+			want: Config{Endpoint: "http://minio:9000", Region: "us-east-1", ForcePathStyle: true},
+		},
+		{
+			name: "普通端点不启用路径样式",
+			cfg:  Config{Endpoint: "https://s3.amazonaws.com"},
+			want: Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1"},
+		},
+		{
+			name: "已显式启用保持不变",
+			cfg:  Config{Endpoint: "https://s3.amazonaws.com", ForcePathStyle: true},
+			want: Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1", ForcePathStyle: true},
+		},
+		{
+			name: "空端点不触发检测",
+			cfg:  Config{},
 			want: Config{Region: "us-east-1"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for k, v := range tt.env {
-				t.Setenv(k, v)
-			}
-			cfg := tt.config
-			cfg.LoadFromEnv()
+			cfg := tt.cfg
+			cfg.Normalize()
 			if cfg != tt.want {
 				t.Fatalf("got %+v, want %+v", cfg, tt.want)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnv_ForcePathStyle(t *testing.T) {
-	tests := []struct {
-		name      string
-		endpoint  string
-		force     bool
-		wantForce bool
-	}{
-		{"localhost 自动启用", "http://localhost:9000", false, true},
-		{"127.0.0.1 自动启用", "http://127.0.0.1:9000", false, true},
-		{":9000 自动启用", "http://minio:9000", false, true},
-		{"普通端点不启用", "https://s3.amazonaws.com", false, false},
-		{"已显式启用保持不变", "https://s3.amazonaws.com", true, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{Endpoint: tt.endpoint, ForcePathStyle: tt.force}
-			cfg.LoadFromEnv()
-			if cfg.ForcePathStyle != tt.wantForce {
-				t.Fatalf("ForcePathStyle got %v, want %v", cfg.ForcePathStyle, tt.wantForce)
 			}
 		})
 	}

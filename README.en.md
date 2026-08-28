@@ -348,8 +348,10 @@ ITB_S3_ENDPOINT           # S3 endpoint URL (optional)
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
 ITB_S3_REGION             # Region (default us-east-1)
-ITB_S3_BUCKET             # Bucket name (can also be set via -b)
+ITB_S3_BUCKET             # Bucket name (can omit -b)
 ```
+
+Priority: CLI flag > `ITB_S3_*` environment variables > defaults; environment variables satisfy required flags such as `--bucket`.
 
 <details>
 <summary>Common options</summary>
@@ -362,7 +364,7 @@ All S3 subcommands share the following options:
 | `-a, --access-key` | (env var) | Access Key ID |
 | `-s, --secret-key` | (env var) | Secret Access Key |
 | `-r, --region` | `us-east-1` | Region |
-| `-b, --bucket` | (required) | Bucket name |
+| `-b, --bucket` | (required) | Bucket name (or `ITB_S3_BUCKET`) |
 | `--force-path-style` | `false` | Force path-style URL (required by MinIO) |
 
 </details>
