@@ -281,15 +281,23 @@ export async function fetchS3Objects(prefix = ''): Promise<S3Object[]> {
 
 export async function uploadS3Object(
 	file: File,
-	options: { key?: string; prefix?: string },
-): Promise<{ key: string }> {
+	options: {
+		key?: string
+		prefix?: string
+		skipExisting?: boolean
+		skipUnchanged?: boolean
+	},
+): Promise<{ key: string; skipped?: boolean; reason?: string }> {
 	const form = new FormData()
 	form.append('file', file)
 	form.append('options', JSON.stringify(options))
-	return requestJSON<{ key: string }>('/api/v1/s3/objects', {
-		method: 'POST',
-		body: form,
-	})
+	return requestJSON<{ key: string; skipped?: boolean; reason?: string }>(
+		'/api/v1/s3/objects',
+		{
+			method: 'POST',
+			body: form,
+		},
+	)
 }
 
 export function s3DownloadUrl(key: string): string {

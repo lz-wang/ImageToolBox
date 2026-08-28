@@ -419,16 +419,28 @@ All S3 subcommands share the following options:
 
 # Specify the Content-Type
 ./itb s3 upload -i data.json -b my-bucket --content-type application/json
+
+# Skip when an object with the same key already exists (one HEAD instead of a full upload)
+./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+
+# Skip only when content is unchanged (compares itb-sha256 metadata, not ETag)
+./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 ```
+
+Every upload stores the local file's SHA-256 in object user metadata
+(`x-amz-meta-itb-sha256`), which `--skip-unchanged` compares against;
+the default behavior remains unconditional overwrite.
 
 <details>
 <summary>upload options</summary>
 
-| Option | Description |
-|------|------|
-| `-i, --input` | Local file path (required) |
-| `-k, --key` | Object key (defaults to the file name) |
-| `--content-type` | Content type (auto-detected) |
+| Option | Default | Description |
+|------|--------|------|
+| `-i, --input` | (required) | Local file path |
+| `-k, --key` | file name | Object key |
+| `--content-type` | auto-detected | Content type |
+| `--skip-existing` | `false` | Skip upload when the object key already exists |
+| `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
 
 </details>
 

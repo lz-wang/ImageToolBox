@@ -22,9 +22,11 @@ var (
 
 // s3 upload 参数
 var (
-	s3UploadInput       string
-	s3UploadKey         string
-	s3UploadContentType string
+	s3UploadInput        string
+	s3UploadKey          string
+	s3UploadContentType  string
+	s3UploadSkipExisting bool
+	s3UploadSkipUnchanged bool
 )
 
 // s3 download 参数
@@ -68,7 +70,10 @@ var s3Cmd = &cobra.Command{
 var s3UploadCmd = &cobra.Command{
 	Use:   "upload",
 	Short: "上传文件到存储桶",
-	Long:  `上传本地文件到 S3 兼容存储桶。`,
+	Long: `上传本地文件到 S3 兼容存储桶。
+
+默认无条件覆盖同名对象。上传时会把本地文件的 SHA-256 写入对象
+metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。`,
 	Example: `  # 上传文件
   itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
 
@@ -76,7 +81,13 @@ var s3UploadCmd = &cobra.Command{
   itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
 
   # 指定 Content-Type
-  itb s3 upload -i data.json -b my-bucket --content-type application/json`,
+  itb s3 upload -i data.json -b my-bucket --content-type application/json
+
+  # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
+  itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+
+  # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
+  itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged`,
 	RunE: runS3Upload,
 }
 
@@ -152,6 +163,8 @@ func init() {
 	s3UploadCmd.Flags().StringVarP(&s3UploadInput, "input", "i", "", "本地文件路径")
 	s3UploadCmd.Flags().StringVarP(&s3UploadKey, "key", "k", "", "对象键名（默认使用文件名）")
 	s3UploadCmd.Flags().StringVar(&s3UploadContentType, "content-type", "", "内容类型（自动检测）")
+	s3UploadCmd.Flags().BoolVar(&s3UploadSkipExisting, "skip-existing", false, "对象键已存在即跳过上传")
+	s3UploadCmd.Flags().BoolVar(&s3UploadSkipUnchanged, "skip-unchanged", false, "内容一致才跳过上传（比对 itb-sha256 metadata）")
 	s3UploadCmd.MarkFlagRequired("input")
 
 	// S3 download 参数
@@ -210,10 +223,13 @@ func runS3Upload(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := &s3.UploadOptions{
-		ContentType: s3UploadContentType,
+		ContentType:   s3UploadContentType,
+		SkipExisting:  s3UploadSkipExisting,
+		SkipUnchanged: s3UploadSkipUnchanged,
 	}
 
-	return s3.Upload(cmd.Context(), client, s3UploadInput, key, opts)
+	_, err = s3.Upload(cmd.Context(), client, s3UploadInput, key, opts)
+	return err
 }
 
 func runS3Download(cmd *cobra.Command, args []string) error {

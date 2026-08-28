@@ -183,6 +183,8 @@ Examples:
 ```bash
 itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000 --force-path-style
 itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
 itb s3 list -b my-bucket -p images/ --format json
 itb s3 stat -b my-bucket -k images/photo.jpg
@@ -197,6 +199,11 @@ Use `s3 delete -f` only for explicitly requested non-interactive deletion.
 content transfer) and never falls back to list inference; prefer it over
 `s3 list`/`s3 download` when only checking whether an object exists or
 inspecting its metadata.
+
+`s3 upload` stores the file's SHA-256 in `x-amz-meta-itb-sha256` metadata by
+default. `--skip-existing` skips when the key exists; `--skip-unchanged`
+skips only when that metadata hash matches the local file (never rely on
+ETag for this). Default upload always overwrites.
 
 ## LskyPro Upload
 

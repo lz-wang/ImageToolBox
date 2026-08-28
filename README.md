@@ -419,16 +419,27 @@ ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
 
 # 指定 Content-Type
 ./itb s3 upload -i data.json -b my-bucket --content-type application/json
+
+# 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
+./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+
+# 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
+./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 ```
+
+上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
+`--skip-unchanged` 依赖该值判断远端对象与本地是否一致；默认行为仍是无条件覆盖。
 
 <details>
 <summary>upload 参数</summary>
 
-| 参数 | 说明 |
-|------|------|
-| `-i, --input` | 本地文件路径（必填） |
-| `-k, --key` | 对象键名（默认使用文件名） |
-| `--content-type` | 内容类型（自动检测） |
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-i, --input` | (必填) | 本地文件路径 |
+| `-k, --key` | 文件名 | 对象键名 |
+| `--content-type` | 自动检测 | 内容类型 |
+| `--skip-existing` | `false` | 对象键已存在即跳过上传 |
+| `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
 
 </details>
 

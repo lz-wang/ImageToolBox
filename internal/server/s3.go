@@ -15,9 +15,11 @@ import (
 // S3 凭证只从服务端环境变量读取（ITB_S3_*），secret 永不出现在响应中。
 
 type S3UploadRequest struct {
-	Key         string `json:"key"`
-	Prefix      string `json:"prefix"`
-	ContentType string `json:"contentType"`
+	Key          string `json:"key"`
+	Prefix       string `json:"prefix"`
+	ContentType  string `json:"contentType"`
+	SkipExisting bool   `json:"skipExisting"`
+	SkipUnchanged bool  `json:"skipUnchanged"`
 }
 
 func s3Client(c *gin.Context) (*s3.Client, bool) {
@@ -94,13 +96,18 @@ func handleS3Upload(c *gin.Context) {
 		}
 	}
 
-	uploadOpts := &s3.UploadOptions{ContentType: opts.ContentType}
-	if err := s3.Upload(c.Request.Context(), client, inputPath, key, uploadOpts); err != nil {
+	uploadOpts := &s3.UploadOptions{
+		ContentType:   opts.ContentType,
+		SkipExisting:  opts.SkipExisting,
+		SkipUnchanged: opts.SkipUnchanged,
+	}
+	result, err := s3.Upload(c.Request.Context(), client, inputPath, key, uploadOpts)
+	if err != nil {
 		fail(c, http.StatusBadGateway, "上传失败: %v", err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"key": key})
+	c.JSON(http.StatusOK, gin.H{"key": key, "skipped": result.Skipped, "reason": result.Reason})
 }
 
 func handleS3Download(c *gin.Context) {
