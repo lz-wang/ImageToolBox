@@ -15,17 +15,17 @@ import (
 // S3 凭证只从服务端环境变量读取（ITB_S3_*），secret 永不出现在响应中。
 
 type S3UploadRequest struct {
-	Key          string `json:"key"`
-	Prefix       string `json:"prefix"`
-	ContentType  string `json:"contentType"`
-	SkipExisting bool   `json:"skipExisting"`
-	SkipUnchanged bool  `json:"skipUnchanged"`
+	Key           string `json:"key"`
+	Prefix        string `json:"prefix"`
+	ContentType   string `json:"contentType"`
+	SkipExisting  bool   `json:"skipExisting"`
+	SkipUnchanged bool   `json:"skipUnchanged"`
 }
 
-func s3Client(c *gin.Context) (*s3.Client, bool) {
-	cfg := &s3.Config{}
-	cfg.LoadFromEnv()
-	client, err := s3.NewClient(c.Request.Context(), cfg)
+// requireS3Client 取 Server 生命周期内复用的 S3 客户端；
+// 未配置或配置不完整时已写回 503 响应。
+func (s *Server) requireS3Client(c *gin.Context) (*s3.Client, bool) {
+	client, err := s.sharedS3Client(c.Request.Context())
 	if err != nil {
 		fail(c, http.StatusServiceUnavailable, "S3 未配置或配置不完整: %v", err)
 		return nil, false
@@ -34,7 +34,7 @@ func s3Client(c *gin.Context) (*s3.Client, bool) {
 }
 
 // handleS3Status 返回 S3 配置状态；绝不返回 SecretAccessKey。
-func handleS3Status(c *gin.Context) {
+func (s *Server) handleS3Status(c *gin.Context) {
 	cfg := &s3.Config{}
 	cfg.LoadFromEnv()
 	c.JSON(http.StatusOK, gin.H{
@@ -45,8 +45,8 @@ func handleS3Status(c *gin.Context) {
 	})
 }
 
-func handleS3List(c *gin.Context) {
-	client, ok := s3Client(c)
+func (s *Server) handleS3List(c *gin.Context) {
+	client, ok := s.requireS3Client(c)
 	if !ok {
 		return
 	}
@@ -66,8 +66,8 @@ func handleS3List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"objects": objects})
 }
 
-func handleS3Upload(c *gin.Context) {
-	client, ok := s3Client(c)
+func (s *Server) handleS3Upload(c *gin.Context) {
+	client, ok := s.requireS3Client(c)
 	if !ok {
 		return
 	}
@@ -110,8 +110,36 @@ func handleS3Upload(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"key": key, "skipped": result.Skipped, "reason": result.Reason})
 }
 
-func handleS3Download(c *gin.Context) {
-	client, ok := s3Client(c)
+// handleS3Stat 返回单个对象的完整元数据（HeadObject）。
+// 仅供前端"查看详情"时调用；列表页必须继续使用 ListObjectsV2 的结果，
+// 避免对每个对象额外发一次 HEAD 造成 N+1 请求。
+func (s *Server) handleS3Stat(c *gin.Context) {
+	client, ok := s.requireS3Client(c)
+	if !ok {
+		return
+	}
+
+	key := c.Query("key")
+	if key == "" {
+		fail(c, http.StatusBadRequest, "缺少参数: key")
+		return
+	}
+
+	info, err := s3.Stat(c.Request.Context(), client, key)
+	if err != nil {
+		if errors.Is(err, s3.ErrObjectNotFound) {
+			fail(c, http.StatusNotFound, "对象不存在: %s", key)
+			return
+		}
+		fail(c, http.StatusBadGateway, "查询对象元数据失败: %v", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, info)
+}
+
+func (s *Server) handleS3Download(c *gin.Context) {
+	client, ok := s.requireS3Client(c)
 	if !ok {
 		return
 	}
@@ -145,36 +173,8 @@ func handleS3Download(c *gin.Context) {
 	c.Data(http.StatusOK, http.DetectContentType(data), data)
 }
 
-// handleS3Stat 返回单个对象的完整元数据（HeadObject）。
-// 仅供前端"查看详情"时调用；列表页必须继续使用 ListObjectsV2 的结果，
-// 避免对每个对象额外发一次 HEAD 造成 N+1 请求。
-func handleS3Stat(c *gin.Context) {
-	client, ok := s3Client(c)
-	if !ok {
-		return
-	}
-
-	key := c.Query("key")
-	if key == "" {
-		fail(c, http.StatusBadRequest, "缺少参数: key")
-		return
-	}
-
-	info, err := s3.Stat(c.Request.Context(), client, key)
-	if err != nil {
-		if errors.Is(err, s3.ErrObjectNotFound) {
-			fail(c, http.StatusNotFound, "对象不存在: %s", key)
-			return
-		}
-		fail(c, http.StatusBadGateway, "查询对象元数据失败: %v", err)
-		return
-	}
-
-	c.JSON(http.StatusOK, info)
-}
-
-func handleS3Delete(c *gin.Context) {
-	client, ok := s3Client(c)
+func (s *Server) handleS3Delete(c *gin.Context) {
+	client, ok := s.requireS3Client(c)
 	if !ok {
 		return
 	}
