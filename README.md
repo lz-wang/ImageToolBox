@@ -333,12 +333,7 @@ brew install lz-wang/tap/itb
 
 ### 安全边界
 
-默认只监听 `127.0.0.1`，请勿绑定到不可信网络。Lsky 凭证只在**服务端**从环境变量读取，Token 永远不会进入浏览器：
-
-```bash
-ITB_LSKY_URL              # LskyPro 地址
-ITB_LSKY_TOKEN            # LskyPro API Token
-```
+默认只监听 `127.0.0.1`，请勿绑定到不可信网络。WebUI 仅提供本地图像处理，不涉及任何外部服务凭证。
 
 <details>
 <summary>命令参数与 HTTP API</summary>

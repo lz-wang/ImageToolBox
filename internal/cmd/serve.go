@@ -27,8 +27,7 @@ var serveCmd = &cobra.Command{
 	Short: "启动 Image Tool Box WebUI",
 	Long: `启动本地 WebUI，在浏览器中交互式使用图片处理能力。
 
-默认只监听 127.0.0.1，请勿绑定到不可信网络；Lsky 凭证
-继续从服务端环境变量读取，不会进入浏览器。`,
+默认只监听 127.0.0.1，请勿绑定到不可信网络。`,
 	Example: `  itb serve
   itb serve --addr 127.0.0.1:9000
   itb serve --open`,

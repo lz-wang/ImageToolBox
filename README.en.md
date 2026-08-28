@@ -333,12 +333,7 @@ The frontend bundle is embedded in the binary, so no extra deployment files are 
 
 ### Security boundary
 
-By default the server binds to `127.0.0.1` only; do not expose it to untrusted networks. Lsky credentials are read from environment variables on the **server side only** — tokens never reach the browser:
-
-```bash
-ITB_LSKY_URL              # LskyPro URL
-ITB_LSKY_TOKEN            # LskyPro API token
-```
+By default the server binds to `127.0.0.1` only; do not expose it to untrusted networks. The WebUI only performs local image processing and never handles external-service credentials.
 
 <details>
 <summary>Command options and HTTP API</summary>

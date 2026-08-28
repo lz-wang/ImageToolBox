@@ -250,27 +250,6 @@ export function batchWatermark(
 	return processBatch('/api/v1/batch/watermark', files, options, extraFiles)
 }
 
-// ---------- 存储（Lsky，凭证仅存于服务端环境变量） ----------
-
-export interface LskyUploadResult {
-	name?: string
-	url: string
-	markdown: string
-}
-
-export async function uploadLskyImage(
-	file: File,
-	strategyId = 0,
-): Promise<LskyUploadResult> {
-	const form = new FormData()
-	form.append('file', file)
-	form.append('options', JSON.stringify({ strategyId }))
-	return requestJSON<LskyUploadResult>('/api/v1/lsky/images', {
-		method: 'POST',
-		body: form,
-	})
-}
-
 // ---------- inspect ----------
 
 export interface InspectResult {

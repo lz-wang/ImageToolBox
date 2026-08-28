@@ -1,7 +1,7 @@
 // Package server 提供 itb WebUI 的 HTTP 服务。
 //
 // WebUI 不经由 CLI 子进程，而是直接调用各领域包（resize/convert/crop/
-// watermark/compress/inspect/batch/lsky），静态资源与 API 共用一个 Handler。
+// watermark/compress/inspect/batch），静态资源与 API 共用一个 Handler。
 package server
 
 import (

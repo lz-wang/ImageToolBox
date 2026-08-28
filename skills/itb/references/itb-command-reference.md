@@ -200,9 +200,9 @@ Flags:
 - `--addr`: listen address; default `127.0.0.1:8080`. Keep it on loopback unless the network is trusted.
 - `--open`: open the browser after startup; default `false`.
 
-Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect), batch resize/convert/watermark returned as a zip, and LskyPro upload.
+Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect) and batch resize/convert/watermark returned as a zip.
 
 Security notes:
 
-- Credentials for Lsky are read from `ITB_LSKY_*` environment variables on the server only; secrets are never sent to the browser.
 - The WebUI is stateless: uploads land in per-request temp directories that are removed after the response.
+- The WebUI only performs local image processing and never handles external-service credentials.

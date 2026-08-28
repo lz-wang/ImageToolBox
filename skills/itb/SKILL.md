@@ -50,5 +50,5 @@ itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to we
 - Do not omit `-o` with `compress` unless overwriting the original is intended; `compress` overwrites input when no output is provided.
 - Do not print secrets. Prefer environment variables for `ITB_LSKY_*` credentials.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
-- `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks. Lsky secrets stay server-side (env vars) and are never returned to the browser.
+- `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.
