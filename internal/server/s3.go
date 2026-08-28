@@ -3,11 +3,13 @@ package server
 import (
 	"errors"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gin-gonic/gin"
 	"imagetoolbox/internal/s3"
 )
@@ -138,6 +140,8 @@ func (s *Server) handleS3Stat(c *gin.Context) {
 	c.JSON(http.StatusOK, info)
 }
 
+// handleS3Download 把对象内容从 S3 直接流式转发给浏览器：
+// GetObject → io.Copy(c.Writer)，不落盘临时文件、不整文件读入内存。
 func (s *Server) handleS3Download(c *gin.Context) {
 	client, ok := s.requireS3Client(c)
 	if !ok {
@@ -150,27 +154,40 @@ func (s *Server) handleS3Download(c *gin.Context) {
 		return
 	}
 
-	dir, cleanup, err := newRequestDir("itb-s3-download")
+	out, err := s3.Get(c.Request.Context(), client, key)
 	if err != nil {
-		fail(c, http.StatusInternalServerError, "%v", err)
-		return
-	}
-	defer cleanup()
-
-	outputPath := filepath.Join(dir, filepath.Base(key))
-	if err := s3.Download(c.Request.Context(), client, key, outputPath, nil); err != nil {
+		if errors.Is(err, s3.ErrObjectNotFound) {
+			fail(c, http.StatusNotFound, "对象不存在: %s", key)
+			return
+		}
 		fail(c, http.StatusBadGateway, "下载失败: %v", err)
 		return
 	}
+	defer out.Body.Close()
 
-	data, err := os.ReadFile(outputPath)
-	if err != nil {
-		fail(c, http.StatusInternalServerError, "读取下载内容失败: %v", err)
-		return
+	name := filepath.Base(key)
+
+	contentType := aws.ToString(out.ContentType)
+	if contentType == "" {
+		contentType = mime.TypeByExtension(filepath.Ext(name))
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(key)))
-	c.Data(http.StatusOK, http.DetectContentType(data), data)
+	c.Header("Content-Disposition", contentDisposition(name))
+	c.Header("Content-Type", contentType)
+	if out.ContentLength != nil {
+		c.Header("Content-Length", strconv.FormatInt(*out.ContentLength, 10))
+	}
+	c.Status(http.StatusOK)
+
+	if _, err := io.Copy(c.Writer, out.Body); err != nil {
+		// 响应头已写出，无法再改状态码；记录错误并中断传输，
+		// 浏览器侧表现为下载中断（客户端取消时也走这里，属正常路径）。
+		_ = c.Error(fmt.Errorf("streaming object body: %w", err))
+		c.Abort()
+	}
 }
 
 func (s *Server) handleS3Delete(c *gin.Context) {

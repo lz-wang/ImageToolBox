@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -111,4 +113,69 @@ func TestS3RoutesWithoutConfigReturn503(t *testing.T) {
 			decodeJSONError(t, w.Body.Bytes())
 		})
 	}
+}
+
+// fakeS3Server 启动一个最小 S3 兼容 HTTP 服务，按 key 返回内容。
+func fakeS3Server(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func configureS3Endpoint(t *testing.T, endpoint string) {
+	t.Helper()
+	t.Setenv("ITB_S3_ENDPOINT", endpoint)
+	t.Setenv("ITB_S3_ACCESS_KEY_ID", "itb-test")
+	t.Setenv("ITB_S3_SECRET_ACCESS_KEY", "itb-test")
+	t.Setenv("ITB_S3_BUCKET", "itb-test")
+}
+
+func TestS3DownloadStreamsObjectBody(t *testing.T) {
+	const body = "PNGDATA!"
+	srv := fakeS3Server(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		_, _ = w.Write([]byte(body))
+	})
+	configureS3Endpoint(t, srv.URL)
+
+	w := httptest.NewRecorder()
+	testHandler(t, nil).ServeHTTP(w, httptest.NewRequest(
+		http.MethodGet, "/api/v1/s3/objects/download?key=images/foo.png", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := w.Body.String(); got != body {
+		t.Errorf("body = %q, want %q", got, body)
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", got)
+	}
+	if got := w.Header().Get("Content-Length"); got != strconv.Itoa(len(body)) {
+		t.Errorf("Content-Length = %q, want %d", got, len(body))
+	}
+	if got := w.Header().Get("Content-Disposition"); !strings.Contains(got, "foo.png") {
+		t.Errorf("Content-Disposition = %q, want foo.png attachment", got)
+	}
+}
+
+func TestS3DownloadObjectNotFound(t *testing.T) {
+	srv := fakeS3Server(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message><Key>images/foo.png</Key></Error>`))
+	})
+	configureS3Endpoint(t, srv.URL)
+
+	w := httptest.NewRecorder()
+	testHandler(t, nil).ServeHTTP(w, httptest.NewRequest(
+		http.MethodGet, "/api/v1/s3/objects/download?key=images/foo.png", nil))
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	decodeJSONError(t, w.Body.Bytes())
 }
