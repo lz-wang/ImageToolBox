@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -65,9 +69,40 @@ jobs:
             exit 2
           fi
 
+  test:
+    name: Release checks
+    needs: prepare
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+
+      - name: Run release checks
+        run: |
+          make check
+          make test
+
   build:
     name: ${{ matrix.target.name }}
-    needs: prepare
+    needs: [prepare, test]
     runs-on: ${{ matrix.target.runs_on }}
     strategy:
       fail-fast: false
@@ -613,7 +648,7 @@ jobs:
   notify:
     name: Notify Release Result
     runs-on: ubuntu-24.04
-    needs: [prepare, build, publish, homebrew]
+    needs: [prepare, test, build, publish, homebrew]
     if: always()
 
     steps:
@@ -635,6 +670,7 @@ jobs:
           <b>ImageToolBox Release 通知</b>
           <u>工作流</u>: <i>${{ github.workflow }}</i>
           <u>校验结果</u>: ${{ needs.prepare.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.prepare.result) }}
+          <u>测试结果</u>: ${{ needs.test.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.test.result) }}
           <u>构建结果</u>: ${{ needs.build.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.build.result) }}
           <u>发布结果</u>: ${{ needs.publish.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.publish.result) }}
           <u>Homebrew</u>: ${{ needs.homebrew.result == 'success' && '<font color="#00aa00"><b>success</b></font>' || format('<font color="#cc0000"><b>{0}</b></font>', needs.homebrew.result) }}

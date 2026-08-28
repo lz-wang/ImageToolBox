@@ -83,7 +83,13 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 ## 外部工具与 CI
 
-`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，再执行 `web/` 的 `npm ci && npm run build` 产出 `web/dist` 供 go:embed，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 仍只发布单个 `itb` 可执行文件。
+`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，再执行 `web/` 的 `npm ci && npm run build` 产出 `web/dist` 供 go:embed，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 会发布六个平台归档及各自 SHA-256 校验和；归档包含 `itb` 和运行时所需的 `bins/`。
+
+## Release and Homebrew publishing
+
+发布标签必须是 `vX.Y.Z`。`release.yml` 会先执行 `make check` 与 `make test`，再构建六个平台归档、创建 GitHub Release、上传归档及校验和到 `/Shares/github/<owner>/<repo>/<version>/`，最后从已发布资产读取四个 macOS/Linux 校验和，生成、审计、安装并测试 `lz-wang/homebrew-tap` 的 `Formula/itb.rb` 后才推送 Formula。
+
+发布前运行 `make check`、`make test` 与 `git diff --check`；推送带注释标签后，确认 GitHub Release 的六个归档和六个 `.sha256` 文件，以及 Homebrew Formula 提交均已完成。`HOMEBREW_TAP_TOKEN` 必须对 `lz-wang/homebrew-tap` 具有 Contents 读写权限；WebDAV 凭据与可选 Pushover 通知均通过 GitHub Actions Secrets 配置，绝不写入仓库。
 
 ## skills/itb
 
