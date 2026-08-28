@@ -11,7 +11,7 @@ import (
 )
 
 // registerAPIRoutes 注册 /api/v1 下的所有 API 路由。
-func (s *Server) registerAPIRoutes(api *gin.RouterGroup) {
+func registerAPIRoutes(api *gin.RouterGroup) {
 	api.GET("/health", handleHealth)
 
 	api.POST("/compress", handleCompress)
@@ -26,13 +26,6 @@ func (s *Server) registerAPIRoutes(api *gin.RouterGroup) {
 	api.POST("/batch/watermark", handleBatchWatermark)
 
 	// 存储后端：资源式接口，凭证仅从服务端环境变量读取
-	api.GET("/s3/status", s.handleS3Status)
-	api.GET("/s3/objects", s.handleS3List)
-	api.POST("/s3/objects", s.handleS3Upload)
-	api.GET("/s3/objects/download", s.handleS3Download)
-	api.GET("/s3/objects/info", s.handleS3Stat)
-	api.DELETE("/s3/objects", s.handleS3Delete)
-
 	api.POST("/lsky/images", handleLskyUpload)
 }
 
