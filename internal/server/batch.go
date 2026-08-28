@@ -14,7 +14,6 @@ import (
 	"imagetoolbox/internal/batch"
 	"imagetoolbox/internal/convert"
 	"imagetoolbox/internal/resize"
-	"imagetoolbox/internal/watermark"
 )
 
 func handleBatchResize(c *gin.Context) {
@@ -129,60 +128,10 @@ func handleBatchWatermark(c *gin.Context) {
 	runBatch(c, dir, inputDir, outputDir, batchSuffixRelPath("_watermarked"), watermarkProcessor(opts, wmImagePath, fontPath))
 }
 
-// watermarkProcessor 按请求构造水印处理函数，供单图与批处理共用。
+// watermarkProcessor 按请求构造水印处理函数，复用单图的 processWatermark。
 func watermarkProcessor(opts WatermarkRequest, wmImagePath, fontPath string) func(inputPath, outputPath string) error {
-	mode := opts.Mode
-	if mode == "" {
-		mode = "position"
-	}
-
-	if strings.EqualFold(opts.Type, "image") || wmImagePath != "" {
-		if mode != "position" {
-			return func(string, string) error {
-				return fmt.Errorf("图片水印仅支持 position 模式")
-			}
-		}
-		return func(in, out string) error {
-			_, err := watermark.AddImageWatermark(in, out, &watermark.ImageOptions{
-				ImagePath:   wmImagePath,
-				Opacity:     opts.Opacity,
-				Position:    watermark.Position(opts.Position),
-				ScaleRatio:  opts.Scale,
-				MarginRatio: opts.Margin,
-			})
-			return err
-		}
-	}
-
-	switch mode {
-	case "repeat":
-		return func(in, out string) error {
-			_, err := watermark.AddRepeatWatermark(in, out, opts.Text, &watermark.RepeatOptions{
-				Color:    opts.Color,
-				Space:    opts.Space,
-				Angle:    opts.Angle,
-				Opacity:  opts.Opacity,
-				FontPath: fontPath,
-				FontSize: opts.FontSize,
-			})
-			return err
-		}
-	case "position":
-		return func(in, out string) error {
-			_, err := watermark.AddPositionWatermark(in, out, opts.Text, &watermark.PositionOptions{
-				Opacity:     opts.Opacity,
-				Position:    watermark.Position(opts.Position),
-				FontPath:    fontPath,
-				FontSize:    opts.FontSize,
-				Color:       opts.Color,
-				MarginRatio: opts.Margin,
-			})
-			return err
-		}
-	default:
-		return func(string, string) error {
-			return fmt.Errorf("不支持的水印模式: %s", mode)
-		}
+	return func(in, out string) error {
+		return processWatermark(in, out, opts, wmImagePath, fontPath)
 	}
 }
 

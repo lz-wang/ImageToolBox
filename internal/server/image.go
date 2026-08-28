@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"imagetoolbox/internal/convert"
 	"imagetoolbox/internal/crop"
 	"imagetoolbox/internal/resize"
+	"imagetoolbox/internal/watermark"
 )
 
 // 请求结构为 Web 专用，与 CLI 的 cobra flag 全局变量完全隔离，
@@ -230,12 +232,59 @@ func handleWatermark(c *gin.Context) {
 	outName := outputFileName(inputPath, "_watermarked", "")
 	outputPath := filepath.Join(dir, outName)
 
-	if err := watermarkProcessor(opts, wmImagePath, fontPath)(inputPath, outputPath); err != nil {
+	if err := processWatermark(inputPath, outputPath, opts, wmImagePath, fontPath); err != nil {
 		fail(c, http.StatusBadRequest, "添加水印失败: %v", err)
 		return
 	}
 
 	serveImageFile(c, outputPath, fileSize(inputPath), outName)
+}
+
+// processWatermark 按请求参数为单张图片添加水印。
+func processWatermark(inputPath, outputPath string, opts WatermarkRequest, watermarkPath, fontPath string) error {
+	mode := opts.Mode
+	if mode == "" {
+		mode = "position"
+	}
+
+	if strings.EqualFold(opts.Type, "image") || watermarkPath != "" {
+		if mode != "position" {
+			return fmt.Errorf("图片水印仅支持 position 模式")
+		}
+		_, err := watermark.AddImageWatermark(inputPath, outputPath, &watermark.ImageOptions{
+			ImagePath:   watermarkPath,
+			Opacity:     opts.Opacity,
+			Position:    watermark.Position(opts.Position),
+			ScaleRatio:  opts.Scale,
+			MarginRatio: opts.Margin,
+		})
+		return err
+	}
+
+	switch mode {
+	case "repeat":
+		_, err := watermark.AddRepeatWatermark(inputPath, outputPath, opts.Text, &watermark.RepeatOptions{
+			Color:    opts.Color,
+			Space:    opts.Space,
+			Angle:    opts.Angle,
+			Opacity:  opts.Opacity,
+			FontPath: fontPath,
+			FontSize: opts.FontSize,
+		})
+		return err
+	case "position":
+		_, err := watermark.AddPositionWatermark(inputPath, outputPath, opts.Text, &watermark.PositionOptions{
+			Opacity:     opts.Opacity,
+			Position:    watermark.Position(opts.Position),
+			FontPath:    fontPath,
+			FontSize:    opts.FontSize,
+			Color:       opts.Color,
+			MarginRatio: opts.Margin,
+		})
+		return err
+	default:
+		return fmt.Errorf("不支持的水印模式: %s", mode)
+	}
 }
 
 // outputFileName 生成 base+suffix+ext 的输出文件名；ext 为空时沿用输入扩展名。
