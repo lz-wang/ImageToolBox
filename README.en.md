@@ -496,6 +496,31 @@ All S3 subcommands share the following options:
 
 </details>
 
+### Stat object metadata
+
+```bash
+# Show full metadata of a single object (one HEAD request, no content transfer)
+./itb s3 stat -b my-bucket -k images/photo.jpg
+
+# JSON output
+./itb s3 stat -b my-bucket -k images/photo.jpg --format json
+```
+
+stat always queries by the exact object key and never falls back to list
+inference when the object does not exist. The returned metadata includes
+Size, ETag, Content-Type, Storage Class, Cache-Control, Version ID and
+user metadata.
+
+<details>
+<summary>stat options</summary>
+
+| Option | Default | Description |
+|------|--------|------|
+| `-k, --key` | (required) | Object key |
+| `--format` | `table` | Output format: `table` / `json` |
+
+</details>
+
 <details>
 <summary>Cloud provider configuration examples</summary>
 

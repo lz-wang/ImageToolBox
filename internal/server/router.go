@@ -30,6 +30,7 @@ func registerAPIRoutes(api *gin.RouterGroup) {
 	api.GET("/s3/objects", handleS3List)
 	api.POST("/s3/objects", handleS3Upload)
 	api.GET("/s3/objects/download", handleS3Download)
+	api.GET("/s3/objects/info", handleS3Stat)
 	api.DELETE("/s3/objects", handleS3Delete)
 
 	api.POST("/lsky/images", handleLskyUpload)

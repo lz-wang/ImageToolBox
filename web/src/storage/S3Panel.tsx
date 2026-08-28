@@ -1,5 +1,6 @@
 import DeleteIcon from '@mui/icons-material/Delete'
 import DownloadIcon from '@mui/icons-material/Download'
+import InfoIcon from '@mui/icons-material/Info'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import UploadIcon from '@mui/icons-material/Upload'
 import {
@@ -8,6 +9,8 @@ import {
 	Button,
 	Chip,
 	CircularProgress,
+	Dialog,
+	DialogContent,
 	IconButton,
 	Stack,
 	Table,
@@ -20,9 +23,10 @@ import {
 	Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { S3Object, S3Status } from '../api/client'
+import type { S3Object, S3ObjectStat, S3Status } from '../api/client'
 import {
 	deleteS3Object,
+	fetchS3ObjectStat,
 	fetchS3Objects,
 	fetchS3Status,
 	s3DownloadUrl,
@@ -40,6 +44,10 @@ export default function S3Panel() {
 	const [prefix, setPrefix] = useState('')
 	const [uploading, setUploading] = useState(false)
 	const [uploadError, setUploadError] = useState('')
+	const [statKey, setStatKey] = useState('')
+	const [stat, setStat] = useState<S3ObjectStat | null>(null)
+	const [statError, setStatError] = useState('')
+	const [statLoading, setStatLoading] = useState(false)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	const refresh = useCallback(async () => {
@@ -99,6 +107,26 @@ export default function S3Panel() {
 		} catch (err) {
 			setListError(err instanceof Error ? err.message : String(err))
 		}
+	}
+
+	const showStat = async (key: string) => {
+		setStatLoading(true)
+		setStatError('')
+		setStat(null)
+		setStatKey(key)
+		try {
+			setStat(await fetchS3ObjectStat(key))
+		} catch (err) {
+			setStatError(err instanceof Error ? err.message : String(err))
+		} finally {
+			setStatLoading(false)
+		}
+	}
+
+	const closeStat = () => {
+		setStatKey('')
+		setStat(null)
+		setStatError('')
 	}
 
 	if (statusError) {
@@ -190,6 +218,11 @@ export default function S3Panel() {
 										: '-'}
 								</TableCell>
 								<TableCell align="right">
+									<Tooltip title="详情">
+										<IconButton size="small" onClick={() => showStat(obj.key)}>
+											<InfoIcon fontSize="small" />
+										</IconButton>
+									</Tooltip>
 									<Tooltip title="下载">
 										<IconButton
 											size="small"
@@ -210,6 +243,71 @@ export default function S3Panel() {
 					</TableBody>
 				</Table>
 			) : null}
+
+			<Dialog open={statKey !== ''} onClose={closeStat} fullWidth maxWidth="sm">
+				<DialogContent>
+					<Typography
+						variant="subtitle1"
+						sx={{ wordBreak: 'break-all', mb: 1 }}
+					>
+						{statKey}
+					</Typography>
+					{statLoading ? <CircularProgress size={20} /> : null}
+					{statError ? <Alert severity="error">{statError}</Alert> : null}
+					{stat ? (
+						<Stack spacing={0.5}>
+							<StatRow label="大小" value={formatBytes(stat.size)} />
+							<StatRow
+								label="修改时间"
+								value={
+									stat.last_modified
+										? new Date(stat.last_modified).toLocaleString()
+										: '-'
+								}
+							/>
+							<StatRow label="ETag" value={stat.etag || '-'} />
+							{stat.content_type ? (
+								<StatRow label="Content-Type" value={stat.content_type} />
+							) : null}
+							{stat.storage_class ? (
+								<StatRow label="存储类型" value={stat.storage_class} />
+							) : null}
+							{stat.cache_control ? (
+								<StatRow label="Cache-Control" value={stat.cache_control} />
+							) : null}
+							{stat.content_disposition ? (
+								<StatRow
+									label="Content-Disposition"
+									value={stat.content_disposition}
+								/>
+							) : null}
+							{stat.version_id ? (
+								<StatRow label="Version ID" value={stat.version_id} />
+							) : null}
+							{Object.entries(stat.metadata ?? {}).map(([k, v]) => (
+								<StatRow key={k} label={`Metadata: ${k}`} value={v} />
+							))}
+						</Stack>
+					) : null}
+				</DialogContent>
+			</Dialog>
+		</Stack>
+	)
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+	return (
+		<Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
+			<Typography
+				variant="body2"
+				color="text.secondary"
+				sx={{ minWidth: 140, flexShrink: 0 }}
+			>
+				{label}
+			</Typography>
+			<Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+				{value}
+			</Typography>
 		</Stack>
 	)
 }

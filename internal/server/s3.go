@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -135,6 +136,34 @@ func handleS3Download(c *gin.Context) {
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(key)))
 	c.Data(http.StatusOK, http.DetectContentType(data), data)
+}
+
+// handleS3Stat 返回单个对象的完整元数据（HeadObject）。
+// 仅供前端"查看详情"时调用；列表页必须继续使用 ListObjectsV2 的结果，
+// 避免对每个对象额外发一次 HEAD 造成 N+1 请求。
+func handleS3Stat(c *gin.Context) {
+	client, ok := s3Client(c)
+	if !ok {
+		return
+	}
+
+	key := c.Query("key")
+	if key == "" {
+		fail(c, http.StatusBadRequest, "缺少参数: key")
+		return
+	}
+
+	info, err := s3.Stat(c.Request.Context(), client, key)
+	if err != nil {
+		if errors.Is(err, s3.ErrObjectNotFound) {
+			fail(c, http.StatusNotFound, "对象不存在: %s", key)
+			return
+		}
+		fail(c, http.StatusBadGateway, "查询对象元数据失败: %v", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, info)
 }
 
 func handleS3Delete(c *gin.Context) {

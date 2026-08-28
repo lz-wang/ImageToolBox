@@ -46,6 +46,12 @@ var (
 	s3ListFormat  string
 )
 
+// s3 stat 参数
+var (
+	s3StatKey   string
+	s3StatFormat string
+)
+
 // S3 命令
 var s3Cmd = &cobra.Command{
 	Use:   "s3",
@@ -113,11 +119,25 @@ var s3ListCmd = &cobra.Command{
 	RunE: runS3List,
 }
 
+var s3StatCmd = &cobra.Command{
+	Use:   "stat",
+	Short: "查看对象元数据（不下载内容）",
+	Long: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
+
+对象不存在时不回退到 list 推断，始终按精确对象键查询。`,
+	Example: `  # 查看对象元数据
+  itb s3 stat -b my-bucket -k images/photo.jpg
+
+  # JSON 格式输出
+  itb s3 stat -b my-bucket -k images/photo.jpg --format json`,
+	RunE: runS3Stat,
+}
+
 func init() {
 	rootCmd.AddCommand(s3Cmd)
 
 	// 添加子命令
-	s3Cmd.AddCommand(s3UploadCmd, s3DownloadCmd, s3DeleteCmd, s3ListCmd)
+	s3Cmd.AddCommand(s3UploadCmd, s3DownloadCmd, s3DeleteCmd, s3ListCmd, s3StatCmd)
 
 	// S3 公共参数使用 PersistentFlags（子命令自动继承）
 	s3Cmd.PersistentFlags().StringVarP(&s3Endpoint, "endpoint", "e", "", "S3 端点 URL")
@@ -148,6 +168,11 @@ func init() {
 	s3ListCmd.Flags().StringVarP(&s3ListPrefix, "prefix", "p", "", "对象键前缀")
 	s3ListCmd.Flags().IntVar(&s3ListMaxKeys, "max-keys", 1000, "最大返回数量")
 	s3ListCmd.Flags().StringVar(&s3ListFormat, "format", "table", "输出格式: table/json/plain")
+
+	// S3 stat 参数
+	s3StatCmd.Flags().StringVarP(&s3StatKey, "key", "k", "", "对象键名")
+	s3StatCmd.Flags().StringVar(&s3StatFormat, "format", "table", "输出格式: table/json")
+	s3StatCmd.MarkFlagRequired("key")
 }
 
 func newS3Client(ctx context.Context) (*s3.Client, error) {
@@ -251,5 +276,24 @@ func runS3List(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Print(s3.FormatOutput(objects, s3ListFormat))
+	return nil
+}
+
+func runS3Stat(cmd *cobra.Command, args []string) error {
+	if s3StatKey == "" {
+		return fmt.Errorf("必须指定对象键名 (-k)")
+	}
+
+	client, err := newS3Client(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	info, err := s3.Stat(cmd.Context(), client, s3StatKey)
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(s3.FormatStatOutput(info, s3StatFormat))
 	return nil
 }

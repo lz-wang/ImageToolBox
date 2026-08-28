@@ -185,11 +185,18 @@ itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000 --force-path-st
 itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
 itb s3 list -b my-bucket -p images/ --format json
+itb s3 stat -b my-bucket -k images/photo.jpg
+itb s3 stat -b my-bucket -k images/photo.jpg --format json
 itb s3 delete -b my-bucket -k images/photo.jpg
 itb s3 delete -b my-bucket -k images/photo.jpg -f
 ```
 
 Use `s3 delete -f` only for explicitly requested non-interactive deletion.
+
+`s3 stat` shows full metadata of one object with a single HEAD request (no
+content transfer) and never falls back to list inference; prefer it over
+`s3 list`/`s3 download` when only checking whether an object exists or
+inspecting its metadata.
 
 ## LskyPro Upload
 

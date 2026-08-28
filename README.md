@@ -496,6 +496,29 @@ ITB_S3_BUCKET             # 存储桶名称（也可用 -b 指定）
 
 </details>
 
+### 查看对象元数据
+
+```bash
+# 查看单个对象的完整元数据（只发一次 HEAD 请求，不下载内容）
+./itb s3 stat -b my-bucket -k images/photo.jpg
+
+# JSON 格式输出
+./itb s3 stat -b my-bucket -k images/photo.jpg --format json
+```
+
+stat 始终按精确对象键查询，对象不存在时不回退到 list 推断。返回的元数据包括
+Size、ETag、Content-Type、Storage Class、Cache-Control、Version ID 与用户 Metadata。
+
+<details>
+<summary>stat 参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-k, --key` | (必填) | 对象键名 |
+| `--format` | `table` | 输出格式：`table` / `json` |
+
+</details>
+
 <details>
 <summary>云服务商配置示例</summary>
 

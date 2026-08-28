@@ -296,6 +296,27 @@ export function s3DownloadUrl(key: string): string {
 	return `/api/v1/s3/objects/download?key=${encodeURIComponent(key)}`
 }
 
+/** 单对象完整元数据（HeadObject），仅在"查看详情"时请求；列表展示一律用 S3Object */
+export interface S3ObjectStat {
+	key: string
+	size: number
+	last_modified: string
+	etag: string
+	content_type?: string
+	cache_control?: string
+	content_disposition?: string
+	content_encoding?: string
+	storage_class?: string
+	version_id?: string
+	metadata?: Record<string, string>
+}
+
+export function fetchS3ObjectStat(key: string): Promise<S3ObjectStat> {
+	return requestJSON<S3ObjectStat>(
+		`/api/v1/s3/objects/info?key=${encodeURIComponent(key)}`,
+	)
+}
+
 export async function deleteS3Object(key: string): Promise<void> {
 	const response = await fetch(
 		`/api/v1/s3/objects?key=${encodeURIComponent(key)}`,

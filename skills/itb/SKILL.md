@@ -18,7 +18,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion.
    - `watermark` for text or image watermarking.
    - `batch` for repeated `resize`, `convert`, or `watermark` over directories.
-   - `s3` for S3-compatible upload/download/list/delete.
+   - `s3` for S3-compatible upload/download/list/stat/delete.
    - `lsky upload` for LskyPro image hosting.
    - `serve` for the interactive local WebUI (browser-based, same processing core as the CLI).
 4. Prefer explicit `-o` / `--output` for single-file transformations so follow-up steps can use predictable paths.

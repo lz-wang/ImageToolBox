@@ -3,8 +3,10 @@ package s3
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 var (
@@ -31,9 +33,19 @@ var (
 
 	// ErrBucketNotFound 存储桶未找到
 	ErrBucketNotFound = errors.New("bucket not found")
+
+	// ErrAccessDenied 访问被拒绝（凭证或权限问题）。
+	// 对 HeadObject 而言，403 也可能意味着无法确认对象是否存在，
+	// 因此绝不把权限错误映射为"对象不存在"。
+	ErrAccessDenied = errors.New("access denied")
 )
 
-// WrapError 包装 S3 API 错误，提供更友好的错误信息
+// WrapError 包装 S3 API 错误，提供更友好的错误信息。
+//
+// 除 typed error 外还解析 Smithy 的 HTTP 响应错误：
+// HeadObject 在对象不存在时不一定携带 NoSuchKey typed error，
+// 只返回 404 状态码（无 s3:ListBucket 权限时甚至返回 403），
+// 因此 404 统一映射为 ErrObjectNotFound，403 保留为权限错误。
 func WrapError(err error) error {
 	if err == nil {
 		return nil
@@ -54,7 +66,18 @@ func WrapError(err error) error {
 	// 处理 AccessDenied 错误
 	var accessDenied *types.AccessDenied
 	if errors.As(err, &accessDenied) {
-		return fmt.Errorf("access denied: check your credentials and permissions")
+		return fmt.Errorf("%w: check your credentials and permissions", ErrAccessDenied)
+	}
+
+	// 按 HTTP 状态码兜底识别（HeadObject 的 404/403 不带上述 typed error）
+	var responseErr *smithyhttp.ResponseError
+	if errors.As(err, &responseErr) {
+		switch responseErr.HTTPStatusCode() {
+		case http.StatusNotFound:
+			return fmt.Errorf("%w: %s", ErrObjectNotFound, err)
+		case http.StatusForbidden:
+			return fmt.Errorf("%w: %s", ErrAccessDenied, err)
+		}
 	}
 
 	return err
