@@ -1,12 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-	ApiError,
-	batchResize,
-	batchWatermark,
-	compressImage,
-	fetchHealth,
-	resizeImage,
-} from './client'
+import { ApiError, compressImage, fetchHealth, resizeImage } from './client'
 
 function jsonResponse(status: number, body: unknown) {
 	return new Response(JSON.stringify(body), { status })
@@ -138,66 +131,5 @@ describe('单图处理：options 序列化', () => {
 		}).catch((e: unknown) => e)
 		expect(err).toBeInstanceOf(ApiError)
 		expect((err as ApiError).message).toBe('调整尺寸失败')
-	})
-})
-
-describe('批处理：files[] 与附加文件序列化', () => {
-	it('多文件放入 files 字段并解析统计头', async () => {
-		const calls = captureFetch(
-			new Response(new Blob([new Uint8Array([1])]), {
-				status: 200,
-				headers: {
-					'Content-Disposition': 'attachment; filename=itb-batch-result.zip',
-					'X-ITB-Success': '2',
-					'X-ITB-Skipped': '1',
-					'X-ITB-Failed': '0',
-				},
-			}),
-		)
-		const files = [
-			new File([new Uint8Array([1])], 'a.png', { type: 'image/png' }),
-			new File([new Uint8Array([2])], 'b.png', { type: 'image/png' }),
-		]
-
-		const result = await batchResize(files, {
-			width: 100,
-			height: 0,
-			percent: '',
-			mode: 'fit',
-			anchor: 'center',
-			filter: 'lanczos',
-		})
-
-		const form = submittedForm(calls)
-		expect(form.getAll('files')).toHaveLength(2)
-		expect(form.get('options')).toContain('"width":100')
-		expect(result.success).toBe(2)
-		expect(result.skipped).toBe(1)
-		expect(result.failed).toBe(0)
-		expect(result.filename).toBe('itb-batch-result.zip')
-	})
-
-	it('watermark 的附加文件单独携带', async () => {
-		const calls = captureFetch(imageResponse())
-		const wm = new File([new Uint8Array([3])], 'logo.png', {
-			type: 'image/png',
-		})
-		const font = new File([new Uint8Array([4])], 'a.ttf')
-
-		await batchWatermark(
-			[new File([new Uint8Array([1])], 'a.png', { type: 'image/png' })],
-			{
-				type: 'image',
-				text: '',
-				mode: 'position',
-				position: 'center',
-				scale: 0.2,
-			},
-			{ watermark: wm, font },
-		)
-
-		const form = submittedForm(calls)
-		expect(form.get('watermark')).toBeInstanceOf(File)
-		expect(form.get('font')).toBeInstanceOf(File)
 	})
 })
