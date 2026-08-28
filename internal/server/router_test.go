@@ -82,6 +82,19 @@ func TestAPIUnknownRouteReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestBatchRoutesRemoved(t *testing.T) {
+	for _, route := range []string{"/api/v1/batch/resize", "/api/v1/batch/convert", "/api/v1/batch/watermark"} {
+		t.Run(route, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			testHandler(t, nil).ServeHTTP(w, httptest.NewRequest(http.MethodPost, route, nil))
+
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestWebWithoutBuildReturnsHint(t *testing.T) {
 	w := httptest.NewRecorder()
 	testHandler(t, nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))

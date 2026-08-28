@@ -20,10 +20,6 @@ func registerAPIRoutes(api *gin.RouterGroup) {
 	api.POST("/convert", handleConvert)
 	api.POST("/watermark", handleWatermark)
 	api.POST("/inspect", handleInspect)
-
-	api.POST("/batch/resize", handleBatchResize)
-	api.POST("/batch/convert", handleBatchConvert)
-	api.POST("/batch/watermark", handleBatchWatermark)
 }
 
 func handleHealth(c *gin.Context) {
