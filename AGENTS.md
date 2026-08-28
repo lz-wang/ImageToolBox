@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-`itb`（imagetoolbox）是一个用 Go 编写的图片处理 CLI 工具箱，基于 `spf13/cobra`。模块路径为 `imagetoolbox`，Go 版本见 `go.mod`（当前 1.26.x）。所有原生压缩工具（pngquant、oxipng、libjpeg-turbo 的 cjpeg/djpeg）以内嵌二进制形式分发，运行时无需外部依赖。
+`itb`（imagetoolbox）是一个用 Go 编写的图片处理 CLI 工具箱，基于 `urfave/cli/v3`。模块路径为 `imagetoolbox`，Go 版本见 `go.mod`（当前 1.26.x）。所有原生压缩工具（pngquant、oxipng、libjpeg-turbo 的 cjpeg/djpeg）以内嵌二进制形式分发，运行时无需外部依赖。
 
 ## 常用命令
 
@@ -33,23 +33,23 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
    └──→ internal/server（WebUI API）┴──→ internal/imageio（共享的编解码/格式/铺底/取色层）
 ```
 
-- `internal/cmd`：所有 `cobra.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
-- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`batch`、`s3`、`lsky`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 cobra**。这种解耦使 `batch` 与 Web API 能直接复用领域包的处理函数。
+- `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
+- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
-- `internal/s3`、`internal/lsky`：存储后端，通过 `cmd/s3.go`、`cmd/lsky.go` 暴露为子命令，凭证优先读环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不再提供任何存储相关 API。
+- `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令，凭证优先读环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不提供任何存储相关 API。
 - `internal/server`：`itb serve` 的 Gin HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程；静态资源 SPA 回退。
 - `web/`：React 19 + TypeScript + Vite + MUI + Emotion + Biome 前端，构建产物经 `//go:embed all:web/dist` 内嵌（`web/dist/.placeholder` 是未构建时的兜底，必须保留在 git 中）。
 
 ### 命令注册约定
 
-每个命令位于 `internal/cmd/<name>.go`，定义一个包级 `*cobra.Command` 变量，并在 `init()` 中调用 `rootCmd.AddCommand(...)`。根命令在 `root.go`，`Execute(version, staticFS)` 由 `main.go` 调用并注入版本号（`-ldflags "-X main.version=..."`）与 WebUI 静态资源。
+每个命令位于 `internal/cmd/<name>.go`，导出一个 `newXxxCommand() *cli.Command` constructor（需要注入依赖时带参数，如 `newServeCommand(staticFS)`）。根命令在 `root.go` 的 `New(version, staticFS)` 中一次性显式拼装命令树，`Execute(ctx, version, staticFS)` 由 `main.go` 调用并注入版本号（`-ldflags "-X main.version=..."`）与 WebUI 静态资源。
 
-**注意**：`cmd` 包内的 flag 变量是**包级共享**的——单命令与 `batch` 子命令复用同一组变量（例如 `resizeWidth`、`convertTo`、`wmText` 定义在各自的单命令文件中，却在 `batch.go` 里被引用）。新增/重命名 flag 时需同步检查单命令与 batch 两处。
+**注意**：`cmd` 包内**禁止包级可变状态**——flag 值一律通过 Action 内的 `cmd.String()`/`cmd.Int()`/`cmd.Bool()` 读取，不引入包级 flag 变量或 `init()` 注册。
 
 ### WebUI 约束（internal/server）
 
-- Web handler **绝不读取** `cmd` 包的 flag 全局变量（`resizeWidth`、`convertQuality` 等），必须使用 `server` 包内独立的 request struct（`image.go`/`batch.go` 中定义），保证并发 HTTP 请求互不污染。
-- 图片处理端点统一 `multipart/form-data`：`file`（或 `files[]`）+ `options`（JSON 字符串）；结果以二进制流返回并带 `Content-Disposition` 与 `X-ITB-*-Size` 头；批处理结果打 zip 并带 `X-ITB-Success/Skipped/Failed` 头。
+- Web handler 使用 `server` 包内独立的 request struct（`image.go` 中定义），与 CLI 命令参数状态完全隔离，保证并发 HTTP 请求互不污染。
+- 图片处理端点统一 `multipart/form-data`：`file` + `options`（JSON 字符串）；结果以二进制流返回并带 `Content-Disposition` 与 `X-ITB-*-Size` 头。
 - 每个请求使用独立临时目录（`newRequestDir`），`defer` 清理；不引入数据库/session/任务系统。
 - 安全边界：默认只绑定 `127.0.0.1`；WebUI 只做本地图像处理，不涉及任何外部服务凭证。
 - 上传文件名经 `sanitizeFilename` 清洗，防止路径穿越。

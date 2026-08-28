@@ -6,8 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
+- 完全移除批处理能力：`itb batch` CLI、`internal/batch` 包、`/api/v1/batch/*` HTTP API 及前端残留的 Batch 组件与 API client。
+- 完全移除 LskyPro 集成：`itb lsky` CLI、`internal/lsky` 包与 `ITB_LSKY_*` 环境变量。
 - WebUI 移除 S3 面板与 `/api/v1/s3/*` 接口；WebUI 收敛为图像处理功能（压缩/缩放/裁剪/转换/水印）。`itb s3` CLI 与 `ITB_S3_*` 环境变量不受影响。
 - WebUI 移除 Lsky 上传接口 `/api/v1/lsky/images`、前端 `LskyPanel` 与整个 `web/src/storage/` 目录；Lsky 上传仍可通过 `itb lsky` CLI 使用。
+
+### Changed
+
+- CLI 框架由 `spf13/cobra` 迁移至 `urfave/cli/v3`，命令树在 `cmd.New()` 中显式构造，移除包级 flag 全局变量与 `init()` 注册；用户可见命令与 `itb version` 输出保持不变。
 
 ## [v0.4.1] - 2026-08-13
 

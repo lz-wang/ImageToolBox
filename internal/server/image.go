@@ -15,7 +15,7 @@ import (
 	"imagetoolbox/internal/watermark"
 )
 
-// 请求结构为 Web 专用，与 CLI 的 cobra flag 全局变量完全隔离，
+// 请求结构为 Web 专用，与 CLI 命令参数状态完全隔离，
 // 保证并发 HTTP 请求之间互不污染。
 
 type CompressRequest struct {

@@ -278,36 +278,6 @@ Read file info, basic image info, detailed metadata, and file hash.
 
 </details>
 
-## Batch processing
-
-Batch run `resize`, `convert`, `watermark`; the output directory preserves the relative directory structure.
-
-```bash
-# Batch resize
-./itb batch resize --input-dir ./images --output-dir ./out --recursive --width 1200
-
-# Batch convert to WebP
-./itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to webp
-
-# Batch add a text watermark
-./itb batch watermark --input-dir ./images --output-dir ./out -t "© Author"
-```
-
-<details>
-<summary>Common options</summary>
-
-| Option | Default | Description |
-|------|--------|------|
-| `--input-dir` | (required) | Input directory |
-| `--output-dir` | (required) | Output directory |
-| `--glob` | `*` | File match pattern |
-| `--recursive` | `false` | Recurse into subdirectories |
-| `--workers` | `4` | Concurrent workers |
-| `--skip-existing` | `false` | Skip if the output already exists |
-| `--fail-fast` | `false` | Stop on first error |
-
-</details>
-
 ## WebUI (itb serve)
 
 Besides the CLI, `itb` ships a local-first WebUI that shares exactly the same Go image-processing core (the WebUI does not spawn CLI subprocesses; it calls the domain packages directly).
@@ -349,7 +319,7 @@ The backend API uses the `/api/v1` prefix, for example the health check:
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-Image endpoints (`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect` and `batch/*`) accept `multipart/form-data`: `file` (or `files[]`) plus `options` (a JSON string); results are streamed back as raw image bytes.
+Image endpoints (`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect`) accept `multipart/form-data`: `file` plus `options` (a JSON string); results are streamed back as raw image bytes.
 
 </details>
 
@@ -533,49 +503,6 @@ user metadata.
 | MinIO | `http://localhost:9000` | `true` |
 | Alibaba Cloud OSS | `https://oss-cn-hangzhou.aliyuncs.com` | `false` |
 | Tencent Cloud COS | `https://cos.ap-guangzhou.myqcloud.com` | `false` |
-
-</details>
-
-## LskyPro upload
-
-Upload images to a LskyPro image host. Accepts either the site root URL or the full `/api/v1` path.
-
-### Environment variables
-
-```bash
-ITB_LSKY_URL    # LskyPro URL, e.g. https://img.example.com or https://img.example.com/api/v1
-ITB_LSKY_TOKEN  # API Token
-```
-
-### Upload image
-
-```bash
-# Upload using environment variables
-./itb lsky upload -i photo.jpg
-
-# Specify the URL and token explicitly
-./itb lsky upload -i photo.jpg --url https://img.example.com --token your-token
-
-# Specify a storage strategy ID
-./itb lsky upload -i photo.jpg --strategy 2
-
-# Print the full response as JSON
-./itb lsky upload -i photo.jpg --output json
-
-# Print only the URL
-./itb lsky upload -i photo.jpg --output url
-```
-
-<details>
-<summary>upload options</summary>
-
-| Option | Default | Description |
-|------|--------|------|
-| `-i, --input` | (required) | Local image path |
-| `--url` | (env var) | LskyPro service URL |
-| `--token` | (env var) | LskyPro API Token |
-| `-s, --strategy` | `0` | Storage strategy ID; `0` = unspecified |
-| `-o, --output` | `markdown` | Output format: `markdown` / `url` / `json` |
 
 </details>
 

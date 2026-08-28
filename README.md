@@ -278,36 +278,6 @@ brew install lz-wang/tap/itb
 
 </details>
 
-## 批量处理
-
-支持批量执行 `resize`、`convert`、`watermark`，输出目录保留相对目录结构。
-
-```bash
-# 批量缩放
-./itb batch resize --input-dir ./images --output-dir ./out --recursive --width 1200
-
-# 批量转 WebP
-./itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to webp
-
-# 批量添加文字水印
-./itb batch watermark --input-dir ./images --output-dir ./out -t "© Author"
-```
-
-<details>
-<summary>公共参数</summary>
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--input-dir` | (必填) | 输入目录 |
-| `--output-dir` | (必填) | 输出目录 |
-| `--glob` | `*` | 文件匹配模式 |
-| `--recursive` | `false` | 递归处理子目录 |
-| `--workers` | `4` | 并发 worker 数 |
-| `--skip-existing` | `false` | 输出已存在时跳过 |
-| `--fail-fast` | `false` | 遇错尽快停止 |
-
-</details>
-
 ## WebUI（itb serve）
 
 除了 CLI，`itb` 还内置一个本地优先的 WebUI，与 CLI 共享完全相同的 Go 图片处理核心（WebUI 不执行 CLI 子进程，而是直接调用领域包）。
@@ -349,7 +319,7 @@ WebUI 后端 API 统一前缀 `/api/v1`，例如健康检查：
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-图片处理端点（`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect` 及 `batch/*`）使用 `multipart/form-data`：`file`（或 `files[]`）+ `options`（JSON 字符串），处理结果直接以图片二进制流返回。
+图片处理端点（`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect`）使用 `multipart/form-data`：`file` + `options`（JSON 字符串），处理结果直接以图片二进制流返回。
 
 </details>
 
@@ -529,49 +499,6 @@ Size、ETag、Content-Type、Storage Class、Cache-Control、Version ID 与用�
 | MinIO | `http://localhost:9000` | `true` |
 | 阿里云 OSS | `https://oss-cn-hangzhou.aliyuncs.com` | `false` |
 | 腾讯云 COS | `https://cos.ap-guangzhou.myqcloud.com` | `false` |
-
-</details>
-
-## LskyPro 上传
-
-支持上传图片到 LskyPro 图床，兼容直接传站点根地址或完整的 `/api/v1` 地址。
-
-### 环境变量
-
-```bash
-ITB_LSKY_URL    # LskyPro 地址，例如 https://img.example.com 或 https://img.example.com/api/v1
-ITB_LSKY_TOKEN  # API Token
-```
-
-### 上传图片
-
-```bash
-# 使用环境变量上传
-./itb lsky upload -i photo.jpg
-
-# 显式指定服务地址和 Token
-./itb lsky upload -i photo.jpg --url https://img.example.com --token your-token
-
-# 指定存储策略 ID
-./itb lsky upload -i photo.jpg --strategy 2
-
-# 以 JSON 输出完整响应
-./itb lsky upload -i photo.jpg --output json
-
-# 输出 URL
-./itb lsky upload -i photo.jpg --output url
-```
-
-<details>
-<summary>upload 参数</summary>
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-i, --input` | (必填) | 本地图片路径 |
-| `--url` | (环境变量) | LskyPro 服务地址 |
-| `--token` | (环境变量) | LskyPro API Token |
-| `-s, --strategy` | `0` | 存储策略 ID，`0` 表示不指定 |
-| `-o, --output` | `markdown` | 输出格式：`markdown` / `url` / `json` |
 
 </details>
 

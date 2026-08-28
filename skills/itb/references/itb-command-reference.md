@@ -133,28 +133,6 @@ Flags:
 - `--angle`: repeat text angle; default `30`.
 - `--space`: repeat spacing; `0` auto-calculates.
 
-## Batch
-
-Batch supports `resize`, `convert`, and `watermark`. Outputs preserve relative directory structure and generated names.
-
-```bash
-itb batch resize --input-dir ./images --output-dir ./out --recursive --width 1200
-itb batch convert --input-dir ./images --output-dir ./out --glob "*.png" --to webp
-itb batch watermark --input-dir ./images --output-dir ./out -t "Author"
-```
-
-Common flags:
-
-- `--input-dir`: required input directory.
-- `--output-dir`: required output directory.
-- `--glob`: file match pattern; default `*`.
-- `--recursive`: recurse into subdirectories; default `false`.
-- `--workers`: concurrency; default `4`.
-- `--skip-existing`: skip existing outputs; default `false`.
-- `--fail-fast`: stop as soon as practical after an error; default `false`.
-
-Task-specific batch flags mirror the matching single-file command, except output paths are generated automatically.
-
 ## S3-Compatible Storage
 
 Supports AWS S3, MinIO, Alibaba OSS, Tencent COS, and other S3-compatible services.
@@ -206,33 +184,6 @@ skips only when that metadata hash matches the local file (never rely on
 ETag for this). Default upload always overwrites. The two skip flags are
 mutually exclusive — combining them is a flag error.
 
-## LskyPro Upload
-
-Environment variables:
-
-```bash
-ITB_LSKY_URL
-ITB_LSKY_TOKEN
-```
-
-Examples:
-
-```bash
-itb lsky upload -i photo.jpg
-itb lsky upload -i photo.jpg --url https://img.example.com --token "$ITB_LSKY_TOKEN"
-itb lsky upload -i photo.jpg --strategy 2
-itb lsky upload -i photo.jpg --output json
-itb lsky upload -i photo.jpg --output url
-```
-
-Flags:
-
-- `-i, --input`: required image path.
-- `--url`: LskyPro root or `/api/v1` URL; prefer `ITB_LSKY_URL`.
-- `--token`: API token; prefer `ITB_LSKY_TOKEN`.
-- `-s, --strategy`: storage strategy ID; default `0`.
-- `-o, --output`: `markdown`, `url`, or `json`; default `markdown`.
-
 ## Serve (WebUI)
 
 Starts the local-first WebUI. It calls the same Go domain packages as the CLI (no subprocesses) and embeds the built frontend, so a single binary is all you need.
@@ -251,7 +202,7 @@ Flags:
 - `--addr`: listen address; default `127.0.0.1:8080`. Keep it on loopback unless the network is trusted.
 - `--open`: open the browser after startup; default `false`.
 
-Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect) and batch resize/convert/watermark returned as a zip.
+Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect).
 
 Security notes:
 
