@@ -78,6 +78,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Resolve development version
+        id: version
+        shell: bash
+        run: echo "version=dev-$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -307,6 +312,45 @@ jobs:
           $distBinsDir = Join-Path $distDir "bins"
           New-Item -ItemType Directory -Force -Path $distBinsDir | Out-Null
           Copy-Item "${{ matrix.target.bins_dir }}" $distBinsDir -Recurse
+
+      - name: Resolve WebDAV archive target
+        id: archive
+        shell: bash
+        run: |
+          target="${{ matrix.target.name }}"
+          echo "target=${target//-/_}" >> "$GITHUB_OUTPUT"
+
+      - name: Package WebDAV archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="release-assets/itb_${{ steps.version.outputs.version }}_${{ steps.archive.outputs.target }}.tar.gz"
+          mkdir -p release-assets
+          tar -C dist -czf "${archive}" "${{ matrix.target.name }}"
+          sha256sum "${archive}" > "${archive}.sha256"
+
+      - name: Package WebDAV archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "release-assets/itb_${{ steps.version.outputs.version }}_${{ steps.archive.outputs.target }}.zip"
+          New-Item -ItemType Directory -Force -Path "release-assets" | Out-Null
+          Compress-Archive -Path "dist/${{ matrix.target.name }}/*" -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $(Split-Path -Leaf $archive)`n", [System.Text.UTF8Encoding]::new($false))
+
+      - name: Upload archive and checksum to WebDAV
+        continue-on-error: true
+        uses: bxb100/action-upload-webdav@v1
+        with:
+          webdav_address: ${{ secrets.WEBDAV_SERVER }}
+          webdav_username: ${{ secrets.WEBDAV_USERNAME }}
+          webdav_password: ${{ secrets.WEBDAV_PASSWORD }}
+          webdav_upload_path: "/Shares/github/${{ github.repository }}/${{ steps.version.outputs.version }}"
+          files: |
+            release-assets/itb_${{ steps.version.outputs.version }}_${{ steps.archive.outputs.target }}.${{ matrix.target.archive_ext }}
+            release-assets/itb_${{ steps.version.outputs.version }}_${{ steps.archive.outputs.target }}.${{ matrix.target.archive_ext }}.sha256
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v6
