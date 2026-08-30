@@ -2,21 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [v0.5.0] - 2026-08-30
+
+### Added
+
+- 新增 `itb serve` WebUI：React 19 + TypeScript + MUI 前端经 `go:embed` 内嵌进二进制，默认绑定 `127.0.0.1:8080`，支持 `--addr` 与 `--open`；`/api/v1` 提供压缩、缩放、裁剪、转换、文字/图片水印等单图处理接口，前端支持 Before/After 对比、以鼠标为中心的滚轮缩放、拖拽平移、系统明暗主题持久化与处理结果并排展示。
+- 新增 `itb s3 stat`：单次 HEAD 查询对象元数据（大小、ETag、Content-Type、用户 metadata 等），不传输对象内容，支持 `table`/`json` 输出。
+- `itb s3 upload` 新增 `--skip-existing` 与 `--skip-unchanged`（互斥）：分别按"对象键已存在"与"远端 `x-amz-meta-itb-sha256` 与本地 SHA-256 一致"跳过上传，以 1 次 HEAD 代替整文件传输；默认行为仍为无条件覆盖。
+- 根命令支持 `itb --version` / `-v` 与未知命令名的纠错建议（Suggest），`s3` 子命令同步开启。
+- 发布工作流在发布前于 CI 执行 `make check` 与 `make test`，并将发布归档同步上传到 WebDAV。
+
+### Changed
+
+- **BREAKING:** compress 未指定 `--output` 时不再覆盖原文件，改为输出 `*_compressed.*`；需要覆盖时显式传入新增的 `--in-place`（与 `--output` 互斥）。
+- **BREAKING:** CLI 框架由 `spf13/cobra` 迁移至 `urfave/cli/v3`，命令树在 `cmd.New()` 中显式构造，移除包级 flag 全局变量与 `init()` 注册；用户可见命令与 `itb version` 输出保持不变。
+- 参数校验前移至 CLI 层：枚举（resize/crop/convert/watermark/inspect/s3）、范围（quality、opacity、尺寸等）与百分比参数在文件 IO 之前报错；flag Usage 统一 `FILE`/`FORMAT`/`MODE` 等占位符。
+- compress 编排逻辑下沉到 `internal/compress` 领域包，供 CLI 与 Web API 复用。
+- S3 上传在 skip 模式下 HEAD 前置并只打开一次文件，减少本地 IO。
 
 ### Removed
 
+- **BREAKING:** 移除 `itb metadata` 别名，请使用 `itb inspect`；`inspect` 新增 `--no-detail` 关闭详细元数据（优先于 `--detail`）。
 - 完全移除批处理能力：`itb batch` CLI、`internal/batch` 包、`/api/v1/batch/*` HTTP API 及前端残留的 Batch 组件与 API client。
 - 完全移除 LskyPro 集成：`itb lsky` CLI、`internal/lsky` 包、`ITB_LSKY_*` 环境变量，以及 WebUI 的 `/api/v1/lsky/images` 上传接口、前端 `LskyPanel` 与整个 `web/src/storage/` 目录。
 - WebUI 移除 S3 面板与 `/api/v1/s3/*` 接口；WebUI 收敛为图像处理功能（压缩/缩放/裁剪/转换/水印）。`itb s3` CLI 与 `ITB_S3_*` 环境变量不受影响。
 
-### Changed
-
-- CLI 框架由 `spf13/cobra` 迁移至 `urfave/cli/v3`，命令树在 `cmd.New()` 中显式构造，移除包级 flag 全局变量与 `init()` 注册；用户可见命令与 `itb version` 输出保持不变。
-
 ### Fixed
 
 - S3 配置来源统一到 CLI 层：`ITB_S3_*` 环境变量改由 urfave/cli `Sources` 绑定，`ITB_S3_BUCKET` 等环境变量现在能真正满足 `--bucket` 等 required flag 校验（此前因 Action 前置校验而失效），优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 不再读取环境变量，收敛为纯领域包。
+- S3 HTTP 客户端移除 30s 总超时（会截断大文件上传/下载），改为 Transport 层 `ResponseHeaderTimeout=30s`，连接/TLS/连接池继承标准库默认值。
+- 修正 CLI help 漂移：watermark 移除未实现的 `--tile` flag，resize/crop 补充尺寸与锚点参数组合规则，s3 必填项与默认值描述与实际行为一致。
+- WebUI 修复中文下载文件名乱码。
 
 ## [v0.4.1] - 2026-08-13
 
