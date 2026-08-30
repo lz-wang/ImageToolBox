@@ -1,5 +1,6 @@
 libjpeg-turbo
-bins
+bins/*
+!bins/README.md
 test-images
 itb
 web/node_modules/

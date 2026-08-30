@@ -56,7 +56,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 ### 内嵌二进制机制（核心约束）
 
-`main.go` 通过 `//go:embed bins/**` 把 `bins/<os>-<arch>/` 下的原生工具嵌入二进制：
+`main.go` 通过 `//go:embed bins/**` 把 `bins/<os>-<arch>/` 下的原生工具嵌入二进制（平台目录被 gitignore，由 CI 构建注入；`bins/README.md` 是 embed 的兜底匹配文件，必须保留在 git 中，否则全新 checkout 无法编译）：
 
 1. `compress.InitBinaries(embed.FS)` 在 `main` 启动时注入 FS（避免 `compress` 包直接依赖 `main`）。
 2. 首次调用 `compress.EnsureBinary(binType)` 时，`sync.Once` 触发 `extractAllBinaries()`，按 `runtime.GOOS-GOARCH` 选出对应平台的 pngquant/oxipng/djpeg/cjpeg，解压到 `os.TempDir()/img-compress-bins`（已存在且大小相同则跳过写入），返回临时路径供 `exec.Command` 调用。
