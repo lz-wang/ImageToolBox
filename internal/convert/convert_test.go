@@ -1,10 +1,12 @@
 package convert
 
 import (
+	"bytes"
 	"errors"
 	"image"
 	"image/color"
 	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -144,6 +146,112 @@ func TestConvertRejectsGIFInput(t *testing.T) {
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatalf("output should not be created, stat err = %v", err)
+	}
+}
+
+// TestConvertJPEGAutoOrientation 锁定 EXIF Orientation 契约：转换时把
+// Orientation 应用到实际像素，输出不再依赖 Orientation metadata。
+// 存储 120×80 + Orientation=6（显示需顺时针旋转 90°）→ 输出 80×120。
+func TestConvertJPEGAutoOrientation(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.jpg")
+	output := filepath.Join(dir, "output.png")
+
+	// 存储图像：左边缘红、右边缘蓝、中间白；旋转后红/蓝分别落到
+	// 输出的顶部/底部，用于验证方向而不是只看尺寸。
+	img := image.NewNRGBA(image.Rect(0, 0, 120, 80))
+	for y := range 80 {
+		for x := range 120 {
+			switch {
+			case x < 8:
+				img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255})
+			case x >= 112:
+				img.SetNRGBA(x, y, color.NRGBA{B: 255, A: 255})
+			default:
+				img.SetNRGBA(x, y, color.NRGBA{R: 255, G: 255, B: 255, A: 255})
+			}
+		}
+	}
+	writeExifJPEG(t, input, img, 6)
+
+	if err := ConvertFile(input, output, Options{To: "png"}); err != nil {
+		t.Fatalf("ConvertFile() error = %v", err)
+	}
+
+	decoded, err := readPNG(t, output)
+	if err != nil {
+		t.Fatalf("read output png: %v", err)
+	}
+	if got := decoded.Bounds(); got != image.Rect(0, 0, 80, 120) {
+		t.Fatalf("output bounds = %v, want 80x120", got)
+	}
+	// Orientation=6 = 顺时针旋转 90°：存储左边缘（红）→ 输出顶部，
+	// 存储右边缘（蓝）→ 输出底部。
+	assertColorNear(t, decoded.At(40, 4), color.NRGBA{R: 255, A: 255}, "top band")
+	assertColorNear(t, decoded.At(40, 116), color.NRGBA{B: 255, A: 255}, "bottom band")
+	assertColorNear(t, decoded.At(40, 60), color.NRGBA{R: 255, G: 255, B: 255, A: 255}, "center")
+}
+
+// writeExifJPEG 就地合成带 EXIF Orientation 的 JPEG：在 SOI 后注入
+// APP1/Exif 段（TIFF little-endian，IFD0 仅含 Orientation tag），
+// 避免在仓库中保存二进制 fixture。
+func writeExifJPEG(t *testing.T, path string, img image.Image, orientation uint16) {
+	t.Helper()
+	var body bytes.Buffer
+	if err := jpeg.Encode(&body, img, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+
+	exif := []byte{'E', 'x', 'i', 'f', 0, 0}
+	exif = append(exif,
+		'I', 'I', 0x2A, 0x00, // TIFF header, little-endian
+		0x08, 0x00, 0x00, 0x00, // IFD0 offset = 8
+		0x01, 0x00, // 1 entry
+		0x12, 0x01, // tag 0x0112 Orientation
+		0x03, 0x00, // type SHORT
+		0x01, 0x00, 0x00, 0x00, // count 1
+		byte(orientation), byte(orientation>>8), 0x00, 0x00, // value
+		0x00, 0x00, 0x00, 0x00, // next IFD = 0
+	)
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create jpeg: %v", err)
+	}
+	defer f.Close()
+	segment := []byte{0xFF, 0xE1, byte((len(exif)+2)>>8), byte(len(exif) + 2)}
+	if _, err := f.Write(body.Bytes()[:2]); err != nil { // SOI
+		t.Fatalf("write SOI: %v", err)
+	}
+	if _, err := f.Write(segment); err != nil {
+		t.Fatalf("write APP1: %v", err)
+	}
+	if _, err := f.Write(exif); err != nil {
+		t.Fatalf("write exif: %v", err)
+	}
+	if _, err := f.Write(body.Bytes()[2:]); err != nil { // SOI 之后的内容
+		t.Fatalf("write jpeg body: %v", err)
+	}
+}
+
+func readPNG(t *testing.T, path string) (image.Image, error) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return png.Decode(bytes.NewReader(data))
+}
+
+func assertColorNear(t *testing.T, got color.Color, want color.NRGBA, where string) {
+	t.Helper()
+	r, g, b, _ := got.RGBA()
+	near := func(v uint32, want uint8) bool {
+		d := int(v>>8) - int(want)
+		return d >= -40 && d <= 40
+	}
+	if !near(r, want.R) || !near(g, want.G) || !near(b, want.B) {
+		t.Errorf("%s color = %v, want near %+v", where, got, want)
 	}
 }
 

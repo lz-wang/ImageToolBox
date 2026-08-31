@@ -74,7 +74,11 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		return fmt.Errorf("unsupported input image: %w", err)
 	}
 
-	img, err := imaging.Open(inputPath)
+	// EXIF Orientation 应用到实际像素后输出，结果不依赖 Orientation
+	// metadata。仅 convert 开启：resize/crop/watermark 的 Probe →
+	// Resolve 资源准入基于原始物理尺寸，decode 旋转会造成推导与实际
+	// 输出不一致，待统一的 oriented probe 落地后再放开。
+	img, err := imaging.Open(inputPath, imaging.AutoOrientation(true))
 	if err != nil {
 		return fmt.Errorf("open input image: %w", err)
 	}
