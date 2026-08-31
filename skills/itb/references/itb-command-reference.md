@@ -80,6 +80,8 @@ Flags:
 
 Convert between `jpg`, `jpeg`, `png`, and `webp`. Inputs are limited to `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF are rejected); the EXIF orientation of JPEG inputs is applied to the pixels during conversion.
 
+This input-format and orientation contract is shared by every transform (`convert`/`resize`/`crop`/`watermark`): they all open inputs through the same static-image entry point, so GIFs never get silently reduced to their first frame and percent-based crop/resize plans always operate on the rotated (logical) dimensions.
+
 ```bash
 itb convert -i photo.png -o photo.webp --to webp -q 85
 itb convert -i transparent.png -o flat.jpg --to jpg --background "#FFFFFF"

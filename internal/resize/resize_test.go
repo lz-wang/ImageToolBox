@@ -1,8 +1,15 @@
 package resize
 
 import (
+	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -197,4 +204,87 @@ func TestResolve(t *testing.T) {
 			}
 		}
 	})
+}
+
+// buildOrientedJPEGFixture 生成携带 EXIF Orientation=6 的 JPEG：
+// 物理尺寸 4×8，应用旋转后的逻辑尺寸为 8×4。
+func buildOrientedJPEGFixture(t *testing.T) string {
+	t.Helper()
+
+	// TIFF: II + 42 + IFD0 偏移 8 + 1 条目（Orientation=6, SHORT, count 1）
+	var tiff bytes.Buffer
+	tiff.WriteString("II")
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(42))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(8))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(0x0112))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(3))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(1))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(6))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(0))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(0))
+
+	var body bytes.Buffer
+	if err := jpeg.Encode(&body, image.NewRGBA(image.Rect(0, 0, 4, 8)), nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	encoded := body.Bytes()
+
+	var out bytes.Buffer
+	out.Write(encoded[:2]) // SOI
+	out.WriteByte(0xFF)
+	out.WriteByte(0xE1)
+	_ = binary.Write(&out, binary.BigEndian, uint16(2+6+tiff.Len()))
+	out.WriteString("Exif\x00\x00")
+	out.Write(tiff.Bytes())
+	out.Write(encoded[2:])
+
+	path := filepath.Join(t.TempDir(), "oriented.jpg")
+	if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	return path
+}
+
+// TestResizeFileOrientedJPEG 锁定统一后的 orientation 语义：
+// 计划推导与解码都基于应用 EXIF 旋转后的逻辑尺寸。
+// 物理 4×8 / Orientation 6 → 逻辑 8×4，fit 包围盒 100×100 内
+// 的源图输出保持 8×4，而不是物理的 4×8。
+func TestResizeFileOrientedJPEG(t *testing.T) {
+	input := buildOrientedJPEGFixture(t)
+	output := filepath.Join(t.TempDir(), "resized.png")
+
+	if err := ResizeFile(input, output, Options{Width: 100, Height: 100, Mode: ModeFit}); err != nil {
+		t.Fatalf("ResizeFile: %v", err)
+	}
+
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	decoded, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if w, h := decoded.Bounds().Dx(), decoded.Bounds().Dy(); w != 8 || h != 4 {
+		t.Fatalf("output = %dx%d, want 8x4 (logical, orientation applied)", w, h)
+	}
+}
+
+// TestResizeFileRejectsGIF GIF 输入被统一格式契约拒绝，
+// 不再经 imaging.Open 静默处理首帧。
+func TestResizeFileRejectsGIF(t *testing.T) {
+	var buf bytes.Buffer
+	palette := color.Palette{color.White, color.Black}
+	if err := gif.Encode(&buf, image.NewPaletted(image.Rect(0, 0, 4, 4), palette), nil); err != nil {
+		t.Fatalf("encode gif: %v", err)
+	}
+	input := filepath.Join(t.TempDir(), "a.gif")
+	if err := os.WriteFile(input, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	if err := ResizeFile(input, filepath.Join(t.TempDir(), "out.png"), Options{Width: 2}); err == nil {
+		t.Fatal("expected gif input to be rejected")
+	}
 }

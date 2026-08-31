@@ -30,9 +30,11 @@ type Options struct {
 }
 
 func ResizeFile(inputPath, outputPath string, opts Options) error {
-	img, err := imaging.Open(inputPath)
+	// 输入统一走 imageio.OpenStatic：仅 JPEG/PNG/WebP，JPEG EXIF
+	// Orientation 烘焙进像素，解码尺寸与 Probe 的逻辑尺寸一致
+	img, err := imageio.OpenStatic(inputPath)
 	if err != nil {
-		return fmt.Errorf("open input image: %w", err)
+		return err
 	}
 
 	resized, err := Apply(img, opts)

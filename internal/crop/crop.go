@@ -33,7 +33,9 @@ type Options struct {
 }
 
 func CropFile(inputPath, outputPath string, opts Options) (image.Rectangle, error) {
-	img, err := imaging.Open(inputPath)
+	// 输入统一走 imageio.OpenStatic：仅 JPEG/PNG/WebP，JPEG EXIF
+	// Orientation 烘焙进像素，裁剪框基于应用旋转后的逻辑尺寸
+	img, err := imageio.OpenStatic(inputPath)
 	if err != nil {
 		return image.Rectangle{}, fmt.Errorf("打开输入图片失败: %w", err)
 	}
@@ -63,7 +65,7 @@ func imageioMustColor(hex string) color.NRGBA {
 }
 
 func ValidateAndComputeRect(inputPath string, opts Options) (image.Rectangle, error) {
-	img, err := imaging.Open(inputPath)
+	img, err := imageio.OpenStatic(inputPath)
 	if err != nil {
 		return image.Rectangle{}, fmt.Errorf("打开输入图片失败: %w", err)
 	}

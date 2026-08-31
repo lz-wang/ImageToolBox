@@ -168,6 +168,8 @@ Resize by width/height, by percentage, or using different modes.
 
 Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`. Inputs are limited to `jpg/jpeg/png/webp`; the EXIF orientation of **JPEG** inputs is applied to the actual pixels during conversion (orientation metadata embedded in WebP files is not processed), and EXIF/GPS/XMP metadata is not carried over to the output.
 
+**Unified input format and orientation contract** (applies to `convert` / `resize` / `crop` / `watermark`): every transform command strictly accepts `JPEG/PNG/WebP` only (GIF/BMP/TIFF are rejected, so animated GIFs are never silently reduced to their first frame), and the **JPEG EXIF orientation is always baked into the pixels** — planning and resource admission for `resize`/`crop`/`watermark` use the post-rotation logical dimensions, matching the actual output.
+
 ```bash
 # Convert to WebP
 ./itb convert -i photo.png --to webp

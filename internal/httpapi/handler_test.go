@@ -528,6 +528,23 @@ func TestEndpointSuccess(t *testing.T) {
 			t.Fatalf("bounds = %v, want 16x8", got)
 		}
 	})
+	t.Run("oriented jpeg keeps probe and output consistent", func(t *testing.T) {
+		// 物理 32×16 / Orientation 6 → 逻辑 16×32：准入与计划推导
+		// 必须与解码后的旋转尺寸一致，输出按逻辑宽高比缩放
+		jpeg := formFile{field: "input", filename: "o.jpg", content: orientedJPEG(t, 6, 32, 16)}
+		w := post(t, "/api/v1/resize", map[string]string{"width": "8"}, jpeg)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		// 输出保留 .jpg 扩展名，按 JPEG 解码
+		decoded, _, err := image.Decode(bytes.NewReader(w.Body.Bytes()))
+		if err != nil {
+			t.Fatalf("decode jpeg response: %v", err)
+		}
+		if got := decoded.Bounds(); got != image.Rect(0, 0, 8, 16) {
+			t.Fatalf("bounds = %v, want 8x16 (logical aspect, orientation applied)", got)
+		}
+	})
 	t.Run("crop", func(t *testing.T) {
 		w := post(t, "/api/v1/crop", map[string]string{"anchor": "center", "width": "50%", "height": "50%"}, input)
 		if w.Code != http.StatusOK {

@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"mime/multipart"
 	"net/http"
@@ -95,6 +96,40 @@ func testAnimatedGIF(t *testing.T, frames int) []byte {
 		t.Fatalf("encode animated gif: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// orientedJPEG 生成携带指定 EXIF Orientation 的真实 JPEG：
+// APP1(Exif) 插在 SOI 之后，物理尺寸 width×height。
+func orientedJPEG(t *testing.T, orientation uint16, width, height int) []byte {
+	t.Helper()
+
+	var tiff bytes.Buffer
+	tiff.WriteString("II")
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(42))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(8))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(0x0112))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(3))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(1))
+	_ = binary.Write(&tiff, binary.LittleEndian, orientation)
+	_ = binary.Write(&tiff, binary.LittleEndian, uint16(0))
+	_ = binary.Write(&tiff, binary.LittleEndian, uint32(0))
+
+	var body bytes.Buffer
+	if err := jpeg.Encode(&body, image.NewRGBA(image.Rect(0, 0, width, height)), nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	encoded := body.Bytes()
+
+	var out bytes.Buffer
+	out.Write(encoded[:2])
+	out.WriteByte(0xFF)
+	out.WriteByte(0xE1)
+	_ = binary.Write(&out, binary.BigEndian, uint16(2+6+tiff.Len()))
+	out.WriteString("Exif\x00\x00")
+	out.Write(tiff.Bytes())
+	out.Write(encoded[2:])
+	return out.Bytes()
 }
 
 func decodePNG(t *testing.T, data []byte) image.Image {

@@ -41,6 +41,7 @@ itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0
 ## Safety Rules
 
 - `convert` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; it preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
+- All transforms (`convert`/`resize`/`crop`/`watermark`) share the same input contract: only `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF rejected — animated GIFs are never silently reduced to their first frame), and JPEG EXIF orientation is baked into the pixels, so percent-based crops and resize plans always operate on the rotated (logical) dimensions.
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` is mutually exclusive with `-o`/`--output`).
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).

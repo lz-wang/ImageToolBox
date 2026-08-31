@@ -168,6 +168,9 @@ brew install lz-wang/tap/itb
 
 支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 **JPEG** 的 EXIF Orientation 会应用到实际像素（WebP 携带的 orientation 元数据当前不处理），输出不保留 EXIF/GPS/XMP 等 metadata。
 
+**输入格式与 Orientation 统一契约**（适用于 `convert` / `resize` / `crop` / `watermark`）：
+所有变换命令的输入都严格限定 `JPEG/PNG/WebP`（GIF/BMP/TIFF 一律拒绝，杜绝 animated GIF 被静默处理首帧），并且 **JPEG EXIF Orientation 一律烘焙进像素**——`resize`/`crop`/`watermark` 的计划推导与资源准入基于应用旋转后的逻辑尺寸，与最终输出一致。
+
 ```bash
 # 转为 WebP
 ./itb convert -i photo.png --to webp

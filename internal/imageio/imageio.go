@@ -41,13 +41,28 @@ type Info struct {
 	// Probe 只报告识别结果；格式能否被编码属于 Format/NormalizeFormat 的
 	// 职责，两个概念不应绑定。
 	Format string
+
+	// PhysicalWidth / PhysicalHeight 是存储在文件头里的物理尺寸，
+	// 未应用 EXIF Orientation。
+	PhysicalWidth  int
+	PhysicalHeight int
+
+	// Width / Height 是应用 EXIF Orientation 后的逻辑尺寸，
+	// 与 OpenStatic 解码后 image.Bounds() 一致。资源准入、
+	// resize/watermark/crop 的计划推导必须使用逻辑尺寸，
+	// 这样"Probe → Resolve → decode"三者才拥有同一个 invariant。
 	Width  int
 	Height int
+
+	// Orientation 是 JPEG EXIF Orientation（1-8）；非 JPEG 或缺失时为 1。
+	// 5/6/7/8 表示 90°/270° 旋转族，逻辑宽高与物理宽高互换。
+	Orientation int
 }
 
 // Probe decodes image configuration for resource admission checks. It only
 // reports what the image decoder recognizes; it does not normalize the format
-// against the supported encode set.
+// against the supported encode set. Width/Height carry the post-orientation
+// (logical) dimensions, matching what OpenStatic decodes.
 func Probe(path string) (Info, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -61,7 +76,28 @@ func Probe(path string) (Info, error) {
 		}
 		return Info{}, err
 	}
-	return Info{Format: format, Width: config.Width, Height: config.Height}, nil
+
+	info := Info{
+		Format:         format,
+		PhysicalWidth:  config.Width,
+		PhysicalHeight: config.Height,
+		Width:          config.Width,
+		Height:         config.Height,
+		Orientation:    1,
+	}
+	// imaging.AutoOrientation 只解析 JPEG EXIF，Probe 的 orientation
+	// 语义与之保持一致（WebP 携带的 orientation 元数据不处理）
+	if format == "jpeg" {
+		if _, err := f.Seek(0, io.SeekStart); err == nil {
+			if o := jpegOrientation(f); o != 0 {
+				info.Orientation = o
+			}
+		}
+	}
+	if swapsDimensions(info.Orientation) {
+		info.Width, info.Height = info.PhysicalHeight, info.PhysicalWidth
+	}
+	return info, nil
 }
 
 // SuffixedPath returns a path in the input directory with suffix before its extension.

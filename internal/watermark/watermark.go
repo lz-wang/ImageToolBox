@@ -318,8 +318,10 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 		fontPath = opts.FontPath
 	}
 
-	// 先打开图片以获取尺寸
-	im, err := imaging.Open(inputPath)
+	// 先打开图片以获取尺寸：统一走 imageio.OpenStatic（仅 JPEG/PNG/
+	// WebP，JPEG EXIF Orientation 烘焙进像素），尺寸与 Probe 的
+	// 逻辑尺寸一致
+	im, err := imageio.OpenStatic(inputPath)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +399,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 		fontSize = opts.FontSize
 		colorStr = opts.Color
 	}
-	img, err := imaging.Open(inputPath)
+	img, err := imageio.OpenStatic(inputPath)
 	if err != nil {
 		return nil, err
 	}
@@ -508,11 +510,11 @@ func AddImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.
 		return nil, errors.New("scale ratio must be greater than 0")
 	}
 
-	base, err := imaging.Open(inputPath)
+	base, err := imageio.OpenStatic(inputPath)
 	if err != nil {
 		return nil, err
 	}
-	logo, err := imaging.Open(opts.ImagePath)
+	logo, err := imageio.OpenStatic(opts.ImagePath)
 	if err != nil {
 		return nil, err
 	}

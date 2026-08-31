@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/disintegration/imaging"
 	"imagetoolbox/internal/imageio"
 )
 
@@ -74,21 +73,13 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		return err
 	}
 
-	// 输入严格限定 JPEG/PNG/WebP：imaging 能解码 GIF/BMP/TIFF 等更多
-	// 格式，放行会造成 animated GIF → 首帧这类静默语义损失。
-	if _, err := imageio.DetectFormat(inputPath); err != nil {
-		return fmt.Errorf("unsupported input image: %w", err)
-	}
-
-	// JPEG EXIF Orientation 应用到实际像素后输出，结果不依赖
-	// Orientation metadata（imaging 仅解析 JPEG EXIF；WebP 携带的
-	// orientation 元数据当前不处理）。仅 convert 开启：
-	// resize/crop/watermark 的 Probe →
-	// Resolve 资源准入基于原始物理尺寸，decode 旋转会造成推导与实际
-	// 输出不一致，待统一的 oriented probe 落地后再放开。
-	img, err := imaging.Open(inputPath, imaging.AutoOrientation(true))
+	// 输入统一走 imageio.OpenStatic：严格限定 JPEG/PNG/WebP，并把
+	// JPEG EXIF Orientation 烘焙进像素。所有 transform（convert/
+	// resize/crop/watermark）共用同一入口，CLI、HTTP 与 Domain 的
+	// 格式契约和 orientation 行为一致。
+	img, err := imageio.OpenStatic(inputPath)
 	if err != nil {
-		return fmt.Errorf("open input image: %w", err)
+		return err
 	}
 
 	var background color.NRGBA
