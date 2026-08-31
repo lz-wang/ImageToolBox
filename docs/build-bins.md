@@ -27,11 +27,12 @@
 
 建议统一使用 `-DENABLE_SHARED=FALSE -DENABLE_STATIC=TRUE` 构建静态版本的 `cjpeg` / `djpeg`。
 
-常见产物包括：
+本项目仅使用以下静态工具：
 
 - `cjpeg-static`
 - `djpeg-static`
-- `jpegtran-static`
+
+`jpegtran-static` 没有运行时使用方，因此不会构建或嵌入发布二进制。
 
 ### macOS amd64
 
@@ -69,7 +70,25 @@ cmake .. \
 make -j
 ```
 
-### Linux amd64
+### Linux amd64 / arm64
+
+Linux 内置压缩器的发布 ABI 基线是 **glibc 2.28**。不要在 Ubuntu runner 上直接构建它们；CI 会通过 `scripts/build-linux-bins-container.sh` 在对应的 PyPA `manylinux_2_28` 容器中完成构建：
+
+```bash
+./scripts/build-linux-bins-container.sh amd64 bins/linux-amd64
+./scripts/verify-linux-abi.sh bins/linux-amd64
+```
+
+arm64 使用同样的流程：
+
+```bash
+./scripts/build-linux-bins-container.sh arm64 bins/linux-arm64
+./scripts/verify-linux-abi.sh bins/linux-arm64
+```
+
+构建脚本固定 Rust 1.89.0；`pngquant` 启用 `static,z-static` feature，并且 `cjpeg-static` / `djpeg-static` 静态链接 libjpeg-turbo。ABI 校验会拒绝 `GLIBC_2.29+`，也会拒绝 `libz`、`libpng`、`liblcms`、`libstdc++` 等非基础 Linux 共享库依赖。
+
+### 手动调试 Linux amd64
 
 ```bash
 git clone https://github.com/libjpeg-turbo/libjpeg-turbo.git

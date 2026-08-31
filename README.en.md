@@ -16,6 +16,20 @@
 > 
 > Release artifacts: macOS / Linux are packaged as `.tar.gz`, Windows as `.zip`; Windows executables and the bundled compression tools all carry the `.exe` extension.
 
+## Linux compatibility
+
+The `compress` feature in official Linux amd64 / arm64 builds requires **glibc >= 2.28**. Other Go-implemented features are not rejected at startup when this requirement is absent. Alpine Linux / musl is not currently supported.
+
+| System | `compress` support |
+|--------|--------------------|
+| CentOS 7 (glibc 2.17) | ❌ |
+| Ubuntu 18.04 (glibc 2.27) | ❌ |
+| Rocky / AlmaLinux 8 (glibc 2.28) | ✅ |
+| Debian 10+ | ✅ |
+| Ubuntu 20.04+ | ✅ |
+
+CI builds bundled Linux compressors in `manylinux_2_28` and checks both their highest `GLIBC_*` symbol version and dynamic-library dependencies. Release archives contain only `itb`; the compressors remain embedded and are extracted on demand into the user cache.
+
 ## Install
 
 After a new version is released, install it with Homebrew (macOS / Linux):

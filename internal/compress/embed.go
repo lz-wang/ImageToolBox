@@ -1,7 +1,11 @@
 package compress
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,7 +13,7 @@ import (
 	"sync"
 )
 
-// BinaryType 定义二进制文件类型
+// BinaryType 定义二进制文件类型。
 type BinaryType string
 
 const (
@@ -19,63 +23,57 @@ const (
 	CJpeg    BinaryType = "cjpeg"
 )
 
-// binaryPaths 定义不同平台的二进制文件路径
+// binaryPaths 定义不同平台的二进制文件路径。
 var binaryPaths = map[string]map[BinaryType]string{
 	"darwin-amd64": {
-		PngQuant: "bins/macos-amd64/pngquant",
-		OxiPng:   "bins/macos-amd64/oxipng",
-		DJpeg:    "bins/macos-amd64/djpeg-static",
-		CJpeg:    "bins/macos-amd64/cjpeg-static",
+		PngQuant: "bins/macos-amd64/pngquant", OxiPng: "bins/macos-amd64/oxipng", DJpeg: "bins/macos-amd64/djpeg-static", CJpeg: "bins/macos-amd64/cjpeg-static",
 	},
 	"darwin-arm64": {
-		PngQuant: "bins/macos-arm64/pngquant",
-		OxiPng:   "bins/macos-arm64/oxipng",
-		DJpeg:    "bins/macos-arm64/djpeg-static",
-		CJpeg:    "bins/macos-arm64/cjpeg-static",
+		PngQuant: "bins/macos-arm64/pngquant", OxiPng: "bins/macos-arm64/oxipng", DJpeg: "bins/macos-arm64/djpeg-static", CJpeg: "bins/macos-arm64/cjpeg-static",
 	},
 	"linux-amd64": {
-		PngQuant: "bins/linux-amd64/pngquant",
-		OxiPng:   "bins/linux-amd64/oxipng",
-		DJpeg:    "bins/linux-amd64/djpeg-static",
-		CJpeg:    "bins/linux-amd64/cjpeg-static",
+		PngQuant: "bins/linux-amd64/pngquant", OxiPng: "bins/linux-amd64/oxipng", DJpeg: "bins/linux-amd64/djpeg-static", CJpeg: "bins/linux-amd64/cjpeg-static",
 	},
 	"linux-arm64": {
-		PngQuant: "bins/linux-arm64/pngquant",
-		OxiPng:   "bins/linux-arm64/oxipng",
-		DJpeg:    "bins/linux-arm64/djpeg-static",
-		CJpeg:    "bins/linux-arm64/cjpeg-static",
+		PngQuant: "bins/linux-arm64/pngquant", OxiPng: "bins/linux-arm64/oxipng", DJpeg: "bins/linux-arm64/djpeg-static", CJpeg: "bins/linux-arm64/cjpeg-static",
 	},
 	"windows-amd64": {
-		PngQuant: "bins/windows-amd64/pngquant.exe",
-		OxiPng:   "bins/windows-amd64/oxipng.exe",
-		DJpeg:    "bins/windows-amd64/djpeg-static.exe",
-		CJpeg:    "bins/windows-amd64/cjpeg-static.exe",
+		PngQuant: "bins/windows-amd64/pngquant.exe", OxiPng: "bins/windows-amd64/oxipng.exe", DJpeg: "bins/windows-amd64/djpeg-static.exe", CJpeg: "bins/windows-amd64/cjpeg-static.exe",
 	},
 	"windows-arm64": {
-		PngQuant: "bins/windows-arm64/pngquant.exe",
-		OxiPng:   "bins/windows-arm64/oxipng.exe",
-		DJpeg:    "bins/windows-arm64/djpeg-static.exe",
-		CJpeg:    "bins/windows-arm64/cjpeg-static.exe",
+		PngQuant: "bins/windows-arm64/pngquant.exe", OxiPng: "bins/windows-arm64/oxipng.exe", DJpeg: "bins/windows-arm64/djpeg-static.exe", CJpeg: "bins/windows-arm64/cjpeg-static.exe",
 	},
+}
+
+type binaryState struct {
+	once sync.Once
+	path string
+	err  error
 }
 
 var (
-	binariesFS     fs.FS
-	extractedPaths = make(map[BinaryType]string)
-	extractMutex   sync.Once
-	extractError   error
+	binariesMu sync.Mutex
+	binariesFS fs.FS
+	states     = newBinaryStates()
+
+	cacheBaseDir = defaultCacheBaseDir
 )
 
-// InitBinaries 初始化二进制文件（从 main.go 调用，传入 //go:embed bins/** 的 embed.FS）。
-// 参数为 fs.FS 以便测试注入其他文件系统。
-func InitBinaries(source fs.FS) {
-	binariesFS = source
+func newBinaryStates() map[BinaryType]*binaryState {
+	return map[BinaryType]*binaryState{PngQuant: {}, OxiPng: {}, DJpeg: {}, CJpeg: {}}
 }
 
-// getPlatformKey 获取当前平台的 key
-func getPlatformKey() string {
-	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+// InitBinaries 初始化二进制文件（从 main.go 调用，传入 //go:embed bins/** 的 embed.FS）。
+// 参数为 fs.FS 以便测试注入其他文件系统。调用它会丢弃当前进程中已缓存的二进制路径。
+func InitBinaries(source fs.FS) {
+	binariesMu.Lock()
+	defer binariesMu.Unlock()
+	binariesFS = source
+	states = newBinaryStates()
 }
+
+// getPlatformKey 获取当前平台的 key。
+func getPlatformKey() string { return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH) }
 
 func extractedBinaryName(binType BinaryType) string {
 	if runtime.GOOS == "windows" {
@@ -84,58 +82,124 @@ func extractedBinaryName(binType BinaryType) string {
 	return string(binType)
 }
 
-// EnsureBinary 确保二进制文件可用，返回临时文件路径
+// EnsureBinary 确保指定二进制文件可用，返回内容寻址缓存中的可执行文件路径。
 func EnsureBinary(binType BinaryType) (string, error) {
-	extractMutex.Do(func() {
-		extractError = extractAllBinaries()
-	})
-	if extractError != nil {
-		return "", extractError
-	}
-
-	path, ok := extractedPaths[binType]
+	binariesMu.Lock()
+	state, ok := states[binType]
+	binariesMu.Unlock()
 	if !ok {
-		return "", fmt.Errorf("binary %s not found", binType)
+		return "", fmt.Errorf("unknown binary: %s", binType)
 	}
-	return path, nil
+	state.once.Do(func() { state.path, state.err = extractBinary(binType) })
+	if state.err != nil {
+		return "", state.err
+	}
+	return state.path, nil
 }
 
-// extractAllBinaries 提取所有二进制文件到临时目录
-func extractAllBinaries() error {
+func extractBinary(binType BinaryType) (string, error) {
 	platformKey := getPlatformKey()
 	paths, ok := binaryPaths[platformKey]
 	if !ok {
-		return fmt.Errorf("unsupported platform: %s", platformKey)
+		return "", fmt.Errorf("unsupported platform: %s", platformKey)
+	}
+	relPath, ok := paths[binType]
+	if !ok {
+		return "", fmt.Errorf("binary %s is not available for %s", binType, platformKey)
+	}
+	binariesMu.Lock()
+	source := binariesFS
+	binariesMu.Unlock()
+	if source == nil {
+		return "", fmt.Errorf("embedded binaries are not initialized")
+	}
+	data, err := fs.ReadFile(source, relPath)
+	if err != nil {
+		return "", fmt.Errorf("read embedded binary %s: %w", binType, err)
 	}
 
-	// 创建临时目录
-	tmpDir := filepath.Join(os.TempDir(), "img-compress-bins")
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+	sum := sha256.Sum256(data)
+	cacheDir, err := cacheBaseDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve binary cache directory: %w", err)
+	}
+	targetDir := filepath.Join(cacheDir, "itb", "bins", platformKey, hex.EncodeToString(sum[:]))
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", fmt.Errorf("create binary cache directory: %w", err)
+	}
+	targetPath := filepath.Join(targetDir, extractedBinaryName(binType))
+	match, err := fileMatchesHash(targetPath, sum)
+	if err != nil {
+		return "", fmt.Errorf("verify cached binary %s: %w", binType, err)
+	}
+	if match {
+		return targetPath, nil
+	}
+	if err := writeAtomically(targetDir, targetPath, data); err != nil {
+		return "", fmt.Errorf("extract binary %s: %w", binType, err)
+	}
+	return targetPath, nil
+}
+
+func defaultCacheBaseDir() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err == nil {
+		return cacheDir, nil
+	}
+	return filepath.Join(os.TempDir(), fmt.Sprintf("itb-%d", os.Getuid())), nil
+}
+
+func fileMatchesHash(path string, expected [sha256.Size]byte) (bool, error) {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
+		return false, nil
+	}
+	hash := sha256.New()
+	if _, err := io.Copy(hash, f); err != nil {
+		return false, err
+	}
+	return bytes.Equal(hash.Sum(nil), expected[:]), nil
+}
+
+func writeAtomically(dir, targetPath string, data []byte) error {
+	tmp, err := os.CreateTemp(dir, ".extract-*")
+	if err != nil {
 		return err
 	}
-
-	for binType, relPath := range paths {
-		data, err := fs.ReadFile(binariesFS, relPath)
-		if err != nil {
-			return fmt.Errorf("failed to read embedded binary %s: %w", binType, err)
-		}
-
-		targetPath := filepath.Join(tmpDir, extractedBinaryName(binType))
-
-		// 检查是否已存在且大小相同
-		if info, err := os.Stat(targetPath); err == nil {
-			if int(info.Size()) == len(data) {
-				extractedPaths[binType] = targetPath
-				continue
-			}
-		}
-
-		if err := os.WriteFile(targetPath, data, 0755); err != nil {
-			return fmt.Errorf("failed to write binary %s: %w", binType, err)
-		}
-
-		extractedPaths[binType] = targetPath
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
 	}
-
+	if err := tmp.Chmod(0755); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		sum := sha256.Sum256(data)
+		if match, matchErr := fileMatchesHash(targetPath, sum); matchErr == nil && match {
+			return nil
+		}
+		return err
+	}
 	return nil
 }

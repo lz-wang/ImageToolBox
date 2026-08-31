@@ -16,6 +16,20 @@
 > 
 > Release 产物中，macOS / Linux 使用 `.tar.gz`，Windows 使用 `.zip`；Windows 可执行文件和内置压缩工具均带 `.exe` 扩展名。
 
+## Linux 兼容性
+
+官方 Linux amd64 / arm64 构建的 `compress` 功能要求 **glibc >= 2.28**；Go 实现的其他功能不在启动时强制检查此条件。Alpine Linux / musl 当前不受支持。
+
+| 系统 | `compress` 支持情况 |
+|------|---------------------|
+| CentOS 7（glibc 2.17） | ❌ |
+| Ubuntu 18.04（glibc 2.27） | ❌ |
+| Rocky / AlmaLinux 8（glibc 2.28） | ✅ |
+| Debian 10+ | ✅ |
+| Ubuntu 20.04+ | ✅ |
+
+CI 使用 `manylinux_2_28` 构建 Linux 内置压缩器，并校验其最高 `GLIBC_*` 符号版本及动态库依赖。发行包只包含单个 `itb` 文件；压缩器仍内嵌在其中，并在首次使用时按需解压到用户缓存目录。
+
 ## 安装
 
 新版本发布后，可通过 Homebrew（macOS / Linux）安装：

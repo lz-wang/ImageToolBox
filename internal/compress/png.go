@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 )
 
@@ -54,9 +53,7 @@ func runPngQuant(opts PNGOptions) (*bytes.Buffer, error) {
 	cmd.Stdin = opts.Input
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := runCommand(cmd); err != nil {
 		return nil, err
 	}
 
@@ -79,7 +76,5 @@ func runOxiPng(input *bytes.Buffer, opts PNGOptions) error {
 
 	cmd.Stdin = input
 	cmd.Stdout = opts.Output
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return runCommand(cmd)
 }

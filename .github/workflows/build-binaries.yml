@@ -103,13 +103,13 @@ jobs:
           npm run build
 
       - name: Setup Rust
+        if: runner.os != 'Linux'
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install build dependencies (Linux)
+      - name: Build bundled compression binaries (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake nasm pkg-config
+        shell: bash
+        run: ./scripts/build-linux-bins-container.sh "${{ matrix.target.goarch }}" "${{ matrix.target.bins_dir }}"
 
       - name: Install build dependencies (macOS)
         if: runner.os == 'macOS'
@@ -135,8 +135,8 @@ jobs:
             choco install -y nasm
           }
 
-      - name: Build pngquant and oxipng (Unix)
-        if: runner.os != 'Windows'
+      - name: Build pngquant and oxipng (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -182,8 +182,8 @@ jobs:
           cargo @oxipngArgs
           Copy-Item (Join-Path $oxipngDir "target\release\oxipng.exe") (Join-Path $binsDir "oxipng.exe")
 
-      - name: Build libjpeg-turbo static tools (Unix)
-        if: runner.os != 'Windows'
+      - name: Build libjpeg-turbo static tools (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -197,10 +197,6 @@ jobs:
           cmake --build /tmp/libjpeg-turbo/build --parallel
           install -m 0755 /tmp/libjpeg-turbo/build/cjpeg-static "${{ matrix.target.bins_dir }}/cjpeg-static"
           install -m 0755 /tmp/libjpeg-turbo/build/djpeg-static "${{ matrix.target.bins_dir }}/djpeg-static"
-          if [[ -f /tmp/libjpeg-turbo/build/jpegtran-static ]]; then
-            install -m 0755 /tmp/libjpeg-turbo/build/jpegtran-static "${{ matrix.target.bins_dir }}/jpegtran-static"
-          fi
-
       - name: Build libjpeg-turbo static tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -273,6 +269,11 @@ jobs:
             }
           }
 
+      - name: Verify Linux ABI contract
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/verify-linux-abi.sh "${{ matrix.target.bins_dir }}"
+
       - name: Build itb (Unix)
         if: runner.os != 'Windows'
         env:
@@ -295,23 +296,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path $distDir | Out-Null
           go build -trimpath -ldflags "-s -w" -o (Join-Path $distDir "itb.exe") .
 
-      - name: Package platform binaries (Unix)
-        if: runner.os != 'Windows'
+      - name: Verify Linux glibc 2.28 compression compatibility
+        if: runner.os == 'Linux'
         shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p dist/${{ matrix.target.name }}/bins
-          cp -R "${{ matrix.target.bins_dir }}" "dist/${{ matrix.target.name }}/bins/"
-
-      - name: Package platform binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $distDir = Join-Path "dist" "${{ matrix.target.name }}"
-          $distBinsDir = Join-Path $distDir "bins"
-          New-Item -ItemType Directory -Force -Path $distBinsDir | Out-Null
-          Copy-Item "${{ matrix.target.bins_dir }}" $distBinsDir -Recurse
+        run: ./scripts/verify-linux-compress-e2e.sh "${{ matrix.target.goarch }}" "dist/${{ matrix.target.name }}/itb"
 
       - name: Resolve WebDAV archive target
         id: archive

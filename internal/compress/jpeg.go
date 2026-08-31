@@ -1,17 +1,17 @@
 package compress
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 )
 
 // JPEGOptions JPEG 压缩选项
 type JPEGOptions struct {
-	Quality     int  // 压缩质量 1-100
-	Progressive bool // 是否使用渐进式编码
-	Optimize    bool // 是否优化霍夫曼表
+	Quality     int    // 压缩质量 1-100
+	Progressive bool   // 是否使用渐进式编码
+	Optimize    bool   // 是否优化霍夫曼表
 	InputPath   string // 输入文件路径（djpeg 需要直接读取文件）
 	Output      io.Writer
 }
@@ -53,19 +53,24 @@ func CompressJPEG(opts JPEGOptions) error {
 	}
 	cjpegCmd.Stdin = pipe
 	cjpegCmd.Stdout = opts.Output
-	cjpegCmd.Stderr = os.Stderr
+	var djpegStderr, cjpegStderr bytes.Buffer
+	djpegCmd.Stderr = &djpegStderr
+	cjpegCmd.Stderr = &cjpegStderr
 
 	// 启动 djpeg
 	if err := djpegCmd.Start(); err != nil {
-		return err
+		return commandError(err, djpegStderr.String())
 	}
 
 	// 运行 cjpeg 并等待完成
 	if err := cjpegCmd.Run(); err != nil {
 		djpegCmd.Wait()
-		return err
+		return commandError(err, cjpegStderr.String())
 	}
 
 	// 等待 djpeg 完成
-	return djpegCmd.Wait()
+	if err := djpegCmd.Wait(); err != nil {
+		return commandError(err, djpegStderr.String())
+	}
+	return nil
 }
