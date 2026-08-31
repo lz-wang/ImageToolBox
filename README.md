@@ -149,7 +149,7 @@ brew install lz-wang/tap/itb
 | `-o, --output` | `*_resized.*` | 输出路径 |
 | `--width` | | 目标宽度（像素） |
 | `--height` | | 目标高度（像素） |
-| `--percent` | | 按比例缩放，例如 `50%` |
+| `--percent` | | 按百分比精确缩放，例如 `50%`；支持放大如 `200%` |
 | `--mode` | `fit` | 缩放模式：`fit` / `fill` / `stretch` |
 | `--anchor` | `center` | `fill` 模式的锚点 |
 | `--filter` | `lanczos` | 采样器：`nearest` / `linear` / `catmullrom` / `lanczos` |

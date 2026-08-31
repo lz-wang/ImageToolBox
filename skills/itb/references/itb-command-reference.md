@@ -71,7 +71,7 @@ Flags:
 - `-i, --input`: input image path.
 - `-o, --output`: output path; default adds `_resized`.
 - `--width`, `--height`: target dimensions.
-- `--percent`: scale percentage, e.g. `50%`.
+- `--percent`: exact scale percentage, e.g. `50%`; upscaling (`200%`) works.
 - `--mode`: `fit`, `fill`, `stretch`; default `fit`.
 - `--anchor`: fill-mode anchor; default `center`.
 - `--filter`: `nearest`, `linear`, `catmullrom`, `lanczos`; default `lanczos`.

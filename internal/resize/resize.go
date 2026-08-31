@@ -52,12 +52,21 @@ func Apply(img image.Image, opts Options) (image.Image, error) {
 		return nil, err
 	}
 
+	if opts.Percent != "" {
+		// percent 语义是按百分比精确缩放（允许放大，如 200%），不能走
+		// imaging.Fit 的"只缩小不放大"包围盒逻辑。
+		return imaging.Resize(img, plan.Width, plan.Height, plan.filter), nil
+	}
+
 	switch plan.mode {
 	case ModeFit:
 		if plan.boxWidth == 0 || plan.boxHeight == 0 {
 			return imaging.Resize(img, plan.boxWidth, plan.boxHeight, plan.filter), nil
 		}
-		return imaging.Fit(img, plan.boxWidth, plan.boxHeight, plan.filter), nil
+		if plan.Width == img.Bounds().Dx() && plan.Height == img.Bounds().Dy() {
+			return imaging.Clone(img), nil
+		}
+		return imaging.Resize(img, plan.Width, plan.Height, plan.filter), nil
 	case ModeFill:
 		return imaging.Fill(img, plan.boxWidth, plan.boxHeight, plan.anchor, plan.filter), nil
 	case ModeStretch:
@@ -129,6 +138,11 @@ func Resolve(bounds image.Rectangle, opts Options) (Plan, error) {
 			resolvedWidth = derivedDimension(bounds.Dx(), bounds.Dy(), height)
 		} else if height <= 0 {
 			resolvedHeight = derivedDimension(bounds.Dy(), bounds.Dx(), width)
+		} else if mode == ModeFit && opts.Percent == "" {
+			// fit 的 box 只是包围盒：imaging.Fit 只缩小不放大，真实输出
+			// 可能小于 box（源图已在 box 内时等于源图尺寸）。percent 的
+			// 目标是精确尺寸，不经过包围盒推导。
+			resolvedWidth, resolvedHeight = fitResolved(bounds.Dx(), bounds.Dy(), width, height)
 		}
 	case ModeFill:
 		if width <= 0 || height <= 0 {
@@ -153,6 +167,32 @@ func Resolve(bounds image.Rectangle, opts Options) (Plan, error) {
 // imaging.Resize 保持一致（floor(x+0.5)，最小为 1）。
 func derivedDimension(srcSide, srcOther, dstOther int) int {
 	return max(1, int(math.Floor(float64(srcSide)*float64(dstOther)/float64(srcOther)+0.5)))
+}
+
+// fitResolved 镜像 imaging.Fit 的真实输出推导：源图已在包围盒内时输出
+// 等于源图尺寸（Fit 直接 Clone）；否则按宽高比贴边计算。单边被截断为 0
+// 时与 Fit 内部调用的 Resize 一样按宽高比补全（最小 1）。
+func fitResolved(srcW, srcH, boxW, boxH int) (int, int) {
+	if srcW <= boxW && srcH <= boxH {
+		return srcW, srcH
+	}
+	srcAspectRatio := float64(srcW) / float64(srcH)
+	maxAspectRatio := float64(boxW) / float64(boxH)
+	newW, newH := boxW, boxH
+	if srcAspectRatio > maxAspectRatio {
+		newW = boxW
+		newH = int(float64(newW) / srcAspectRatio)
+	} else {
+		newH = boxH
+		newW = int(float64(newH) * srcAspectRatio)
+	}
+	if newW <= 0 {
+		newW = derivedDimension(srcW, srcH, newH)
+	}
+	if newH <= 0 {
+		newH = derivedDimension(srcH, srcW, newW)
+	}
+	return newW, newH
 }
 
 func parsePercent(value string) (float64, error) {

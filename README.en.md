@@ -149,7 +149,7 @@ Resize by width/height, by percentage, or using different modes.
 | `-o, --output` | `*_resized.*` | Output path |
 | `--width` | | Target width (pixels) |
 | `--height` | | Target height (pixels) |
-| `--percent` | | Scale by percentage, e.g. `50%` |
+| `--percent` | | Scale exactly by percentage, e.g. `50%`; upscaling like `200%` works |
 | `--mode` | `fit` | Resize mode: `fit` / `fill` / `stretch` |
 | `--anchor` | `center` | Anchor for `fill` mode |
 | `--filter` | `lanczos` | Resampler: `nearest` / `linear` / `catmullrom` / `lanczos` |

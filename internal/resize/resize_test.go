@@ -93,6 +93,33 @@ func TestDefaultResizeContract(t *testing.T) {
 	}
 }
 
+// TestApplyPercentUpscale 验证 percent 语义是按百分比精确缩放：
+// 200% 必须真正放大，而不是被 fit 的"只缩小不放大"逻辑吞掉。
+func TestApplyPercentUpscale(t *testing.T) {
+	for _, tt := range []struct {
+		percent string
+		srcW    int
+		srcH    int
+		wantW   int
+		wantH   int
+	}{
+		{percent: "200%", srcW: 100, srcH: 100, wantW: 200, wantH: 200},
+		{percent: "150%", srcW: 200, srcH: 100, wantW: 300, wantH: 150},
+		{percent: "50%", srcW: 100, srcH: 100, wantW: 50, wantH: 50},
+	} {
+		t.Run(tt.percent, func(t *testing.T) {
+			img := image.NewNRGBA(image.Rect(0, 0, tt.srcW, tt.srcH))
+			got, err := Apply(img, Options{Percent: tt.percent})
+			if err != nil {
+				t.Fatalf("Apply() error = %v", err)
+			}
+			if got.Bounds().Dx() != tt.wantW || got.Bounds().Dy() != tt.wantH {
+				t.Fatalf("Apply(percent=%s) = %dx%d, want %dx%d", tt.percent, got.Bounds().Dx(), got.Bounds().Dy(), tt.wantW, tt.wantH)
+			}
+		})
+	}
+}
+
 func TestResolve(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -108,6 +135,12 @@ func TestResolve(t *testing.T) {
 		{name: "percent", bounds: image.Rect(0, 0, 100, 100), opts: Options{Percent: "50%"}, width: 50, height: 50},
 		{name: "percent upscale", bounds: image.Rect(0, 0, 100, 100), opts: Options{Percent: "1000000%"}, width: 1_000_000, height: 1_000_000},
 		{name: "explicit box", bounds: image.Rect(0, 0, 4000, 2000), opts: Options{Width: 100, Height: 50}, width: 100, height: 50},
+		// fit 的 box 只是包围盒：源图在 box 内时输出等于源图尺寸，
+		// 源图更大时按宽高比贴边缩小（与 imaging.Fit 完全一致）。
+		{name: "fit bounding box larger than source", bounds: image.Rect(0, 0, 1000, 100), opts: Options{Width: 20000, Height: 100}, width: 1000, height: 100},
+		{name: "fit box within both sides clones source", bounds: image.Rect(0, 0, 100, 100), opts: Options{Width: 500, Height: 500}, width: 100, height: 100},
+		{name: "fit downscale keeps aspect", bounds: image.Rect(0, 0, 1000, 100), opts: Options{Width: 200, Height: 200}, width: 200, height: 20},
+		{name: "stretch box is exact", bounds: image.Rect(0, 0, 1000, 100), opts: Options{Width: 20000, Height: 100, Mode: ModeStretch}, width: 20000, height: 100},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -126,7 +159,13 @@ func TestResolve(t *testing.T) {
 			{Width: 50},
 			{Height: 25},
 			{Percent: "33%"},
+			{Percent: "200%"},
 			{Width: 50, Height: 50, Mode: ModeStretch},
+			// fit 放大 box：真实输出等于源图（Fit 直接 Clone）。
+			{Width: 500, Height: 500},
+			{Width: 500, Height: 500, Mode: ModeFit},
+			// fit 缩小 box：按宽高比贴边。
+			{Width: 80, Height: 80},
 		} {
 			plan, err := Resolve(img.Bounds(), opts)
 			if err != nil {

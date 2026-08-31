@@ -199,7 +199,9 @@ func TestOperationAdmission(t *testing.T) {
 	}
 
 	t.Run("resize target beyond limits is rejected", func(t *testing.T) {
-		w := post(t, "/api/v1/resize", map[string]string{"width": "100000", "height": "100000"}, input(1, 1))
+		// stretch 的目标尺寸是精确输出，超限必须在分配前 413。
+		// （fit 的 box 只是包围盒，源图在 box 内时不会放大，另用例覆盖。）
+		w := post(t, "/api/v1/resize", map[string]string{"width": "100000", "height": "100000", "mode": "stretch"}, input(1, 1))
 		if w.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
 		}
@@ -215,6 +217,27 @@ func TestOperationAdmission(t *testing.T) {
 	})
 	t.Run("normal resize still succeeds", func(t *testing.T) {
 		w := post(t, "/api/v1/resize", map[string]string{"width": "16"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 16, 8) {
+			t.Fatalf("bounds = %v, want 16x8", got)
+		}
+	})
+	t.Run("percent upscale actually upscales", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"percent": "200%"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 64, 32) {
+			t.Fatalf("bounds = %v, want 64x32", got)
+		}
+	})
+	t.Run("fit box over limit with in-limit output is accepted", func(t *testing.T) {
+		// fit 的 box（20000×8）超过 MaxDimension，但源图 32×16 只有高度
+		// 超出 box，真实输出按宽高比贴边为 16×8，在限制内，应返回 200
+		// 而不是保守 413。
+		w := post(t, "/api/v1/resize", map[string]string{"width": "20000", "height": "8", "mode": "fit"}, input(32, 16))
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
 		}
