@@ -74,6 +74,47 @@ func TestDefaultOutputPath(t *testing.T) {
 	}
 }
 
+func TestOptionsNormalizeAndValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    Options
+		want    Options
+		wantErr bool
+	}{
+		{name: "defaults and jpg normalization", opts: Options{To: " .JPG "}, want: Options{To: "jpg", Quality: DefaultQuality, Background: DefaultBackground}},
+		{name: "invalid negative quality", opts: Options{To: "webp", Quality: -1}, wantErr: true},
+		{name: "invalid excessive quality", opts: Options{To: "webp", Quality: 101}, wantErr: true},
+		{name: "lossless jpeg", opts: Options{To: "jpeg", Lossless: true}, wantErr: true},
+		{name: "lossless webp", opts: Options{To: "webp", Lossless: true}, want: Options{To: "webp", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
+		{name: "lossless png", opts: Options{To: "png", Lossless: true}, want: Options{To: "png", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
+		{name: "short background", opts: Options{To: "png", Background: "#fff"}, want: Options{To: "png", Quality: DefaultQuality, Background: "#fff"}},
+		{name: "invalid background", opts: Options{To: "png", Background: "invalid"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.Normalize()
+			if !tt.wantErr && tt.opts != tt.want {
+				t.Fatalf("Normalize() = %+v, want %+v", tt.opts, tt.want)
+			}
+			if err := tt.opts.Validate(); (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestConvertFileUsesDomainDefaults(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.png")
+	output := filepath.Join(dir, "output.webp")
+	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 10, 10)))
+
+	if err := ConvertFile(input, output, Options{To: "webp"}); err != nil {
+		t.Fatalf("ConvertFile() error = %v", err)
+	}
+}
+
 func writePNG(t *testing.T, path string, img image.Image) {
 	t.Helper()
 	f, err := os.Create(path)

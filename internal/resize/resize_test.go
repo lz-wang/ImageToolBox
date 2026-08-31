@@ -81,3 +81,14 @@ func TestValidateOptions(t *testing.T) {
 		t.Fatal("expected fill validation error")
 	}
 }
+
+func TestDefaultResizeContract(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 200, 100))
+	got, err := Apply(img, Options{Width: 50})
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if got.Bounds() != image.Rect(0, 0, 50, 25) {
+		t.Fatalf("default fit dimensions = %v", got.Bounds())
+	}
+}
