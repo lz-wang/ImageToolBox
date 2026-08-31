@@ -129,9 +129,6 @@ func newWatermarkCommand() *cli.Command {
 
 func runWatermark(ctx context.Context, cmd *cli.Command) error {
 	inputFile := cmd.String("input")
-	text := cmd.String("text")
-	imagePath := cmd.String("image")
-	mode := cmd.String("mode")
 
 	// 生成默认输出路径
 	outputPath := cmd.String("output")
@@ -139,61 +136,26 @@ func runWatermark(ctx context.Context, cmd *cli.Command) error {
 		outputPath = imageio.SuffixedPath(inputFile, "_watermarked")
 	}
 
-	var err error
-	switch {
-	case imagePath != "":
-		if mode != "position" {
-			return fmt.Errorf("图片水印仅支持 position 模式")
-		}
-		opacity := cmd.Float("opacity")
-		scale := cmd.Float("scale")
-		margin := cmd.Float("margin")
-		opts := &watermark.ImageOptions{
-			ImagePath:   imagePath,
-			Opacity:     &opacity,
-			Position:    watermark.Position(cmd.String("position")),
-			ScaleRatio:  &scale,
-			MarginRatio: &margin,
-		}
-		_, err = watermark.AddImageWatermark(inputFile, outputPath, opts)
-
-	case text != "":
-		opacity := cmd.Float("opacity")
-		color := cmd.String("color")
-		space := cmd.Int("space")
-		angle := cmd.Int("angle")
-		fontSize := cmd.Int("font-size")
-		margin := cmd.Float("margin")
-		switch mode {
-		case "repeat":
-			opts := &watermark.RepeatOptions{
-				Color:          &color,
-				Space:          &space,
-				Angle:          &angle,
-				Opacity:        &opacity,
-				FontPath:       cmd.String("font"),
-				FontSize:       &fontSize,
-				FontHeightCrop: nil,
-			}
-			_, err = watermark.AddRepeatWatermark(inputFile, outputPath, text, opts)
-
-		case "position":
-			opts := &watermark.PositionOptions{
-				Opacity:     &opacity,
-				Position:    watermark.Position(cmd.String("position")),
-				FontPath:    cmd.String("font"),
-				FontSize:    &fontSize,
-				Color:       &color,
-				MarginRatio: &margin,
-			}
-			_, err = watermark.AddPositionWatermark(inputFile, outputPath, text, opts)
-
-		default:
-			return fmt.Errorf("不支持的水印模式: %s（支持: position, repeat）", mode)
-		}
-	default:
-		return fmt.Errorf("必须指定水印文字 (-t) 或图片水印 (--image)")
-	}
+	opacity := cmd.Float("opacity")
+	space := cmd.Int("space")
+	angle := cmd.Int("angle")
+	fontSize := cmd.Int("font-size")
+	margin := cmd.Float("margin")
+	scale := cmd.Float("scale")
+	err := watermark.AddFile(inputFile, outputPath, watermark.Options{
+		Text:      cmd.String("text"),
+		ImagePath: cmd.String("image"),
+		Mode:      watermark.Mode(cmd.String("mode")),
+		Position:  watermark.Position(cmd.String("position")),
+		Color:     cmd.String("color"),
+		FontPath:  cmd.String("font"),
+		Opacity:   &opacity,
+		FontSize:  &fontSize,
+		Space:     &space,
+		Angle:     &angle,
+		Margin:    &margin,
+		Scale:     &scale,
+	})
 
 	if err != nil {
 		return fmt.Errorf("添加水印失败: %w", err)

@@ -61,6 +61,83 @@ type ImageOptions struct {
 	JPGBackground *color.NRGBA
 }
 
+// Mode selects the text watermark layout.
+type Mode string
+
+const (
+	ModePosition Mode = "position"
+	ModeRepeat   Mode = "repeat"
+)
+
+// Options describes a complete file-level watermark operation. Pointer fields
+// preserve the distinction between an omitted option and an explicit zero.
+type Options struct {
+	Text      string
+	ImagePath string
+	Mode      Mode
+	Position  Position
+	Color     string
+	FontPath  string
+	Opacity   *float64
+	FontSize  *int
+	Space     *int
+	Angle     *int
+	Margin    *float64
+	Scale     *float64
+}
+
+// AddFile applies a text or image watermark and owns the operation dispatch.
+func AddFile(inputPath, outputPath string, opts Options) error {
+	hasText := strings.TrimSpace(opts.Text) != ""
+	hasImage := strings.TrimSpace(opts.ImagePath) != ""
+	if hasText == hasImage {
+		return errors.New("must provide exactly one of text or image watermark")
+	}
+
+	mode := opts.Mode
+	if mode == "" {
+		mode = ModePosition
+	}
+	if hasImage {
+		if mode != ModePosition {
+			return errors.New("image watermark only supports position mode")
+		}
+		_, err := AddImageWatermark(inputPath, outputPath, &ImageOptions{
+			ImagePath:   opts.ImagePath,
+			Opacity:     opts.Opacity,
+			Position:    opts.Position,
+			ScaleRatio:  opts.Scale,
+			MarginRatio: opts.Margin,
+		})
+		return err
+	}
+
+	switch mode {
+	case ModePosition:
+		_, err := AddPositionWatermark(inputPath, outputPath, opts.Text, &PositionOptions{
+			Opacity:     opts.Opacity,
+			Position:    opts.Position,
+			FontPath:    opts.FontPath,
+			FontSize:    opts.FontSize,
+			Color:       &opts.Color,
+			MarginRatio: opts.Margin,
+		})
+		return err
+	case ModeRepeat:
+		_, err := AddRepeatWatermark(inputPath, outputPath, opts.Text, &RepeatOptions{
+			Color:    &opts.Color,
+			Space:    opts.Space,
+			Angle:    opts.Angle,
+			Opacity:  opts.Opacity,
+			FontPath: opts.FontPath,
+			FontSize: opts.FontSize,
+		})
+		return err
+	default:
+		return fmt.Errorf("unsupported watermark mode: %s", mode)
+	}
+}
+
 // WatermarkArgs configuration for watermark generation.
 type WatermarkArgs struct {
 	Mark           string

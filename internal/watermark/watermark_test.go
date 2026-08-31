@@ -39,6 +39,43 @@ func TestAddImageWatermark(t *testing.T) {
 	}
 }
 
+func TestAddFileDispatchValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    Options
+		wantErr bool
+	}{
+		{name: "neither source", wantErr: true},
+		{name: "both sources", opts: Options{Text: "mark", ImagePath: "logo.png"}, wantErr: true},
+		{name: "image repeat", opts: Options{ImagePath: "logo.png", Mode: ModeRepeat}, wantErr: true},
+		{name: "invalid mode", opts: Options{Text: "mark", Mode: Mode("invalid")}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := AddFile("input.png", "output.png", tt.opts)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("AddFile() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestAddFileTextPositionAndRepeat(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.png")
+	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 100, 100)))
+
+	for _, opts := range []Options{{Text: "mark"}, {Text: "mark", Mode: ModeRepeat}} {
+		output := filepath.Join(dir, string(opts.Mode)+".png")
+		if err := AddFile(input, output, opts); err != nil {
+			t.Fatalf("AddFile(%q) error = %v", opts.Mode, err)
+		}
+		if _, err := os.Stat(output); err != nil {
+			t.Fatalf("output was not created: %v", err)
+		}
+	}
+}
+
 func fill(img *image.NRGBA, c color.NRGBA) {
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {

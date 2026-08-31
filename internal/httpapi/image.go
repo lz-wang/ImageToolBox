@@ -1,11 +1,9 @@
 package httpapi
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"imagetoolbox/internal/compress"
@@ -233,49 +231,27 @@ func handleWatermark(c *gin.Context) {
 
 // processWatermark 按请求参数为单张图片添加水印。
 func processWatermark(inputPath, outputPath string, opts WatermarkRequest, watermarkPath, fontPath string) error {
-	mode := opts.Mode
-	if mode == "" {
-		mode = "position"
-	}
+	return watermark.AddFile(inputPath, outputPath, watermark.Options{
+		Text:      opts.Text,
+		ImagePath: watermarkPath,
+		Mode:      watermark.Mode(opts.Mode),
+		Position:  watermark.Position(opts.Position),
+		Color:     derefString(opts.Color),
+		FontPath:  fontPath,
+		Opacity:   opts.Opacity,
+		FontSize:  opts.FontSize,
+		Space:     opts.Space,
+		Angle:     opts.Angle,
+		Margin:    opts.Margin,
+		Scale:     opts.Scale,
+	})
+}
 
-	if strings.EqualFold(opts.Type, "image") || watermarkPath != "" {
-		if mode != "position" {
-			return fmt.Errorf("图片水印仅支持 position 模式")
-		}
-		_, err := watermark.AddImageWatermark(inputPath, outputPath, &watermark.ImageOptions{
-			ImagePath:   watermarkPath,
-			Opacity:     opts.Opacity,
-			Position:    watermark.Position(opts.Position),
-			ScaleRatio:  opts.Scale,
-			MarginRatio: opts.Margin,
-		})
-		return err
+func derefString(value *string) string {
+	if value == nil {
+		return ""
 	}
-
-	switch mode {
-	case "repeat":
-		_, err := watermark.AddRepeatWatermark(inputPath, outputPath, opts.Text, &watermark.RepeatOptions{
-			Color:    opts.Color,
-			Space:    opts.Space,
-			Angle:    opts.Angle,
-			Opacity:  opts.Opacity,
-			FontPath: fontPath,
-			FontSize: opts.FontSize,
-		})
-		return err
-	case "position":
-		_, err := watermark.AddPositionWatermark(inputPath, outputPath, opts.Text, &watermark.PositionOptions{
-			Opacity:     opts.Opacity,
-			Position:    watermark.Position(opts.Position),
-			FontPath:    fontPath,
-			FontSize:    opts.FontSize,
-			Color:       opts.Color,
-			MarginRatio: opts.Margin,
-		})
-		return err
-	default:
-		return fmt.Errorf("不支持的水印模式: %s", mode)
-	}
+	return *value
 }
 
 func fileSize(path string) int64 {
