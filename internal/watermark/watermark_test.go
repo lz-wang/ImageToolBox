@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -81,6 +82,46 @@ func fill(img *image.NRGBA, c color.NRGBA) {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			img.SetNRGBA(x, y, c)
 		}
+	}
+}
+
+func TestOptionsValidate(t *testing.T) {
+	intPtr := func(v int) *int { return &v }
+	tests := []struct {
+		name    string
+		opts    Options
+		wantErr bool
+	}{
+		{name: "text defaults", opts: Options{Text: "mark"}},
+		{name: "image defaults", opts: Options{ImagePath: "logo.png"}},
+		{name: "normalized mode position", opts: Options{Text: "mark", Mode: ModePosition}},
+		{name: "opacity zero", opts: Options{Text: "mark", Opacity: float64Ptr(0)}},
+		{name: "opacity one", opts: Options{Text: "mark", Opacity: float64Ptr(1)}},
+		{name: "opacity negative", opts: Options{Text: "mark", Opacity: float64Ptr(-0.1)}, wantErr: true},
+		{name: "opacity above one", opts: Options{Text: "mark", Opacity: float64Ptr(1.1)}, wantErr: true},
+		{name: "invalid position", opts: Options{Text: "mark", Position: Position("middle")}, wantErr: true},
+		{name: "font size max", opts: Options{Text: "mark", FontSize: intPtr(MaxFontSize)}},
+		{name: "font size too large", opts: Options{Text: "mark", FontSize: intPtr(MaxFontSize + 1)}, wantErr: true},
+		{name: "font size negative", opts: Options{Text: "mark", FontSize: intPtr(-1)}, wantErr: true},
+		{name: "space negative", opts: Options{Text: "mark", Space: intPtr(-1)}, wantErr: true},
+		{name: "angle boundary", opts: Options{Text: "mark", Mode: ModeRepeat, Angle: intPtr(-360)}},
+		{name: "angle out of range", opts: Options{Text: "mark", Mode: ModeRepeat, Angle: intPtr(361)}, wantErr: true},
+		{name: "margin negative", opts: Options{Text: "mark", Margin: float64Ptr(-0.1)}, wantErr: true},
+		{name: "scale zero", opts: Options{ImagePath: "logo.png", Scale: float64Ptr(0)}, wantErr: true},
+		{name: "invalid color", opts: Options{Text: "mark", Color: "notacolor"}, wantErr: true},
+		{name: "valid color", opts: Options{Text: "mark", Color: "#FF8800CC"}},
+		{name: "text exceeds rune limit", opts: Options{Text: strings.Repeat("水", MaxTextRunes+1)}, wantErr: true},
+		{name: "text at rune limit", opts: Options{Text: strings.Repeat("水", MaxTextRunes)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.opts
+			opts.Normalize()
+			err := opts.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 

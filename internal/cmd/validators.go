@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"imagetoolbox/internal/imageio"
 )
 
 // CLI 层参数校验：尽早报出参数错误（先于文件 IO 与领域层处理），
@@ -95,6 +97,30 @@ func floatRangeValidator(flag string, min, max float64) func(float64) error {
 	return func(v float64) error {
 		if v < min || v > max {
 			return fmt.Errorf("--%s 必须在 %v~%v 范围内（当前: %v）", flag, min, max, v)
+		}
+		return nil
+	}
+}
+
+// nonNegativeFloatValidator 生成非负浮点校验器。
+func nonNegativeFloatValidator(flag string) func(float64) error {
+	return func(v float64) error {
+		if v < 0 {
+			return fmt.Errorf("--%s 不能为负数（当前: %v）", flag, v)
+		}
+		return nil
+	}
+}
+
+// colorValidator 生成十六进制颜色校验器，规则与 imageio.ParseHexColor
+// 一致（#RGB/#RRGGBB/#RRGGBBAA，大小写不敏感；空值走自动选择）。
+func colorValidator(flag string) func(string) error {
+	return func(v string) error {
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
+		if _, err := imageio.ParseHexColor(v); err != nil {
+			return fmt.Errorf("--%s 必须是十六进制颜色，例如 #FFFFFF（当前: %s）", flag, v)
 		}
 		return nil
 	}

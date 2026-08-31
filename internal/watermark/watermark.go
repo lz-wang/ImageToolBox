@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/disintegration/imaging"
 	"golang.org/x/image/font"
@@ -86,22 +87,80 @@ type Options struct {
 	Scale     *float64
 }
 
-// AddFile applies a text or image watermark and owns the operation dispatch.
-func AddFile(inputPath, outputPath string, opts Options) error {
-	hasText := strings.TrimSpace(opts.Text) != ""
-	hasImage := strings.TrimSpace(opts.ImagePath) != ""
+// Domain 参数上限。这些是 watermark 语义的合理范围，而非 VPS 资源配置。
+const (
+	// MaxFontSize 限制字号上限，防止极端字号触发巨大字形栅格化。
+	MaxFontSize = 4096
+	// MaxTextRunes 限制水印文字长度；数千字符已覆盖绝大多数场景，
+	// 不应只依赖 multipart body 大小限制。
+	MaxTextRunes = 4096
+)
+
+// Normalize 填充默认值（Mode 空值默认 position）。
+func (o *Options) Normalize() {
+	if o.Mode == "" {
+		o.Mode = ModePosition
+	}
+}
+
+// Validate 校验 watermark 参数的完整业务规则，CLI 与 HTTP 共用，
+// 保证两个入口语义一致。
+func (o Options) Validate() error {
+	hasText := strings.TrimSpace(o.Text) != ""
+	hasImage := strings.TrimSpace(o.ImagePath) != ""
 	if hasText == hasImage {
 		return errors.New("must provide exactly one of text or image watermark")
 	}
-
-	mode := opts.Mode
-	if mode == "" {
-		mode = ModePosition
+	if utf8.RuneCountInString(o.Text) > MaxTextRunes {
+		return fmt.Errorf("watermark text must not exceed %d runes", MaxTextRunes)
 	}
-	if hasImage {
-		if mode != ModePosition {
-			return errors.New("image watermark only supports position mode")
+	switch o.Mode {
+	case ModePosition, ModeRepeat:
+	default:
+		return fmt.Errorf("unsupported watermark mode: %s", o.Mode)
+	}
+	if hasImage && o.Mode == ModeRepeat {
+		return errors.New("image watermark only supports position mode")
+	}
+	switch o.Position {
+	case "", BottomRight, BottomLeft, TopRight, TopLeft, Center:
+	default:
+		return fmt.Errorf("unsupported watermark position: %s", o.Position)
+	}
+	if o.Opacity != nil && (*o.Opacity < 0 || *o.Opacity > 1) {
+		return fmt.Errorf("opacity must be between 0 and 1: %v", *o.Opacity)
+	}
+	if o.FontSize != nil && (*o.FontSize < 0 || *o.FontSize > MaxFontSize) {
+		return fmt.Errorf("font size must be between 0 and %d: %d", MaxFontSize, *o.FontSize)
+	}
+	if o.Space != nil && *o.Space < 0 {
+		return fmt.Errorf("space must not be negative: %d", *o.Space)
+	}
+	if o.Angle != nil && (*o.Angle < -360 || *o.Angle > 360) {
+		return fmt.Errorf("angle must be between -360 and 360: %d", *o.Angle)
+	}
+	if o.Margin != nil && *o.Margin < 0 {
+		return fmt.Errorf("margin must not be negative: %v", *o.Margin)
+	}
+	if o.Scale != nil && *o.Scale <= 0 {
+		return fmt.Errorf("scale must be greater than 0: %v", *o.Scale)
+	}
+	if strings.TrimSpace(o.Color) != "" {
+		if _, err := imageio.ParseHexColor(o.Color); err != nil {
+			return fmt.Errorf("invalid watermark color: %w", err)
 		}
+	}
+	return nil
+}
+
+// AddFile applies a text or image watermark and owns the operation dispatch.
+func AddFile(inputPath, outputPath string, opts Options) error {
+	opts.Normalize()
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(opts.ImagePath) != "" {
 		_, err := AddImageWatermark(inputPath, outputPath, &ImageOptions{
 			ImagePath:   opts.ImagePath,
 			Opacity:     opts.Opacity,
@@ -112,7 +171,7 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 		return err
 	}
 
-	switch mode {
+	switch opts.Mode {
 	case ModePosition:
 		_, err := AddPositionWatermark(inputPath, outputPath, opts.Text, &PositionOptions{
 			Opacity:     opts.Opacity,
@@ -134,7 +193,7 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 		})
 		return err
 	default:
-		return fmt.Errorf("unsupported watermark mode: %s", mode)
+		return fmt.Errorf("unsupported watermark mode: %s", opts.Mode)
 	}
 }
 

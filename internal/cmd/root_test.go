@@ -352,8 +352,14 @@ func TestFlagValidators(t *testing.T) {
 		{"watermark opacity 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--opacity", "1.5"}, "--opacity 必须在"},
 		{"watermark 非法 position", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--position", "middle"}, "--position 仅支持"},
 		{"watermark scale 非正数", []string{"watermark", "-i", "nope.jpg", "--image", "logo.png", "--scale", "0"}, "--scale 必须大于 0"},
-		{"watermark font-size 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "-1"}, "不能为负数"},
+		{"watermark font-size 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "-1"}, "必须在 0-4096"},
+		{"watermark font-size 超上限", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "5000"}, "必须在 0-4096"},
+		{"watermark angle 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "repeat", "--angle", "720"}, "必须在 -360-360"},
+		{"watermark margin 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--margin", "-0.1"}, "不能为负数"},
+		{"watermark 非法 color", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--color", "red"}, "十六进制颜色"},
 		{"watermark space 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "repeat", "--space", "-5"}, "不能为负数"},
+		{"serve 非法 timeout", []string{"serve", "--timeout", "-1s"}, "--timeout 必须大于 0"},
+		{"serve 非法 max-concurrent", []string{"serve", "--max-concurrent", "0"}, "--max-concurrent 必须大于 0"},
 		{"inspect 非法 format", []string{"inspect", "-i", "nope.jpg", "--format", "xml"}, "--format 仅支持"},
 	}
 	for _, tt := range tests {

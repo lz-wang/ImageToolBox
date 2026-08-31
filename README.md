@@ -244,9 +244,9 @@ brew install lz-wang/tap/itb
 | `-t, --text` | 与 `--image` 二选一 | 水印文字 |
 | `-o, --output` | `*_watermarked.*` | 输出路径，默认在原文件名后加 `_watermarked` |
 | `-m, --mode` | `position` | 水印模式：`position`（位置）/ `repeat`（平铺） |
-| `--color` | (自动) | 水印颜色，如 `#FF0000`；空则自动选择黑/白 |
+| `--color` | (自动) | 水印颜色（`#RGB` / `#RRGGBB` / `#RRGGBBAA`）；空则自动选择黑/白 |
 | `--opacity` | `0.5` | 透明度，范围 0~1 |
-| `--font-size` | `0` | 字体大小，`0` 表示根据图片自动计算 |
+| `--font-size` | `0` | 字体大小，`0` 表示根据图片自动计算，上限 4096 |
 | `--font` | (自动) | 字体文件路径，空则自动使用可用的默认字体 |
 | `--image` | 与 `--text` 二选一 | 图片水印路径 |
 | `--scale` | `0.2` | 图片水印缩放比例，基于底图短边 |
@@ -256,13 +256,13 @@ brew install lz-wang/tap/itb
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--position` | `bottom-right` | 水印位置：`bottom-right` / `bottom-left` / `top-right` / `top-left` / `center` |
-| `--margin` | `0.04` | 边距比例，基于图片短边计算 |
+| `--margin` | `0.04` | 边距比例，基于图片短边计算，不能为负 |
 
 **repeat 模式参数**
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--angle` | `30` | 旋转角度（度） |
+| `--angle` | `30` | 旋转角度（度），范围 -360~360 |
 | `--space` | `0` | 平铺间距，`0` 表示根据字体大小自动计算 |
 
 </details>

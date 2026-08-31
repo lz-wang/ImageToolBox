@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"log/slog"
 	"mime"
@@ -157,7 +158,7 @@ type form struct {
 	values map[string]string
 	files  map[string]uploadedFile
 }
-type operation func(context.Context, form, string) (string, string, int64, error)
+type operation func(context.Context, form, string, Config) (string, string, int64, error)
 
 func imageHandler(cfg Config, operationName string, op operation) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +181,7 @@ func imageHandler(cfg Config, operationName string, op operation) http.HandlerFu
 			writeError(w, http.StatusGatewayTimeout, err)
 			return
 		}
-		path, name, inputSize, err := op(r.Context(), f, dir)
+		path, name, inputSize, err := op(r.Context(), f, dir, cfg)
 		if err != nil {
 			writeError(w, operationErrorStatus(err), err)
 			return
@@ -197,6 +198,9 @@ func operationErrorStatus(err error) int {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return http.StatusGatewayTimeout
 	}
+	if errors.Is(err, ErrImageTooLarge) {
+		return http.StatusRequestEntityTooLarge
+	}
 	if strings.Contains(err.Error(), "不支持") {
 		return http.StatusUnsupportedMediaType
 	}
@@ -206,6 +210,9 @@ func operationErrorStatus(err error) int {
 func multipartErrorStatus(err error) int {
 	var maxBytesErr *http.MaxBytesError
 	if errors.As(err, &maxBytesErr) {
+		return http.StatusRequestEntityTooLarge
+	}
+	if errors.Is(err, ErrPayloadTooLarge) {
 		return http.StatusRequestEntityTooLarge
 	}
 	return http.StatusBadRequest
@@ -237,9 +244,13 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 			if _, ok := f.values[name]; ok {
 				return form{}, fmt.Errorf("duplicate parameter: %s", name)
 			}
-			data, err := io.ReadAll(part)
+			limit := fieldLimit(name)
+			data, err := io.ReadAll(io.LimitReader(part, limit+1))
 			if err != nil {
 				return form{}, err
+			}
+			if int64(len(data)) > limit {
+				return form{}, fmt.Errorf("%w: field %s exceeds %d bytes", ErrPayloadTooLarge, name, limit)
 			}
 			f.values[name] = string(data)
 			continue
@@ -286,6 +297,21 @@ func tempPrefix(name string) string {
 	return string(safe)
 }
 
+const (
+	// defaultFieldLimit 限制普通标量字段大小。
+	defaultFieldLimit int64 = 4 << 10
+	// textFieldLimit 限制水印文字字段大小（更大的文本上限）。
+	textFieldLimit int64 = 16 << 10
+)
+
+// fieldLimit 返回单个 multipart 标量字段的字节上限。
+func fieldLimit(name string) int64 {
+	if name == "text" {
+		return textFieldLimit
+	}
+	return defaultFieldLimit
+}
+
 func admitImage(path string, cfg Config) error {
 	if path == "" {
 		return nil
@@ -294,8 +320,21 @@ func admitImage(path string, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	if info.Width > cfg.MaxDimension || info.Height > cfg.MaxDimension || int64(info.Width)*int64(info.Height) > cfg.MaxPixels {
-		return fmt.Errorf("%w: %dx%d exceeds configured limits", ErrImageTooLarge, info.Width, info.Height)
+	return validateImageSize(info.Width, info.Height, cfg)
+}
+
+// validateImageSize 是统一的图片尺寸准入检查：既用于上传的输入/辅助
+// 图片，也用于操作计划推导出的目标输出尺寸。像素数使用 int64 计算，
+// 避免 int 溢出。
+func validateImageSize(width, height int, cfg Config) error {
+	if width <= 0 || height <= 0 {
+		return fmt.Errorf("invalid image dimensions: %dx%d", width, height)
+	}
+	if width > cfg.MaxDimension || height > cfg.MaxDimension {
+		return fmt.Errorf("%w: %dx%d exceeds max dimension %d", ErrImageTooLarge, width, height, cfg.MaxDimension)
+	}
+	if pixels := int64(width) * int64(height); pixels > cfg.MaxPixels {
+		return fmt.Errorf("%w: %dx%d exceeds max pixels %d", ErrImageTooLarge, width, height, cfg.MaxPixels)
 	}
 	return nil
 }
@@ -352,7 +391,7 @@ func (f form) bool(name string) (bool, error) {
 	return strconv.ParseBool(f.values[name])
 }
 
-func compressImage(ctx context.Context, f form, dir string) (string, string, int64, error) {
+func compressImage(ctx context.Context, f form, dir string, _ Config) (string, string, int64, error) {
 	input, err := f.input("input", "quality")
 	if err != nil {
 		return "", "", 0, err
@@ -365,7 +404,7 @@ func compressImage(ctx context.Context, f form, dir string) (string, string, int
 	result, err := compress.CompressFile(ctx, input.Path, output, compress.FileOptions{Quality: quality})
 	return output, input.OriginalName, result.InputSize, err
 }
-func resizeImage(_ context.Context, f form, dir string) (string, string, int64, error) {
+func resizeImage(_ context.Context, f form, dir string, cfg Config) (string, string, int64, error) {
 	input, err := f.input("input", "width", "height", "percent", "mode", "anchor", "filter")
 	if err != nil {
 		return "", "", 0, err
@@ -378,12 +417,26 @@ func resizeImage(_ context.Context, f form, dir string) (string, string, int64, 
 	if err != nil {
 		return "", "", 0, err
 	}
+	opts := resize.Options{Width: width, Height: height, Percent: f.values["percent"], Mode: resize.Mode(f.values["mode"]), Anchor: f.values["anchor"], Filter: f.values["filter"]}
+	// 先用领域 Resolve 推导真实输出尺寸（含 percent/fit/fill 语义），
+	// 再对计划输出做资源准入，杜绝通过参数放大绕过限制。
+	info, err := imageio.Probe(input.Path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	plan, err := resize.Resolve(image.Rect(0, 0, info.Width, info.Height), opts)
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := validateImageSize(plan.Width, plan.Height, cfg); err != nil {
+		return "", "", 0, fmt.Errorf("resize target: %w", err)
+	}
 	name := imageio.SuffixedName(input.OriginalName, "_resized", "")
 	output := resultPath(dir, input.Path)
-	err = resize.ResizeFile(input.Path, output, resize.Options{Width: width, Height: height, Percent: f.values["percent"], Mode: resize.Mode(f.values["mode"]), Anchor: f.values["anchor"], Filter: f.values["filter"]})
+	err = resize.ResizeFile(input.Path, output, opts)
 	return output, name, fileSize(input.Path), err
 }
-func cropImage(_ context.Context, f form, dir string) (string, string, int64, error) {
+func cropImage(_ context.Context, f form, dir string, _ Config) (string, string, int64, error) {
 	input, err := f.input("input", "anchor", "width", "height")
 	if err != nil {
 		return "", "", 0, err
@@ -393,7 +446,7 @@ func cropImage(_ context.Context, f form, dir string) (string, string, int64, er
 	_, err = crop.CropFile(input.Path, output, crop.Options{Anchor: crop.Anchor(f.values["anchor"]), Width: f.values["width"], Height: f.values["height"]})
 	return output, name, fileSize(input.Path), err
 }
-func convertImage(_ context.Context, f form, dir string) (string, string, int64, error) {
+func convertImage(_ context.Context, f form, dir string, _ Config) (string, string, int64, error) {
 	input, err := f.input("input", "to", "quality", "lossless", "background")
 	if err != nil {
 		return "", "", 0, err
@@ -416,7 +469,7 @@ func convertImage(_ context.Context, f form, dir string) (string, string, int64,
 	err = convert.ConvertFile(input.Path, output, convert.Options{To: f.values["to"], Quality: quality, Lossless: lossless, Background: f.values["background"]})
 	return output, name, fileSize(input.Path), err
 }
-func watermarkImage(_ context.Context, f form, dir string) (string, string, int64, error) {
+func watermarkImage(_ context.Context, f form, dir string, cfg Config) (string, string, int64, error) {
 	input, err := f.input("input", "text", "image", "mode", "color", "space", "angle", "opacity", "font", "font-size", "position", "margin", "scale")
 	if err != nil {
 		return "", "", 0, err
@@ -445,9 +498,25 @@ func watermarkImage(_ context.Context, f form, dir string) (string, string, int6
 	if err != nil {
 		return "", "", 0, err
 	}
+	opts := watermark.Options{Text: f.values["text"], ImagePath: f.file("image"), Mode: watermark.Mode(f.values["mode"]), Position: watermark.Position(f.values["position"]), Color: f.values["color"], FontPath: f.file("font"), Opacity: opacity, FontSize: intPtr(f.values["font-size"], fontSize), Space: intPtr(f.values["space"], space), Angle: intPtr(f.values["angle"], angle), Margin: margin, Scale: scale}
+	// 领域 Normalize/Validate 提前拦截非法参数，语义与 CLI 完全一致。
+	opts.Normalize()
+	if err := opts.Validate(); err != nil {
+		return "", "", 0, err
+	}
+	// 辅助图片（图片水印 logo）与输入图片受同样的尺寸限制。
+	if logoPath := f.file("image"); logoPath != "" {
+		logoInfo, err := imageio.Probe(logoPath)
+		if err != nil {
+			return "", "", 0, fmt.Errorf("watermark image: %w", err)
+		}
+		if err := validateImageSize(logoInfo.Width, logoInfo.Height, cfg); err != nil {
+			return "", "", 0, fmt.Errorf("watermark image: %w", err)
+		}
+	}
 	name := imageio.SuffixedName(input.OriginalName, "_watermarked", "")
 	output := resultPath(dir, input.Path)
-	err = watermark.AddFile(input.Path, output, watermark.Options{Text: f.values["text"], ImagePath: f.file("image"), Mode: watermark.Mode(f.values["mode"]), Position: watermark.Position(f.values["position"]), Color: f.values["color"], FontPath: f.file("font"), Opacity: opacity, FontSize: intPtr(f.values["font-size"], fontSize), Space: intPtr(f.values["space"], space), Angle: intPtr(f.values["angle"], angle), Margin: margin, Scale: scale})
+	err = watermark.AddFile(input.Path, output, opts)
 	return output, name, fileSize(input.Path), err
 }
 
@@ -566,6 +635,9 @@ func errorResponse(status int, err error) (string, string) {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			return "payload_too_large", "request exceeds the configured upload limit"
+		}
+		if errors.Is(err, ErrPayloadTooLarge) {
+			return "payload_too_large", err.Error()
 		}
 		return "image_too_large", "image exceeds configured limits"
 	case http.StatusUnsupportedMediaType:

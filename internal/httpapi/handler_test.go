@@ -242,6 +242,90 @@ func TestMultipartFileIsolation(t *testing.T) {
 	})
 }
 
+func TestOperationAdmission(t *testing.T) {
+	post := func(t *testing.T, path string, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, path, fields, files...))
+		return w
+	}
+	input := func(width, height int) formFile {
+		return formFile{field: "input", filename: "a.png", content: testPNG(t, width, height)}
+	}
+
+	t.Run("resize target beyond limits is rejected", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"width": "100000", "height": "100000"}, input(1, 1))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("percent upscale beyond limits is rejected", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"percent": "1000000%"}, input(100, 100))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+	})
+	t.Run("normal resize still succeeds", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"width": "16"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 16, 8) {
+			t.Fatalf("bounds = %v, want 16x8", got)
+		}
+	})
+	t.Run("huge watermark image is rejected", func(t *testing.T) {
+		logo := formFile{field: "image", filename: "logo.png", content: pngHeader(t, 100000, 100000)}
+		w := post(t, "/api/v1/watermark", map[string]string{"scale": "0.2"}, input(16, 16), logo)
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("watermark parameters are validated", func(t *testing.T) {
+		for name, fields := range map[string]map[string]string{
+			"opacity=-1":     {"text": "mark", "opacity": "-1"},
+			"position":       {"text": "mark", "position": "middle"},
+			"font-size huge": {"text": "mark", "font-size": "1000000"},
+			"angle":          {"text": "mark", "mode": "repeat", "angle": "100000"},
+			"scale":          {"image": "", "scale": "0"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				w := post(t, "/api/v1/watermark", fields, input(16, 16))
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+				}
+			})
+		}
+	})
+	t.Run("oversized watermark text is rejected", func(t *testing.T) {
+		w := post(t, "/api/v1/watermark", map[string]string{"text": strings.Repeat("x", 20000)}, input(16, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "payload_too_large" {
+			t.Fatalf("error code = %q, want payload_too_large", code)
+		}
+		// 5000 ASCII 字符未超 16KiB 字段上限，但超过领域 rune 上限。
+		w = post(t, "/api/v1/watermark", map[string]string{"text": strings.Repeat("x", 5000)}, input(16, 16))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+	t.Run("oversized scalar field is rejected", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"anchor": strings.Repeat("x", 5000)}, input(16, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+	})
+}
+
 func TestAdmitImageTypedErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "input.png")

@@ -56,8 +56,9 @@ func newWatermarkCommand() *cli.Command {
 				Validator: enumValidator("mode", "position", "repeat"),
 			},
 			&cli.StringFlag{
-				Name:  "color",
-				Usage: "文字水印颜色；未指定时自动选择",
+				Name:      "color",
+				Usage:     "文字水印颜色（#RGB/#RRGGBB/#RRGGBBAA）；未指定时自动选择",
+				Validator: colorValidator("color"),
 			},
 			&cli.IntFlag{
 				Name:      "space",
@@ -65,9 +66,10 @@ func newWatermarkCommand() *cli.Command {
 				Validator: nonNegativeIntValidator("space"),
 			},
 			&cli.IntFlag{
-				Name:  "angle",
-				Value: 30,
-				Usage: "旋转角度，单位为度（仅文字 repeat 模式）",
+				Name:      "angle",
+				Value:     30,
+				Usage:     "旋转角度，单位为度（仅文字 repeat 模式）",
+				Validator: intRangeValidator("angle", -360, 360),
 			},
 			&cli.FloatFlag{
 				Name:      "opacity",
@@ -82,7 +84,7 @@ func newWatermarkCommand() *cli.Command {
 			&cli.IntFlag{
 				Name:      "font-size",
 				Usage:     "文字水印字号（0=自动计算）",
-				Validator: nonNegativeIntValidator("font-size"),
+				Validator: intRangeValidator("font-size", 0, watermark.MaxFontSize),
 			},
 			&cli.StringFlag{
 				Name:      "position",
@@ -91,9 +93,10 @@ func newWatermarkCommand() *cli.Command {
 				Validator: enumValidator("position", "bottom-right", "bottom-left", "top-right", "top-left", "center"),
 			},
 			&cli.FloatFlag{
-				Name:  "margin",
-				Value: 0.04,
-				Usage: "边距比例（position 模式）",
+				Name:      "margin",
+				Value:     0.04,
+				Usage:     "边距比例（position 模式）",
+				Validator: nonNegativeFloatValidator("margin"),
 			},
 			&cli.FloatFlag{
 				Name:      "scale",

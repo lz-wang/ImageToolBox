@@ -125,15 +125,15 @@ Flags:
 - `-t, --text`: watermark text. Required unless using `--image`.
 - `-o, --output`: output path; default adds `_watermarked`.
 - `-m, --mode`: `position` or `repeat`; default `position`.
-- `--color`: watermark color; empty auto-selects black/white.
+- `--color`: watermark hex color (`#RGB`/`#RRGGBB`/`#RRGGBBAA`); empty auto-selects black/white.
 - `--opacity`: `0` to `1`; default `0.5`.
-- `--font-size`: `0` means auto-size.
+- `--font-size`: `0` means auto-size; max `4096`.
 - `--font`: font file path; empty auto-selects an available default font.
 - `--image`: image watermark path.
 - `--scale`: image watermark scale based on base image short edge; default `0.2`.
 - `--position`: `bottom-right`, `bottom-left`, `top-right`, `top-left`, `center`; default `bottom-right`.
-- `--margin`: margin ratio based on short edge; default `0.04`.
-- `--angle`: repeat text angle; default `30`.
+- `--margin`: margin ratio based on short edge; default `0.04`; must be `>= 0`.
+- `--angle`: repeat text angle; default `30`; range `-360` to `360`.
 - `--space`: repeat spacing; `0` auto-calculates.
 
 ## S3-Compatible Storage

@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
@@ -59,6 +61,28 @@ func decodePNG(t *testing.T, data []byte) image.Image {
 		t.Fatalf("decode png: %v", err)
 	}
 	return img
+}
+
+// pngHeader 构造只含签名与 IHDR 的 PNG 头：足够 image.DecodeConfig 读出
+// 尺寸但不分配像素，用于测试超大图片的准入检查。
+func pngHeader(t *testing.T, width, height int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	buf.Write([]byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a})
+	data := make([]byte, 13)
+	binary.BigEndian.PutUint32(data[0:4], uint32(width))
+	binary.BigEndian.PutUint32(data[4:8], uint32(height))
+	data[8] = 8 // bit depth
+	data[9] = 6 // color type RGBA
+	chunk := append([]byte("IHDR"), data...)
+	var length [4]byte
+	binary.BigEndian.PutUint32(length[:], uint32(len(data)))
+	buf.Write(length[:])
+	buf.Write(chunk)
+	var crc [4]byte
+	binary.BigEndian.PutUint32(crc[:], crc32.ChecksumIEEE(chunk))
+	buf.Write(crc[:])
+	return buf.Bytes()
 }
 
 // newMultipartRequest 构造 multipart/form-data 请求，不监听任何端口。

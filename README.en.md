@@ -244,9 +244,9 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 | `-t, --text` | Required unless using `--image` | Watermark text |
 | `-o, --output` | `*_watermarked.*` | Output path; appends `_watermarked` to the original name by default |
 | `-m, --mode` | `position` | Watermark mode: `position` / `repeat` |
-| `--color` | (auto) | Watermark color, e.g. `#FF0000`; empty = auto black/white |
+| `--color` | (auto) | Watermark color (`#RGB` / `#RRGGBB` / `#RRGGBBAA`); empty = auto black/white |
 | `--opacity` | `0.5` | Opacity, range 0–1 |
-| `--font-size` | `0` | Font size; `0` = computed from the image |
+| `--font-size` | `0` | Font size; `0` = computed from the image; max `4096` |
 | `--font` | (auto) | Font file path; empty = auto-selects an available default font |
 | `--image` | Required unless using `--text` | Image watermark path |
 | `--scale` | `0.2` | Image watermark scale, relative to the shorter side of the base image |
@@ -256,13 +256,13 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 | Option | Default | Description |
 |------|--------|------|
 | `--position` | `bottom-right` | Position: `bottom-right` / `bottom-left` / `top-right` / `top-left` / `center` |
-| `--margin` | `0.04` | Margin ratio, relative to the shorter side of the image |
+| `--margin` | `0.04` | Margin ratio, relative to the shorter side of the image; must be `>= 0` |
 
 **repeat mode options**
 
 | Option | Default | Description |
 |------|--------|------|
-| `--angle` | `30` | Rotation angle (degrees) |
+| `--angle` | `30` | Rotation angle (degrees), range `-360` to `360` |
 | `--space` | `0` | Tile spacing; `0` = auto-computed from font size |
 
 </details>

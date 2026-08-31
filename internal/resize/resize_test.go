@@ -92,3 +92,68 @@ func TestDefaultResizeContract(t *testing.T) {
 		t.Fatalf("default fit dimensions = %v", got.Bounds())
 	}
 }
+
+func TestResolve(t *testing.T) {
+	tests := []struct {
+		name   string
+		bounds image.Rectangle
+		opts   Options
+		width  int
+		height int
+	}{
+		// fit 单边指定时推导另一边，Resolve 结果等于真实输出尺寸。
+		{name: "width only keeps aspect ratio", bounds: image.Rect(0, 0, 4000, 2000), opts: Options{Width: 1000}, width: 1000, height: 500},
+		{name: "height only keeps aspect ratio", bounds: image.Rect(0, 0, 4000, 2000), opts: Options{Height: 500}, width: 1000, height: 500},
+		{name: "stretch single side", bounds: image.Rect(0, 0, 4000, 2000), opts: Options{Width: 1000, Mode: ModeStretch}, width: 1000, height: 500},
+		{name: "percent", bounds: image.Rect(0, 0, 100, 100), opts: Options{Percent: "50%"}, width: 50, height: 50},
+		{name: "percent upscale", bounds: image.Rect(0, 0, 100, 100), opts: Options{Percent: "1000000%"}, width: 1_000_000, height: 1_000_000},
+		{name: "explicit box", bounds: image.Rect(0, 0, 4000, 2000), opts: Options{Width: 100, Height: 50}, width: 100, height: 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := Resolve(tt.bounds, tt.opts)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			if plan.Width != tt.width || plan.Height != tt.height {
+				t.Fatalf("Resolve() = %dx%d, want %dx%d", plan.Width, plan.Height, tt.width, tt.height)
+			}
+		})
+	}
+	t.Run("resolve matches apply output", func(t *testing.T) {
+		img := image.NewNRGBA(image.Rect(0, 0, 200, 100))
+		for _, opts := range []Options{
+			{Width: 50},
+			{Height: 25},
+			{Percent: "33%"},
+			{Width: 50, Height: 50, Mode: ModeStretch},
+		} {
+			plan, err := Resolve(img.Bounds(), opts)
+			if err != nil {
+				t.Fatalf("Resolve(%+v) error = %v", opts, err)
+			}
+			got, err := Apply(img, opts)
+			if err != nil {
+				t.Fatalf("Apply(%+v) error = %v", opts, err)
+			}
+			if got.Bounds().Dx() != plan.Width || got.Bounds().Dy() != plan.Height {
+				t.Fatalf("Apply(%+v) = %dx%d, Resolve planned %dx%d", opts, got.Bounds().Dx(), got.Bounds().Dy(), plan.Width, plan.Height)
+			}
+		}
+	})
+	t.Run("invalid options return errors", func(t *testing.T) {
+		bounds := image.Rect(0, 0, 10, 10)
+		for _, opts := range []Options{
+			{},
+			{Percent: "50%", Width: 10},
+			{Mode: ModeFill, Width: 10},
+			{Mode: "bogus"},
+			{Width: 10, Anchor: "bogus"},
+			{Width: 10, Filter: "bogus"},
+		} {
+			if _, err := Resolve(bounds, opts); err == nil {
+				t.Fatalf("Resolve(%+v) = nil error, want error", opts)
+			}
+		}
+	})
+}
