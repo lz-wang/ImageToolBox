@@ -334,6 +334,7 @@ The server binds to `127.0.0.1` by default. `ITB_API_TOKEN` is the required prod
 | `--max-pixels` | `50000000` | Maximum image pixel count (applies to uploads, watermark images, and planned output sizes) |
 | `--max-dimension` | `16384` | Maximum image dimension (applies to uploads, watermark images, and planned output sizes) |
 | `--max-concurrent` | `2` | Maximum concurrent image operations |
+| `--max-working-bytes` | `512MiB` | Per-operation intermediate canvas memory limit (watermark etc.) |
 | `--timeout` | `2m` | Per-image operation timeout |
 | `--no-auth` | `false` | Disable authentication only for loopback development |
 

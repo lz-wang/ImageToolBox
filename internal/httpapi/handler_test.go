@@ -141,6 +141,9 @@ func TestConfigNormalizeAndValidate(t *testing.T) {
 		if cfg.MaxConcurrent != DefaultMaxConcurrent {
 			t.Fatalf("MaxConcurrent = %d, want %d", cfg.MaxConcurrent, DefaultMaxConcurrent)
 		}
+		if cfg.MaxWorkingBytes != DefaultMaxWorkingBytes {
+			t.Fatalf("MaxWorkingBytes = %d, want %d", cfg.MaxWorkingBytes, DefaultMaxWorkingBytes)
+		}
 		if cfg.Timeout != DefaultTimeout {
 			t.Fatalf("Timeout = %v, want %v", cfg.Timeout, DefaultTimeout)
 		}
@@ -166,6 +169,7 @@ func TestConfigNormalizeAndValidate(t *testing.T) {
 		{name: "negative max pixels", cfg: Config{MaxPixels: -1}},
 		{name: "negative max dimension", cfg: Config{MaxDimension: -1}},
 		{name: "negative max upload", cfg: Config{MaxUpload: -1}},
+		{name: "negative max working bytes", cfg: Config{MaxWorkingBytes: -1}},
 		{name: "negative timeout", cfg: Config{Timeout: -time.Second}},
 		{name: "zero timeout after normalize", cfg: Config{}},
 	}
@@ -226,6 +230,36 @@ func TestOperationAdmission(t *testing.T) {
 		}
 		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
 			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("huge scale on small logo is rejected before allocation", func(t *testing.T) {
+		logo := formFile{field: "image", filename: "logo.png", content: testPNG(t, 8, 8)}
+		w := post(t, "/api/v1/watermark", map[string]string{"scale": "1000000"}, input(16, 16), logo)
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("repeat watermark with huge font size exceeds working set", func(t *testing.T) {
+		// font-size=4096 时 mark 画布为 16384×10240，仅 RGBA 两份已超过
+		// 默认 512 MiB working set 上限，必须在分配前拒绝。
+		w := post(t, "/api/v1/watermark", map[string]string{"text": "水", "mode": "repeat", "font-size": "4096"}, input(16, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("normal repeat watermark stays within working set", func(t *testing.T) {
+		w := post(t, "/api/v1/watermark", map[string]string{"text": "mark", "mode": "repeat"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 32, 16) {
+			t.Fatalf("bounds = %v, want 32x16", got)
 		}
 	})
 	t.Run("watermark parameters are validated", func(t *testing.T) {

@@ -290,8 +290,8 @@ func SaveImage(img image.Image, path string, jpgBackground color.NRGBA) error {
 func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions) (image.Image, error) {
 	var colorVal *string
 	var space *int
-	var angleVal = 30
-	var opacityVal = 0.5
+	var angleVal = DefaultRepeatAngle
+	var opacityVal = DefaultOpacity
 	var fontSize *int
 	var fontHeightCropVal = 1.0
 	var fontPath string
@@ -318,23 +318,11 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 		return nil, err
 	}
 
-	// 如果未指定字体大小，则自动计算
-	var fontSizeVal int
-	if fontSize != nil && *fontSize > 0 {
-		fontSizeVal = *fontSize
-	} else {
-		width := im.Bounds().Dx()
-		height := im.Bounds().Dy()
-		fontSizeVal = max(min(width, height)/25, 16)
-	}
+	// 如果未指定字体大小，则自动计算（与资源规划共用同一公式）
+	fontSizeVal := effectiveFontSize(fontSize, im.Bounds().Dx(), im.Bounds().Dy())
 
 	// 如果未指定间距，则根据字体大小自动计算
-	var spaceVal int
-	if space != nil && *space > 0 {
-		spaceVal = *space
-	} else {
-		spaceVal = fontSizeVal * 2
-	}
+	spaceVal := effectiveSpace(space, fontSizeVal)
 
 	// 如果未指定颜色，则根据图片亮度自动选择
 	var colorStr string
@@ -376,10 +364,10 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 
 // AddPositionWatermark adds a single positioned watermark and saves the output.
 func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOptions) (image.Image, error) {
-	var opacityVal = 0.5
-	var marginRatio = 0.04
+	var opacityVal = DefaultOpacity
+	var marginRatio = DefaultMarginRatio
 	var fontPath string
-	var pos Position = BottomRight
+	var pos Position = DefaultPositionMode
 	var jpgBg color.NRGBA
 	var fontSize *int
 	var colorStr *string
@@ -412,13 +400,8 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	width := rgba.Bounds().Dx()
 	height := rgba.Bounds().Dy()
 
-	// 如果未指定字体大小，则自动计算
-	var fontSizeVal int
-	if fontSize != nil && *fontSize > 0 {
-		fontSizeVal = *fontSize
-	} else {
-		fontSizeVal = max(min(width, height)/25, 16)
-	}
+	// 如果未指定字体大小，则自动计算（与资源规划共用同一公式）
+	fontSizeVal := effectiveFontSize(fontSize, width, height)
 
 	face, err := loadFontFaceWithFallback(fontPath, fontSizeVal)
 	if err != nil {
@@ -494,10 +477,10 @@ func AddImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.
 		return nil, errors.New("image watermark path is required")
 	}
 
-	opacityVal := 0.5
-	scaleRatio := 0.2
-	marginRatio := 0.04
-	pos := BottomRight
+	opacityVal := DefaultOpacity
+	scaleRatio := DefaultImageScale
+	marginRatio := DefaultMarginRatio
+	pos := DefaultPositionMode
 	jpgBg := color.NRGBA{255, 255, 255, 255}
 
 	if opts.Opacity != nil {
@@ -537,11 +520,7 @@ func AddImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.
 		return nil, errors.New("watermark image dimensions are invalid")
 	}
 
-	targetShort := max(1, int(math.Round(float64(min(baseW, baseH))*scaleRatio)))
-	logoShort := min(logoW, logoH)
-	scale := float64(targetShort) / float64(logoShort)
-	targetW := max(1, int(math.Round(float64(logoW)*scale)))
-	targetH := max(1, int(math.Round(float64(logoH)*scale)))
+	targetW, targetH := scaledLogoSize(baseW, baseH, logoW, logoH, scaleRatio)
 
 	resizedLogo := imaging.Resize(logo, targetW, targetH, imaging.Lanczos)
 	overlay, err := setOpacity(resizedLogo, opacityVal)
@@ -569,10 +548,9 @@ func (w *Watermarker) generateMark() (image.Image, error) {
 		return nil, err
 	}
 
-	markRunes := []rune(w.args.Mark)
-	tmpW := max(200, w.args.Size*max(4, len(markRunes)))
-	tmpH := max(64, int(float64(w.args.Size)*2.5))
-	canvas := image.NewNRGBA(image.Rect(0, 0, tmpW, tmpH))
+	// 临时画布尺寸与 markCanvasSize（资源规划）共用同一公式
+	size := markCanvasSize(w.args.Size, w.args.Mark)
+	canvas := image.NewNRGBA(image.Rect(0, 0, size.X, size.Y))
 
 	d := &font.Drawer{
 		Dst:  canvas,

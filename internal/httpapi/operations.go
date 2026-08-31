@@ -196,7 +196,15 @@ func watermarkImage(_ context.Context, f form, dir string, cfg Config) (string, 
 	if err := opts.Validate(); err != nil {
 		return "", "", 0, err
 	}
-	// 辅助图片（图片水印 logo）与输入图片受同样的尺寸限制。
+	baseInfo, err := imageio.Probe(input.Path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	baseBounds := image.Rect(0, 0, baseInfo.Width, baseInfo.Height)
+	var logoBounds image.Rectangle
+	// 辅助图片（图片水印 logo）与输入图片受同样的尺寸限制；
+	// 缩放后的 logo 目标尺寸同样要过 validateImageSize，防止 scale
+	// 把小 logo 放大成超出限制的中间图。
 	if logoPath := f.file("image"); logoPath != "" {
 		logoInfo, err := imageio.Probe(logoPath)
 		if err != nil {
@@ -205,6 +213,23 @@ func watermarkImage(_ context.Context, f form, dir string, cfg Config) (string, 
 		if err := validateImageSize(logoInfo.Width, logoInfo.Height, cfg); err != nil {
 			return "", "", 0, fmt.Errorf("watermark image: %w", err)
 		}
+		logoBounds = image.Rect(0, 0, logoInfo.Width, logoInfo.Height)
+		plan, err := watermark.ResolveImagePlan(baseBounds, logoBounds, opts)
+		if err != nil {
+			return "", "", 0, fmt.Errorf("watermark image: %w", err)
+		}
+		if err := validateImageSize(plan.TargetWidth, plan.TargetHeight, cfg); err != nil {
+			return "", "", 0, fmt.Errorf("watermark image: %w", err)
+		}
+	}
+	// working-set 准入：文字 mark 画布、repeat 平铺/旋转画布与缩放 logo
+	// 的保守内存上界不能超过服务限制，在真实分配前拒绝。
+	set, err := watermark.ResolveWorkingSet(baseBounds, logoBounds, opts)
+	if err != nil {
+		return "", "", 0, err
+	}
+	if set.Bytes() > cfg.MaxWorkingBytes {
+		return "", "", 0, fmt.Errorf("%w: watermark working set exceeds %d bytes", ErrImageTooLarge, cfg.MaxWorkingBytes)
 	}
 	name := imageio.SuffixedName(input.OriginalName, "_watermarked", "")
 	output := resultPath(dir, input.Path)

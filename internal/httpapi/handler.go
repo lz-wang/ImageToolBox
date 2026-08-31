@@ -9,23 +9,25 @@ import (
 )
 
 const (
-	DefaultMaxUpload     int64 = 64 << 20
-	DefaultMaxPixels     int64 = 50_000_000
-	DefaultMaxDimension        = 16_384
-	DefaultMaxConcurrent       = 2
-	DefaultTimeout             = 2 * time.Minute
+	DefaultMaxUpload       int64 = 64 << 20
+	DefaultMaxPixels       int64 = 50_000_000
+	DefaultMaxDimension          = 16_384
+	DefaultMaxConcurrent         = 2
+	DefaultMaxWorkingBytes int64 = 512 << 20
+	DefaultTimeout               = 2 * time.Minute
 )
 
 // Config configures the trusted remote HTTP API.
 type Config struct {
-	Token         string
-	NoAuth        bool
-	Logger        *slog.Logger
-	MaxUpload     int64
-	MaxPixels     int64
-	MaxDimension  int
-	MaxConcurrent int
-	Timeout       time.Duration
+	Token           string
+	NoAuth          bool
+	Logger          *slog.Logger
+	MaxUpload       int64
+	MaxPixels       int64
+	MaxDimension    int
+	MaxConcurrent   int
+	MaxWorkingBytes int64
+	Timeout         time.Duration
 }
 
 // New creates the versioned Image Tool Box HTTP API. It returns an error when
@@ -89,6 +91,9 @@ func (c *Config) Normalize() {
 	if c.MaxConcurrent == 0 {
 		c.MaxConcurrent = DefaultMaxConcurrent
 	}
+	if c.MaxWorkingBytes == 0 {
+		c.MaxWorkingBytes = DefaultMaxWorkingBytes
+	}
 	if c.Timeout == 0 {
 		c.Timeout = DefaultTimeout
 	}
@@ -112,6 +117,9 @@ func (c Config) Validate() error {
 	}
 	if c.MaxConcurrent <= 0 {
 		return fmt.Errorf("max concurrent must be greater than 0")
+	}
+	if c.MaxWorkingBytes <= 0 {
+		return fmt.Errorf("max working bytes must be greater than 0")
 	}
 	if c.Timeout <= 0 {
 		return fmt.Errorf("timeout must be greater than 0")

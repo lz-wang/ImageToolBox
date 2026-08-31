@@ -75,9 +75,11 @@ Errors use one stable JSON shape:
 
 Codes are `invalid_argument`, `missing_input`, `unsupported_format`, `payload_too_large`, `image_too_large`, `unauthorized`, `busy`, `timeout`, `not_found`, `method_not_allowed`, and `internal_error`. Router-level errors (unknown routes, wrong methods) use the same JSON shape.
 
-The default limits are a 64 MiB multipart request, 50,000,000 pixels, a 16,384 px maximum dimension, two concurrent image operations, and a two-minute operation timeout. `413` indicates request or image limits, `429` indicates all operation slots are busy, and `504` indicates a timeout.
+The default limits are a 64 MiB multipart request, 50,000,000 pixels, a 16,384 px maximum dimension, a 512 MiB intermediate-canvas working set, two concurrent image operations, and a two-minute operation timeout. `413` indicates request or image limits, `429` indicates all operation slots are busy, and `504` indicates a timeout.
 
-Limits apply to uploaded images and planned output dimensions where applicable: `--max-pixels` / `--max-dimension` gate the input image, the resolved resize target (including `percent` upscales and single-side `fit` outputs), and the final output. Uploaded watermark images (`image` on `watermark`) are also subject to the image limits.
+Limits apply to uploaded images and planned output dimensions where applicable: `--max-pixels` / `--max-dimension` gate the input image, the resolved resize target (including `percent` upscales and single-side `fit` outputs), and the final output. Uploaded watermark images (`image` on `watermark`) are also subject to the image limits, including the scaled watermark target derived from `scale`.
+
+`--max-working-bytes` bounds the intermediate canvases a single operation may allocate (watermark text mark canvas, repeat tiling/rotation canvases, scaled watermark logos) as a conservative RGBA upper estimate before any allocation happens.
 
 Configure these when starting the service:
 
