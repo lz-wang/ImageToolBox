@@ -427,6 +427,13 @@ All S3 subcommands share the following options:
 # Specify the Content-Type
 ./itb s3 upload -i data.json -b my-bucket --content-type application/json
 
+# Attach user metadata (key=value, repeatable; keys are lowercased, itb-sha256 is reserved)
+./itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+  --metadata source-sha256=abc123 --metadata width=1920 --metadata height=1080
+
+# Set standard HTTP response headers (stable-URL publishing)
+./itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+
 # Skip when an object with the same key already exists (one HEAD instead of a full upload)
 ./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 
@@ -440,6 +447,10 @@ the default behavior remains unconditional overwrite. `--skip-existing`
 and `--skip-unchanged` are mutually exclusive upload strategies;
 combining them is rejected as a flag error.
 
+`--metadata` entries must be `key=value` (repeatable); keys are lowercased,
+must be non-empty, and may not contain control characters. Duplicate keys
+and the reserved key `itb-sha256` are rejected before any network request.
+
 <details>
 <summary>upload options</summary>
 
@@ -448,6 +459,10 @@ combining them is rejected as a flag error.
 | `-i, --input` | (required) | Local file path |
 | `-k, --key` | file name | Object key |
 | `--content-type` | auto-detected | Content type |
+| `--metadata` | (empty) | Object user metadata `KEY=VALUE` (repeatable) |
+| `--cache-control` | (empty) | Cache-Control response header (e.g. `no-cache`, `max-age=31536000`) |
+| `--content-disposition` | (empty) | Content-Disposition response header |
+| `--content-encoding` | (empty) | Content-Encoding response header |
 | `--skip-existing` | `false` | Skip upload when the object key already exists |
 | `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
 

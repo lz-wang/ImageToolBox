@@ -150,6 +150,21 @@ func TestS3HelpContract(t *testing.T) {
 	}
 }
 
+// s3 upload：metadata 与标准 HTTP 响应头能力必须在 help 中可读。
+func TestS3UploadHelpContract(t *testing.T) {
+	out := helpOutput(t, "s3", "upload")
+
+	for _, want := range []string{
+		"--metadata",
+		"--cache-control",
+		"--content-disposition",
+		"--content-encoding",
+		"itb-sha256",
+	} {
+		assertContains(t, out, want)
+	}
+}
+
 // s3 download：默认输出是对象键最后一段，不是完整键名。
 func TestS3DownloadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "download")

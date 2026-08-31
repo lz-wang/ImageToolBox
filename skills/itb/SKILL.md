@@ -45,6 +45,7 @@ itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).
 - Use `--force-path-style` (or `ITB_S3_FORCE_PATH_STYLE`) for MinIO-style endpoints; loopback and `:9000` endpoints enable path style automatically.
+- When uploading for publishing, attach provenance with `--metadata key=value` (e.g. `source-sha256`, `width`, `height`) and `--cache-control no-cache` for stable-URL images; `itb-sha256` is a reserved metadata key.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
 - `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -40,6 +41,16 @@ var contentTypes = map[string]string{
 // UploadOptions 上传选项
 type UploadOptions struct {
 	ContentType string
+
+	// CacheControl / ContentDisposition / ContentEncoding 写入对象的
+	// 标准 HTTP 响应头（如 Cache-Control: no-cache），留空则不设置。
+	CacheControl       string
+	ContentDisposition string
+	ContentEncoding    string
+
+	// Metadata 写入对象的自定义用户 metadata（x-amz-meta-*）。
+	// 键经 NormalizeMetadata 归一化；itb-sha256 为保留键。
+	Metadata map[string]string
 
 	// Progress 接收大文件（>5MB）传输提示等进度信息，nil 表示不输出。
 	// 进度信息不是执行结果，domain 不直接写 stdout，由 adapter 决定
@@ -92,6 +103,17 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	}
 	if key == "" {
 		return nil, ErrMissingKey
+	}
+
+	// 用户 metadata 在任何网络请求之前完成归一化校验，
+	// 非法参数不产生副作用。
+	var metadata map[string]string
+	if opts != nil {
+		normalized, err := NormalizeMetadata(opts.Metadata)
+		if err != nil {
+			return nil, err
+		}
+		metadata = normalized
 	}
 
 	// 打开文件但不读取内容，输入文件不存在时立即报错
@@ -157,16 +179,32 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		fmt.Fprintf(progress, "Uploading %s (%.2f MB)...\n", inputPath, float64(fileSize)/(1024*1024))
 	}
 
-	// 执行上传
-	_, err = client.client.PutObject(ctx, &s3.PutObjectInput{
+	// 执行上传：itb-sha256 与用户 metadata 合并写入，用户不可覆盖
+	// 保留键（NormalizeMetadata 已拒绝）。
+	objectMetadata := make(map[string]string, len(metadata)+1)
+	maps.Copy(objectMetadata, metadata)
+	objectMetadata[MetadataSHA256Key] = sha256Value
+
+	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(client.bucket),
 		Key:         aws.String(key),
 		Body:        file,
 		ContentType: aws.String(contentType),
-		Metadata: map[string]string{
-			MetadataSHA256Key: sha256Value,
-		},
-	})
+		Metadata:    objectMetadata,
+	}
+	if opts != nil {
+		if opts.CacheControl != "" {
+			putInput.CacheControl = aws.String(opts.CacheControl)
+		}
+		if opts.ContentDisposition != "" {
+			putInput.ContentDisposition = aws.String(opts.ContentDisposition)
+		}
+		if opts.ContentEncoding != "" {
+			putInput.ContentEncoding = aws.String(opts.ContentEncoding)
+		}
+	}
+
+	_, err = client.client.PutObject(ctx, putInput)
 	if err != nil {
 		return nil, WrapError(err)
 	}

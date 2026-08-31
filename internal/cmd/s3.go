@@ -109,6 +109,13 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
   # 指定 Content-Type
   itb s3 upload -i data.json -b my-bucket --content-type application/json
 
+  # 写入用户 metadata（key=value，可重复；itb-sha256 为保留键）
+  itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+    --metadata source-sha256=abc123 --metadata width=1920
+
+  # 设置标准 HTTP 响应头（稳定 URL 发布）
+  itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+
   # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
   itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 
@@ -129,6 +136,22 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 			&cli.StringFlag{
 				Name:  "content-type",
 				Usage: "内容类型（自动检测）",
+			},
+			&cli.StringSliceFlag{
+				Name:  "metadata",
+				Usage: "对象用户 metadata `KEY=VALUE`（可重复；键转小写，itb-sha256 为保留键）",
+			},
+			&cli.StringFlag{
+				Name:  "cache-control",
+				Usage: "Cache-Control 响应头 `VALUE`（如 no-cache、max-age=31536000）",
+			},
+			&cli.StringFlag{
+				Name:  "content-disposition",
+				Usage: "Content-Disposition 响应头 `VALUE`（如 attachment）",
+			},
+			&cli.StringFlag{
+				Name:  "content-encoding",
+				Usage: "Content-Encoding 响应头 `VALUE`（如 gzip）",
 			},
 		},
 		// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
@@ -315,11 +338,20 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		key = filepath.Base(input)
 	}
 
+	metadata, err := s3.ParseMetadata(cmd.StringSlice("metadata"))
+	if err != nil {
+		return err
+	}
+
 	opts := &s3.UploadOptions{
-		ContentType:   cmd.String("content-type"),
-		Progress:      os.Stderr,
-		SkipExisting:  cmd.Bool("skip-existing"),
-		SkipUnchanged: cmd.Bool("skip-unchanged"),
+		ContentType:        cmd.String("content-type"),
+		CacheControl:       cmd.String("cache-control"),
+		ContentDisposition: cmd.String("content-disposition"),
+		ContentEncoding:    cmd.String("content-encoding"),
+		Metadata:           metadata,
+		Progress:           os.Stderr,
+		SkipExisting:       cmd.Bool("skip-existing"),
+		SkipUnchanged:      cmd.Bool("skip-unchanged"),
 	}
 
 	result, err := s3.Upload(ctx, client, input, key, opts)

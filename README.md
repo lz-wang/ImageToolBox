@@ -426,6 +426,13 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 # 指定 Content-Type
 ./itb s3 upload -i data.json -b my-bucket --content-type application/json
 
+# 写入用户 metadata（key=value，可重复；键转小写，itb-sha256 为保留键）
+./itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+  --metadata source-sha256=abc123 --metadata width=1920 --metadata height=1080
+
+# 设置标准 HTTP 响应头（稳定 URL 发布）
+./itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+
 # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
 ./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 
@@ -437,6 +444,9 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 `--skip-unchanged` 依赖该值判断远端对象与本地是否一致；默认行为仍是无条件覆盖。
 `--skip-existing` 与 `--skip-unchanged` 是互斥的上传策略，同时使用会报参数错误。
 
+`--metadata` 必须是 `key=value` 格式（可重复指定），键统一转小写、不可为空、
+禁含控制字符，重复键与保留键 `itb-sha256` 会报参数错误（在任何网络请求之前）。
+
 <details>
 <summary>upload 参数</summary>
 
@@ -445,6 +455,10 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 | `-i, --input` | (必填) | 本地文件路径 |
 | `-k, --key` | 文件名 | 对象键名 |
 | `--content-type` | 自动检测 | 内容类型 |
+| `--metadata` | (空) | 对象用户 metadata `KEY=VALUE`（可重复） |
+| `--cache-control` | (空) | Cache-Control 响应头（如 `no-cache`、`max-age=31536000`） |
+| `--content-disposition` | (空) | Content-Disposition 响应头 |
+| `--content-encoding` | (空) | Content-Encoding 响应头 |
 | `--skip-existing` | `false` | 对象键已存在即跳过上传 |
 | `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
 

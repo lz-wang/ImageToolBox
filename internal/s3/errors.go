@@ -38,6 +38,14 @@ var (
 	// 对 HeadObject 而言，403 也可能意味着无法确认对象是否存在，
 	// 因此绝不把权限错误映射为"对象不存在"。
 	ErrAccessDenied = errors.New("access denied")
+
+	// ErrInvalidMetadata 用户 metadata 参数非法（缺 key=value、空 key、
+	// 控制字符、重复 key 等）
+	ErrInvalidMetadata = errors.New("invalid object metadata")
+
+	// ErrReservedMetadataKey 试图占用系统保留的 metadata 键
+	// （itb-sha256 由 itb 内部写入，用户不可覆盖）
+	ErrReservedMetadataKey = errors.New("reserved metadata key")
 )
 
 // WrapError 包装 S3 API 错误，提供更友好的错误信息。

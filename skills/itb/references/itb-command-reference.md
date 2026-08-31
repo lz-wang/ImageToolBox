@@ -169,6 +169,8 @@ Examples:
 ```bash
 itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000 --force-path-style
 itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+itb s3 upload -i image.webp -b my-bucket -k image/xx.webp --cache-control no-cache \
+  --metadata source-sha256=abc123 --metadata width=1920
 itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
@@ -192,6 +194,13 @@ default. `--skip-existing` skips when the key exists; `--skip-unchanged`
 skips only when that metadata hash matches the local file (never rely on
 ETag for this). Default upload always overwrites. The two skip flags are
 mutually exclusive — combining them is a flag error.
+
+`--metadata key=value` (repeatable) attaches user metadata: keys are
+lowercased, must be non-empty, may not contain control characters, and
+`itb-sha256` is reserved (rejected before any network request).
+`--cache-control`, `--content-disposition`, and `--content-encoding` set the
+object's standard HTTP response headers — use `--cache-control no-cache` when
+publishing images under stable URLs.
 
 ## Serve (WebUI)
 

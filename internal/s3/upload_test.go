@@ -21,11 +21,13 @@ const (
 )
 
 // requestRecorder 记录模拟服务器收到的请求方法序列与 PUT 携带的
-// itb-sha256 metadata，用于协议级断言（HEAD/PUT 次数）。
+// itb-sha256 metadata 及完整请求头，用于协议级断言（HEAD/PUT 次数、
+// metadata / 标准 HTTP 头）。
 type requestRecorder struct {
-	mu        sync.Mutex
-	methods   []string
-	putSHA256 string
+	mu         sync.Mutex
+	methods    []string
+	putSHA256  string
+	putHeaders http.Header
 }
 
 func (r *requestRecorder) record(method, putSHA256 string) {
@@ -35,6 +37,14 @@ func (r *requestRecorder) record(method, putSHA256 string) {
 	if method == http.MethodPut {
 		r.putSHA256 = putSHA256
 	}
+}
+
+// recordPutHeaders 记录 PUT 请求的完整请求头（含 x-amz-meta-* 与
+// Cache-Control 等标准头）。
+func (r *requestRecorder) recordPutHeaders(h http.Header) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.putHeaders = h.Clone()
 }
 
 func (r *requestRecorder) snapshotMethods() []string {
@@ -47,6 +57,12 @@ func (r *requestRecorder) recordedPutSHA256() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.putSHA256
+}
+
+func (r *requestRecorder) recordedPutHeaders() http.Header {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.putHeaders
 }
 
 // newUploadTestServer 启动模拟 S3 的 httptest 服务器并返回指向它的
@@ -68,6 +84,7 @@ func newUploadTestServer(t *testing.T, headFn func(w http.ResponseWriter)) (*req
 			}
 		case http.MethodPut:
 			putSHA256 = r.Header.Get("x-amz-meta-itb-sha256")
+			rec.recordPutHeaders(r.Header)
 			w.Header().Set("ETag", "\"etag\"")
 			w.WriteHeader(http.StatusOK)
 		default:
