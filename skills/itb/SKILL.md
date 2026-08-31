@@ -15,7 +15,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `compress` for PNG/JPEG size reduction.
    - `crop` for percentage-based anchored cuts.
    - `resize` for dimensions, aspect-ratio fitting, filling, stretching, or percentage scaling.
-   - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion.
+   - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion (inputs limited to these formats).
    - `watermark` for text or image watermarking.
    - `inspect` for metadata and file hash checks.
    - `s3` for S3-compatible upload/download/list/stat/delete.
@@ -40,6 +40,7 @@ itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0
 
 ## Safety Rules
 
+- `convert` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; it preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` is mutually exclusive with `-o`/`--output`).
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials.

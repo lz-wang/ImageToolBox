@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"image"
@@ -583,6 +584,66 @@ func TestEndpointSuccess(t *testing.T) {
 		}
 		if result.SchemaVersion != "itb.inspect.v1" || result.Image == nil || result.Image.Width != 32 {
 			t.Fatalf("result = %+v, want schema itb.inspect.v1 with width 32", result)
+		}
+	})
+}
+
+// TestConvertEndpointContracts 验证 HTTP adapter → convert.Options →
+// 领域语义没有在 API 层产生分叉：alpha 保留、输入格式边界、
+// background 的 JPEG 专属校验与 CLI 完全一致。
+func TestConvertEndpointContracts(t *testing.T) {
+	post := func(t *testing.T, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/convert", fields, files...))
+		return w
+	}
+	t.Run("lossy webp retains alpha from png", func(t *testing.T) {
+		input := formFile{field: "input", filename: "a.png", content: testAlphaPNG(t, 16, 8)}
+		w := post(t, map[string]string{"to": "webp", "quality": "90"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		decoded, _, err := image.Decode(bytes.NewReader(w.Body.Bytes()))
+		if err != nil {
+			t.Fatalf("decode webp response: %v", err)
+		}
+		for x, want := range map[int]uint8{0: 0, 15: 255} {
+			_, _, _, a := decoded.At(x, 4).RGBA()
+			if got := uint8(a >> 8); got != want {
+				t.Errorf("alpha at (%d,4) = %d, want %d", x, got, want)
+			}
+		}
+	})
+	t.Run("gif input is rejected as unsupported_format", func(t *testing.T) {
+		input := formFile{field: "input", filename: "a.gif", content: testGIF(t, 8, 8)}
+		w := post(t, map[string]string{"to": "webp"}, input)
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusUnsupportedMediaType, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "unsupported_format" {
+			t.Fatalf("error code = %q, want unsupported_format", code)
+		}
+	})
+	t.Run("invalid background ignored for webp", func(t *testing.T) {
+		input := formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)}
+		w := post(t, map[string]string{"to": "webp", "background": "invalid"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if ct := w.Header().Get("Content-Type"); ct != "image/webp" {
+			t.Fatalf("Content-Type = %q, want image/webp", ct)
+		}
+	})
+	t.Run("invalid background rejected for jpeg", func(t *testing.T) {
+		input := formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)}
+		w := post(t, map[string]string{"to": "jpg", "background": "invalid"}, input)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "invalid_argument" {
+			t.Fatalf("error code = %q, want invalid_argument", code)
 		}
 	})
 }

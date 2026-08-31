@@ -43,6 +43,23 @@ func testPNG(t *testing.T, width, height int) []byte {
 	return buf.Bytes()
 }
 
+// testAlphaPNG 生成水平 alpha 渐变（左端全透明、右端不透明）的 PNG，
+// 用于验证转换链路对透明度的保留。
+func testAlphaPNG(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	for y := range height {
+		for x := range width {
+			img.SetNRGBA(x, y, color.NRGBA{R: 255, A: uint8(255 * x / max(width-1, 1))})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode test png: %v", err)
+	}
+	return buf.Bytes()
+}
+
 // testGIF 生成真实可解码的 GIF；用于验证 Probe 对支持集合外格式的行为。
 func testGIF(t *testing.T, width, height int) []byte {
 	t.Helper()

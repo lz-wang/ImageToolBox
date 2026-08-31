@@ -79,6 +79,24 @@ func TestResizeHelpContract(t *testing.T) {
 	}
 }
 
+// convert：格式特定参数语义（quality/lossless/background）必须在 help
+// 中可读，且不得回退到旧的模糊文案。
+func TestConvertHelpContract(t *testing.T) {
+	out := helpOutput(t, "convert")
+
+	for _, want := range []string{
+		"JPEG/WebP 输出质量",
+		"PNG 忽略该参数",
+		"使用 WebP 无损编码",
+		"PNG 始终为无损格式",
+		"输出 JPEG 时透明区域使用的背景色",
+	} {
+		assertContains(t, out, want)
+	}
+	assertNotContains(t, out, "透明图转不透明格式时的背景色")
+	assertNotContains(t, out, "无损编码（webp/png）")
+}
+
 // crop：锚点参数组合规则与百分比范围。
 func TestCropHelpContract(t *testing.T) {
 	out := helpOutput(t, "crop")

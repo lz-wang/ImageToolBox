@@ -15,56 +15,133 @@ import (
 	"imagetoolbox/internal/imageio"
 )
 
-func TestConvertPNGToJPEGWithBackground(t *testing.T) {
+// TestConvertPNGToJPEGBackground 验证 PNG 透明区域按 --background 铺底。
+func TestConvertPNGToJPEGBackground(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.png")
 	output := filepath.Join(dir, "output.jpg")
 
-	img := image.NewNRGBA(image.Rect(0, 0, 10, 10))
-	img.Set(0, 0, color.NRGBA{0, 0, 0, 0})
-	img.Set(5, 5, color.NRGBA{255, 0, 0, 255})
-
+	img := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	for y := range 8 {
+		for x := range 8 {
+			if x < 4 {
+				img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 0}) // 左半透明
+			} else {
+				img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255}) // 右半不透明
+			}
+		}
+	}
 	writePNG(t, input, img)
 
 	if err := ConvertFile(input, output, Options{
 		To:         "jpg",
-		Quality:    80,
+		Quality:    95,
 		Background: "#00FF00",
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	out, err := imageio.DetectFormat(output)
-	if err != nil {
-		t.Fatalf("detect output format: %v", err)
+	if out, err := imageio.DetectFormat(output); err != nil || out != imageio.FormatJPEG {
+		t.Fatalf("detect output format = %s, %v; want jpeg", out, err)
 	}
-	if out != imageio.FormatJPEG {
-		t.Fatalf("got %s, want jpeg", out)
+	decoded, err := readImage(t, output)
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	assertColorNear(t, decoded.At(1, 4), color.NRGBA{G: 255, A: 255}, "transparent half")
+	assertColorNear(t, decoded.At(6, 4), color.NRGBA{R: 255, A: 255}, "opaque half")
+}
+
+// TestConvertJPEGToWEBP 验证 JPEG 输入的基本转换路径与输出格式。
+func TestConvertJPEGToWEBP(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.jpg")
+	output := filepath.Join(dir, "output.webp")
+
+	writeJPEG(t, input, image.NewNRGBA(image.Rect(0, 0, 8, 8)))
+
+	if err := ConvertFile(input, output, Options{To: "webp", Quality: 90}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if out, err := imageio.DetectFormat(output); err != nil || out != imageio.FormatWEBP {
+		t.Fatalf("detect output format = %s, %v; want webp", out, err)
+	}
+	decoded, err := readImage(t, output)
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if got := decoded.Bounds(); got != image.Rect(0, 0, 8, 8) {
+		t.Fatalf("output bounds = %v, want 8x8", got)
 	}
 }
 
-func TestConvertPNGToWEBP(t *testing.T) {
+// TestConvertPNGToWEBPLossyPreservesAlpha 验证默认（有损）WebP 转换
+// 保留 Alpha：透明 PNG 不会被静默铺底。
+func TestConvertPNGToWEBPLossyPreservesAlpha(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.png")
 	output := filepath.Join(dir, "output.webp")
 
-	img := image.NewNRGBA(image.Rect(0, 0, 10, 10))
-	img.Set(2, 2, color.NRGBA{255, 0, 0, 255})
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 1))
+	for x, a := range []uint8{0, 64, 128, 255} {
+		img.SetNRGBA(x, 0, color.NRGBA{R: 255, A: a})
+	}
 	writePNG(t, input, img)
 
-	if err := ConvertFile(input, output, Options{
-		To:      "webp",
-		Quality: 80,
-	}); err != nil {
+	if err := ConvertFile(input, output, Options{To: "webp", Quality: 90}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	out, err := imageio.DetectFormat(output)
+	decoded, err := readImage(t, output)
 	if err != nil {
-		t.Fatalf("detect output format: %v", err)
+		t.Fatalf("decode output: %v", err)
 	}
-	if out != imageio.FormatWEBP {
-		t.Fatalf("got %s, want webp", out)
+	for x, want := range []uint8{0, 64, 128, 255} {
+		_, _, _, a := decoded.At(x, 0).RGBA()
+		if got := uint8(a >> 8); got != want {
+			t.Errorf("alpha at (%d,0) = %d, want %d", x, got, want)
+		}
+	}
+}
+
+// TestConvertPNGToWEBPLossless 验证 --lossless WebP 转换逐像素无损。
+func TestConvertPNGToWEBPLossless(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.png")
+	output := filepath.Join(dir, "output.webp")
+
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+	for y := range 4 {
+		for x := range 4 {
+			img.SetNRGBA(x, y, color.NRGBA{
+				R: uint8(x * 60),
+				G: uint8(y * 60),
+				B: uint8((x + y) * 30),
+				A: uint8((x*3 + y*5) * 15 % 256),
+			})
+		}
+	}
+	writePNG(t, input, img)
+
+	if err := ConvertFile(input, output, Options{To: "webp", Lossless: true, Quality: 80}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	decoded, err := readImage(t, output)
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	nrgba, ok := decoded.(*image.NRGBA)
+	if !ok {
+		t.Fatalf("decoded image type = %T, want *image.NRGBA", decoded)
+	}
+	for y := range 4 {
+		for x := range 4 {
+			if got, want := nrgba.NRGBAAt(x, y), img.NRGBAAt(x, y); got != want {
+				t.Errorf("pixel (%d,%d) = %+v, want %+v", x, y, got, want)
+			}
+		}
 	}
 }
 
@@ -88,14 +165,7 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 		{name: "defaults and jpg normalization", opts: Options{To: " .JPG "}, want: Options{To: "jpg", Quality: DefaultQuality, Background: DefaultBackground}},
 		{name: "invalid negative quality", opts: Options{To: "webp", Quality: -1}, wantErr: true},
 		{name: "invalid excessive quality", opts: Options{To: "webp", Quality: 101}, wantErr: true},
-		{name: "lossless jpeg", opts: Options{To: "jpeg", Lossless: true}, wantErr: true},
-		{name: "lossless webp", opts: Options{To: "webp", Lossless: true}, want: Options{To: "webp", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
-		{name: "lossless png", opts: Options{To: "png", Lossless: true}, want: Options{To: "png", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
 		{name: "short background", opts: Options{To: "png", Background: "#fff"}, want: Options{To: "png", Quality: DefaultQuality, Background: "#fff"}},
-		{name: "invalid background", opts: Options{To: "jpg", Background: "invalid"}, wantErr: true},
-		// background 只服务 JPEG 铺底，PNG/WebP 忽略该参数（Phase 2 语义）。
-		{name: "invalid background ignored for png", opts: Options{To: "png", Background: "invalid"}, want: Options{To: "png", Quality: DefaultQuality, Background: "invalid"}},
-		{name: "invalid background ignored for webp", opts: Options{To: "webp", Background: "invalid"}, want: Options{To: "webp", Quality: DefaultQuality, Background: "invalid"}},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +178,50 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// Validate 契约测试：参数语义按目标格式收口。
+
+func validate(t *testing.T, opts Options) error {
+	t.Helper()
+	opts.Normalize()
+	return opts.Validate()
+}
+
+func TestValidateInvalidJPEGBackground(t *testing.T) {
+	if err := validate(t, Options{To: "jpg", Background: "invalid"}); err == nil {
+		t.Fatal("Validate() = nil, want error for invalid background with jpeg target")
+	}
+}
+
+func TestValidateIgnoresBackgroundForPNG(t *testing.T) {
+	if err := validate(t, Options{To: "png", Background: "invalid"}); err != nil {
+		t.Fatalf("Validate() = %v, want nil (background is ignored for png)", err)
+	}
+}
+
+func TestValidateIgnoresBackgroundForWEBP(t *testing.T) {
+	if err := validate(t, Options{To: "webp", Background: "invalid"}); err != nil {
+		t.Fatalf("Validate() = %v, want nil (background is ignored for webp)", err)
+	}
+}
+
+func TestValidateRejectsLosslessJPEG(t *testing.T) {
+	if err := validate(t, Options{To: "jpg", Lossless: true}); err == nil {
+		t.Fatal("Validate() = nil, want error for lossless jpeg")
+	}
+}
+
+func TestValidateAllowsLosslessPNG(t *testing.T) {
+	if err := validate(t, Options{To: "png", Lossless: true}); err != nil {
+		t.Fatalf("Validate() = %v, want nil (accepted no-op for png)", err)
+	}
+}
+
+func TestValidateAllowsLosslessWEBP(t *testing.T) {
+	if err := validate(t, Options{To: "webp", Lossless: true}); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
 	}
 }
 
@@ -178,7 +292,7 @@ func TestConvertJPEGAutoOrientation(t *testing.T) {
 		t.Fatalf("ConvertFile() error = %v", err)
 	}
 
-	decoded, err := readPNG(t, output)
+	decoded, err := readImage(t, output)
 	if err != nil {
 		t.Fatalf("read output png: %v", err)
 	}
@@ -241,6 +355,29 @@ func readPNG(t *testing.T, path string) (image.Image, error) {
 		return nil, err
 	}
 	return png.Decode(bytes.NewReader(data))
+}
+
+// readImage 按已注册 decoder 读取任意受支持输出（PNG/WebP/JPEG）。
+func readImage(t *testing.T, path string) (image.Image, error) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	return img, err
+}
+
+func writeJPEG(t *testing.T, path string, img image.Image) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create jpeg: %v", err)
+	}
+	defer f.Close()
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
 }
 
 func assertColorNear(t *testing.T, got color.Color, want color.NRGBA, where string) {

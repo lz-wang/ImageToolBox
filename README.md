@@ -166,7 +166,7 @@ brew install lz-wang/tap/itb
 
 ## 图像格式转换
 
-支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。
+支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 EXIF Orientation 会应用到实际像素，输出不保留 EXIF/GPS/XMP 等 metadata。
 
 ```bash
 # 转为 WebP
@@ -179,17 +179,25 @@ brew install lz-wang/tap/itb
 ./itb convert -i photo.jpg --to png -o output.png
 ```
 
+转换语义按目标格式固定：
+
+| 目标格式 | quality | lossless | Alpha | background |
+|---------|---------|----------|-------|------------|
+| JPEG | 生效 | 不支持（报错） | 按背景色铺底 | 生效 |
+| PNG | 忽略 | 始终无损（参数无额外影响） | 保留 | 忽略 |
+| WebP | 生效（无损模式下为压缩强度） | 切换无损编码 | 保留（有损/无损均不丢失） | 忽略 |
+
 <details>
 <summary>命令参数</summary>
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径 |
+| `-i, --input` | (必填) | 输入图片路径（仅 `jpg` / `jpeg` / `png` / `webp`） |
 | `-o, --output` | `*_converted.<ext>` | 输出路径 |
 | `--to` | (必填) | 目标格式：`jpg` / `jpeg` / `png` / `webp` |
-| `-q, --quality` | `80` | 有损格式质量 |
-| `--lossless` | `false` | 无损编码（webp/png） |
-| `--background` | `#FFFFFF` | 转不透明格式时的背景色 |
+| `-q, --quality` | `80` | JPEG/WebP 输出质量；WebP 无损模式下表示压缩强度，PNG 忽略该参数 |
+| `--lossless` | `false` | 使用 WebP 无损编码；PNG 始终为无损格式，该参数对 PNG 无额外影响 |
+| `--background` | `#FFFFFF` | 输出 JPEG 时透明区域使用的背景色 |
 
 </details>
 

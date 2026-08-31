@@ -166,7 +166,7 @@ Resize by width/height, by percentage, or using different modes.
 
 ## Format conversion
 
-Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`.
+Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`. Inputs are limited to `jpg/jpeg/png/webp`; EXIF orientation is applied to the actual pixels during conversion, and EXIF/GPS/XMP metadata is not carried over to the output.
 
 ```bash
 # Convert to WebP
@@ -179,17 +179,25 @@ Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`.
 ./itb convert -i photo.jpg --to png -o output.png
 ```
 
+Conversion semantics are fixed per target format:
+
+| Target | quality | lossless | Alpha | background |
+|--------|---------|----------|-------|------------|
+| JPEG | applies | unsupported (error) | flattened onto the background | applies |
+| PNG | ignored | always lossless (no extra effect) | preserved | ignored |
+| WebP | applies (compression effort in lossless mode) | switches to lossless encoding | preserved (kept in both lossy and lossless modes) | ignored |
+
 <details>
 <summary>Options</summary>
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path |
+| `-i, --input` | (required) | Input image path (`jpg` / `jpeg` / `png` / `webp` only) |
 | `-o, --output` | `*_converted.<ext>` | Output path |
 | `--to` | (required) | Target format: `jpg` / `jpeg` / `png` / `webp` |
-| `-q, --quality` | `80` | Quality for lossy formats |
-| `--lossless` | `false` | Lossless encoding (webp/png) |
-| `--background` | `#FFFFFF` | Background color when converting to an opaque format |
+| `-q, --quality` | `80` | JPEG/WebP output quality; compression effort in lossless WebP mode; ignored for PNG |
+| `--lossless` | `false` | Use lossless WebP encoding; PNG is always lossless, so this has no extra effect on PNG |
+| `--background` | `#FFFFFF` | Background color for transparent areas when converting to JPEG |
 
 </details>
 
