@@ -2,6 +2,7 @@ package convert
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strings"
 
@@ -33,6 +34,11 @@ func (o *Options) Normalize() {
 }
 
 // Validate verifies conversion options before decoding the input image.
+//
+// 参数语义按目标格式收口：
+//   - quality 对 JPEG/WebP 生效，PNG 忽略（无需区分用户显式传入与默认值）；
+//   - lossless 仅 WebP 有实际意义；PNG 本身始终无损，作为兼容性 no-op 接受；
+//   - background 只在输出 JPEG（不支持 Alpha、必须铺底）时生效并被校验。
 func (o Options) Validate() error {
 	format, err := imageio.NormalizeFormat(o.To)
 	if err != nil {
@@ -44,8 +50,10 @@ func (o Options) Validate() error {
 	if o.Lossless && format != imageio.FormatPNG && format != imageio.FormatWEBP {
 		return fmt.Errorf("lossless is only supported for png and webp")
 	}
-	if _, err := imageio.ParseHexColor(o.Background); err != nil {
-		return fmt.Errorf("invalid background color: %w", err)
+	if format == imageio.FormatJPEG {
+		if _, err := imageio.ParseHexColor(o.Background); err != nil {
+			return fmt.Errorf("invalid background color: %w", err)
+		}
 	}
 	return nil
 }
@@ -60,14 +68,23 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		return err
 	}
 
+	// 输入严格限定 JPEG/PNG/WebP：imaging 能解码 GIF/BMP/TIFF 等更多
+	// 格式，放行会造成 animated GIF → 首帧这类静默语义损失。
+	if _, err := imageio.DetectFormat(inputPath); err != nil {
+		return fmt.Errorf("unsupported input image: %w", err)
+	}
+
 	img, err := imaging.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("open input image: %w", err)
 	}
 
-	background, err := imageio.ParseHexColor(opts.Background)
-	if err != nil {
-		return fmt.Errorf("invalid background color: %w", err)
+	var background color.NRGBA
+	if format == imageio.FormatJPEG {
+		background, err = imageio.ParseHexColor(opts.Background)
+		if err != nil {
+			return fmt.Errorf("invalid background color: %w", err)
+		}
 	}
 
 	return imageio.SaveWithFormat(outputPath, img, format, imageio.SaveOptions{

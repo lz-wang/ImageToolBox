@@ -1,8 +1,10 @@
 package convert
 
 import (
+	"errors"
 	"image"
 	"image/color"
+	"image/gif"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -88,7 +90,10 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 		{name: "lossless webp", opts: Options{To: "webp", Lossless: true}, want: Options{To: "webp", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
 		{name: "lossless png", opts: Options{To: "png", Lossless: true}, want: Options{To: "png", Quality: DefaultQuality, Lossless: true, Background: DefaultBackground}},
 		{name: "short background", opts: Options{To: "png", Background: "#fff"}, want: Options{To: "png", Quality: DefaultQuality, Background: "#fff"}},
-		{name: "invalid background", opts: Options{To: "png", Background: "invalid"}, wantErr: true},
+		{name: "invalid background", opts: Options{To: "jpg", Background: "invalid"}, wantErr: true},
+		// background 只服务 JPEG 铺底，PNG/WebP 忽略该参数（Phase 2 语义）。
+		{name: "invalid background ignored for png", opts: Options{To: "png", Background: "invalid"}, want: Options{To: "png", Quality: DefaultQuality, Background: "invalid"}},
+		{name: "invalid background ignored for webp", opts: Options{To: "webp", Background: "invalid"}, want: Options{To: "webp", Quality: DefaultQuality, Background: "invalid"}},
 	}
 
 	for _, tt := range tests {
@@ -112,6 +117,33 @@ func TestConvertFileUsesDomainDefaults(t *testing.T) {
 
 	if err := ConvertFile(input, output, Options{To: "webp"}); err != nil {
 		t.Fatalf("ConvertFile() error = %v", err)
+	}
+}
+
+// TestConvertRejectsGIFInput 锁定输入格式边界：convert 只接受
+// JPEG/PNG/WebP，GIF 等可解码但产品不支持的格式必须在解码前被拒绝，
+// 防止 animated GIF 被静默转成首帧。
+func TestConvertRejectsGIFInput(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.gif")
+	output := filepath.Join(dir, "output.webp")
+
+	gifImg := image.NewPaletted(image.Rect(0, 0, 4, 4), color.Palette{color.Gray{0}, color.Gray{255}})
+	f, err := os.Create(input)
+	if err != nil {
+		t.Fatalf("create gif: %v", err)
+	}
+	defer f.Close()
+	if err := gif.Encode(f, gifImg, nil); err != nil {
+		t.Fatalf("encode gif: %v", err)
+	}
+
+	err = ConvertFile(input, output, Options{To: "webp", Quality: 80})
+	if !errors.Is(err, imageio.ErrUnsupportedFormat) {
+		t.Fatalf("ConvertFile(gif) error = %v, want imageio.ErrUnsupportedFormat", err)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("output should not be created, stat err = %v", err)
 	}
 }
 
