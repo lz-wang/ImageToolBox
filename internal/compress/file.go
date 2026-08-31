@@ -5,9 +5,26 @@ import (
 	"os"
 )
 
+const DefaultQuality = 80
+
 // FileOptions 文件级压缩选项
 type FileOptions struct {
 	Quality int // 压缩质量 1-100
+}
+
+// Normalize applies the domain defaults shared by every adapter.
+func (o *FileOptions) Normalize() {
+	if o.Quality == 0 {
+		o.Quality = DefaultQuality
+	}
+}
+
+// Validate verifies file-level compression options.
+func (o FileOptions) Validate() error {
+	if o.Quality < 1 || o.Quality > 100 {
+		return fmt.Errorf("压缩质量必须在 1-100 范围内: %d", o.Quality)
+	}
+	return nil
 }
 
 // Result 文件压缩结果
@@ -20,8 +37,9 @@ type Result struct {
 // CompressFile 检测输入图片格式（PNG/JPEG），执行对应的压缩管道并写入 outputPath。
 // 供 CLI 与 Web API 共用；原地覆盖（输出回输入路径）由调用方自行处理。
 func CompressFile(inputPath, outputPath string, opts FileOptions) (Result, error) {
-	if opts.Quality < 1 || opts.Quality > 100 {
-		return Result{}, fmt.Errorf("压缩质量必须在 1-100 范围内: %d", opts.Quality)
+	opts.Normalize()
+	if err := opts.Validate(); err != nil {
+		return Result{}, err
 	}
 	if outputPath == "" {
 		return Result{}, fmt.Errorf("必须指定输出文件路径")

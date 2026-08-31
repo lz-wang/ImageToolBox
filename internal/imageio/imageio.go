@@ -30,6 +30,22 @@ type SaveOptions struct {
 	Flatten    bool
 }
 
+// SuffixedPath returns a path in the input directory with suffix before its extension.
+func SuffixedPath(inputPath, suffix string) string {
+	ext := filepath.Ext(inputPath)
+	base := strings.TrimSuffix(filepath.Base(inputPath), ext)
+	return filepath.Join(filepath.Dir(inputPath), base+suffix+ext)
+}
+
+// SuffixedName returns an output filename with suffix and ext. An empty ext retains input extension.
+func SuffixedName(inputName, suffix, ext string) string {
+	if ext == "" {
+		ext = filepath.Ext(inputName)
+	}
+	base := strings.TrimSuffix(filepath.Base(inputName), filepath.Ext(inputName))
+	return base + suffix + ext
+}
+
 func NormalizeFormat(value string) (Format, error) {
 	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(value), ".")) {
 	case "jpg", "jpeg":
