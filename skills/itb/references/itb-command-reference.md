@@ -78,7 +78,7 @@ Flags:
 
 ## Convert
 
-Convert between `jpg`, `jpeg`, `png`, and `webp`. Inputs are limited to `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF are rejected); EXIF orientation is applied to the pixels during conversion.
+Convert between `jpg`, `jpeg`, `png`, and `webp`. Inputs are limited to `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF are rejected); the EXIF orientation of JPEG inputs is applied to the pixels during conversion.
 
 ```bash
 itb convert -i photo.png -o photo.webp --to webp -q 85
@@ -93,7 +93,7 @@ Flags:
 - `--to`: required target format: `jpg`, `jpeg`, `png`, `webp`.
 - `-q, --quality`: JPEG/WebP quality; default `80`. Compression effort in lossless WebP mode; ignored for PNG.
 - `--lossless`: lossless WebP encoding; PNG is always lossless, so this flag is a no-op for PNG.
-- `--background`: background for transparent areas when converting to JPEG; default `#FFFFFF`. Ignored for PNG/WebP.
+- `--background`: opaque background for transparent areas when converting to JPEG; default `#FFFFFF`. Ignored for PNG/WebP.
 
 ## Watermark
 

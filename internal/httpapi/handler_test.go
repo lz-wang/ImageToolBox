@@ -646,6 +646,25 @@ func TestConvertEndpointContracts(t *testing.T) {
 			t.Fatalf("error code = %q, want invalid_argument", code)
 		}
 	})
+	t.Run("transparent background rejected for jpeg", func(t *testing.T) {
+		// #00000000 解析成零值后会被 codec 当作"未设置"而静默变白，
+		// 必须在领域层显式拒绝。
+		input := formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)}
+		w := post(t, map[string]string{"to": "jpg", "background": "#00000000"}, input)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "invalid_argument" {
+			t.Fatalf("error code = %q, want invalid_argument", code)
+		}
+	})
+	t.Run("transparent background ignored for webp", func(t *testing.T) {
+		input := formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)}
+		w := post(t, map[string]string{"to": "webp", "background": "#00000000"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+	})
 }
 
 func TestUnknownFieldsRejected(t *testing.T) {

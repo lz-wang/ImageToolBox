@@ -166,7 +166,7 @@ Resize by width/height, by percentage, or using different modes.
 
 ## Format conversion
 
-Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`. Inputs are limited to `jpg/jpeg/png/webp`; EXIF orientation is applied to the actual pixels during conversion, and EXIF/GPS/XMP metadata is not carried over to the output.
+Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`. Inputs are limited to `jpg/jpeg/png/webp`; the EXIF orientation of **JPEG** inputs is applied to the actual pixels during conversion (orientation metadata embedded in WebP files is not processed), and EXIF/GPS/XMP metadata is not carried over to the output.
 
 ```bash
 # Convert to WebP
@@ -197,7 +197,7 @@ Conversion semantics are fixed per target format:
 | `--to` | (required) | Target format: `jpg` / `jpeg` / `png` / `webp` |
 | `-q, --quality` | `80` | JPEG/WebP output quality; compression effort in lossless WebP mode; ignored for PNG |
 | `--lossless` | `false` | Use lossless WebP encoding; PNG is always lossless, so this has no extra effect on PNG |
-| `--background` | `#FFFFFF` | Background color for transparent areas when converting to JPEG |
+| `--background` | `#FFFFFF` | Background color for transparent areas when converting to JPEG (must be opaque) |
 
 </details>
 

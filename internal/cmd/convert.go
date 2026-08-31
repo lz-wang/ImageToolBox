@@ -50,7 +50,7 @@ func newConvertCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:  "background",
 				Value: convert.DefaultBackground,
-				Usage: "输出 JPEG 时透明区域使用的背景色",
+				Usage: "输出 JPEG 时透明区域使用的背景色（必须为不透明颜色）",
 			},
 		},
 		Action: runConvert,

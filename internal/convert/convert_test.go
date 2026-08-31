@@ -225,6 +225,43 @@ func TestValidateAllowsLosslessWEBP(t *testing.T) {
 	}
 }
 
+// TestValidateRejectsTransparentJPEGBackground 锁定 JPEG background 必须
+// 不透明：JPEG 本身没有透明背景，且 #00000000 解析出的零值会被 imageio
+// Encode 当作"未设置"而静默变成默认白色。
+func TestValidateRejectsTransparentJPEGBackground(t *testing.T) {
+	for _, background := range []string{"#00000000", "#FF000000", "#FFFFFF00", "transparent"} {
+		if err := validate(t, Options{To: "jpg", Background: background}); err == nil {
+			t.Errorf("Validate() with background %q = nil, want error", background)
+		}
+	}
+	// 8 位形式中 A=255 是合法的不透明颜色。
+	if err := validate(t, Options{To: "jpg", Background: "#00FF00FF"}); err != nil {
+		t.Fatalf("Validate() with opaque #00FF00FF = %v, want nil", err)
+	}
+	// PNG/WebP 不使用 background，透明值与其他值一样被忽略。
+	for _, to := range []string{"png", "webp"} {
+		if err := validate(t, Options{To: to, Background: "#00000000"}); err != nil {
+			t.Fatalf("Validate() to=%s with transparent background = %v, want nil", to, err)
+		}
+	}
+}
+
+// TestConvertRejectsTransparentJPEGBackground 验证 ConvertFile 路径与
+// Validate 一致：透明 background 报错且不产生输出文件。
+func TestConvertRejectsTransparentJPEGBackground(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.png")
+	output := filepath.Join(dir, "output.jpg")
+	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 4, 4)))
+
+	if err := ConvertFile(input, output, Options{To: "jpg", Background: "#00000000"}); err == nil {
+		t.Fatal("ConvertFile() = nil, want error for transparent background")
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("output should not be created, stat err = %v", err)
+	}
+}
+
 func TestConvertFileUsesDomainDefaults(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.png")

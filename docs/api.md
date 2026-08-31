@@ -24,7 +24,7 @@ Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is re
 
 `width`, `height`, `quality`, `space`, `angle`, and `font-size` are integers. `opacity`, `margin`, and `scale` are floating-point numbers. Boolean fields accept the standard Go boolean forms, including `true`, `false`, `1`, and `0`.
 
-`convert` only accepts JPEG/PNG/WebP inputs; other decodable formats (GIF/BMP/TIFF) return `415 unsupported_format`. EXIF orientation is applied to the pixels during conversion, and alpha is preserved for PNG/WebP output in both lossy and lossless modes. `background` applies to JPEG output only: an invalid value is rejected with `400 invalid_argument` when converting to JPEG and ignored for other targets.
+`convert` only accepts JPEG/PNG/WebP inputs; other decodable formats (GIF/BMP/TIFF) return `415 unsupported_format`. The EXIF orientation of JPEG inputs is applied to the pixels during conversion (orientation metadata embedded in WebP files is not processed), and alpha is preserved for PNG/WebP output in both lossy and lossless modes. `background` applies to JPEG output only: an invalid or non-opaque value (e.g. `#00000000`) is rejected with `400 invalid_argument` when converting to JPEG, and background values are ignored for other targets.
 
 Unknown fields, duplicate fields, and legacy `file`, `watermark`, or `options` fields return `400`; they are not silently ignored.
 

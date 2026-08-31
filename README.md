@@ -166,7 +166,7 @@ brew install lz-wang/tap/itb
 
 ## 图像格式转换
 
-支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 EXIF Orientation 会应用到实际像素，输出不保留 EXIF/GPS/XMP 等 metadata。
+支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 **JPEG** 的 EXIF Orientation 会应用到实际像素（WebP 携带的 orientation 元数据当前不处理），输出不保留 EXIF/GPS/XMP 等 metadata。
 
 ```bash
 # 转为 WebP
@@ -197,7 +197,7 @@ brew install lz-wang/tap/itb
 | `--to` | (必填) | 目标格式：`jpg` / `jpeg` / `png` / `webp` |
 | `-q, --quality` | `80` | JPEG/WebP 输出质量；WebP 无损模式下表示压缩强度，PNG 忽略该参数 |
 | `--lossless` | `false` | 使用 WebP 无损编码；PNG 始终为无损格式，该参数对 PNG 无额外影响 |
-| `--background` | `#FFFFFF` | 输出 JPEG 时透明区域使用的背景色 |
+| `--background` | `#FFFFFF` | 输出 JPEG 时透明区域使用的背景色（必须为不透明颜色） |
 
 </details>
 

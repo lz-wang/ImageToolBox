@@ -90,6 +90,7 @@ func TestConvertHelpContract(t *testing.T) {
 		"使用 WebP 无损编码",
 		"PNG 始终为无损格式",
 		"输出 JPEG 时透明区域使用的背景色",
+		"必须为不透明颜色",
 	} {
 		assertContains(t, out, want)
 	}

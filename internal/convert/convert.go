@@ -51,8 +51,14 @@ func (o Options) Validate() error {
 		return fmt.Errorf("lossless is only supported for png and webp")
 	}
 	if format == imageio.FormatJPEG {
-		if _, err := imageio.ParseHexColor(o.Background); err != nil {
+		background, err := imageio.ParseHexColor(o.Background)
+		if err != nil {
 			return fmt.Errorf("invalid background color: %w", err)
+		}
+		// JPEG 没有透明背景；零值颜色（如 #00000000）还会被 imageio
+		// Encode 当作"未设置"而静默变成默认白色，必须在领域层拒绝。
+		if background.A != 255 {
+			return fmt.Errorf("background color must be opaque for jpeg output")
 		}
 	}
 	return nil
@@ -74,8 +80,10 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		return fmt.Errorf("unsupported input image: %w", err)
 	}
 
-	// EXIF Orientation 应用到实际像素后输出，结果不依赖 Orientation
-	// metadata。仅 convert 开启：resize/crop/watermark 的 Probe →
+	// JPEG EXIF Orientation 应用到实际像素后输出，结果不依赖
+	// Orientation metadata（imaging 仅解析 JPEG EXIF；WebP 携带的
+	// orientation 元数据当前不处理）。仅 convert 开启：
+	// resize/crop/watermark 的 Probe →
 	// Resolve 资源准入基于原始物理尺寸，decode 旋转会造成推导与实际
 	// 输出不一致，待统一的 oriented probe 落地后再放开。
 	img, err := imaging.Open(inputPath, imaging.AutoOrientation(true))
@@ -88,6 +96,9 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		background, err = imageio.ParseHexColor(opts.Background)
 		if err != nil {
 			return fmt.Errorf("invalid background color: %w", err)
+		}
+		if background.A != 255 {
+			return fmt.Errorf("background color must be opaque for jpeg output")
 		}
 	}
 
