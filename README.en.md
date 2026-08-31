@@ -451,6 +451,11 @@ combining them is rejected as a flag error.
 must be non-empty, and may not contain control characters. Duplicate keys
 and the reserved key `itb-sha256` are rejected before any network request.
 
+When `--content-type` is omitted, the MIME type is detected from the **file
+content** (magic sniffing covers JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG);
+the extension is only a fallback — an HTML error page renamed to `error.jpg`
+uploads as `text/html`, not `image/jpeg`.
+
 <details>
 <summary>upload options</summary>
 
@@ -458,7 +463,7 @@ and the reserved key `itb-sha256` are rejected before any network request.
 |------|--------|------|
 | `-i, --input` | (required) | Local file path |
 | `-k, --key` | file name | Object key |
-| `--content-type` | auto-detected | Content type |
+| `--content-type` | content-detected | Content type (explicit value is used verbatim) |
 | `--metadata` | (empty) | Object user metadata `KEY=VALUE` (repeatable) |
 | `--cache-control` | (empty) | Cache-Control response header (e.g. `no-cache`, `max-age=31536000`) |
 | `--content-disposition` | (empty) | Content-Disposition response header |

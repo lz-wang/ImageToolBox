@@ -9,7 +9,6 @@ import (
 	"io"
 	"maps"
 	"os"
-	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -20,23 +19,6 @@ import (
 // 不使用 ETag 做该判断（multipart 上传、SSE 与部分 S3 兼容实现下
 // ETag 不是可靠的内容哈希）。
 const MetadataSHA256Key = "itb-sha256"
-
-// contentTypes 内容类型映射
-var contentTypes = map[string]string{
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png":  "image/png",
-	".gif":  "image/gif",
-	".webp": "image/webp",
-	".svg":  "image/svg+xml",
-	".json": "application/json",
-	".txt":  "text/plain",
-	".html": "text/html",
-	".css":  "text/css",
-	".js":   "application/javascript",
-	".pdf":  "application/pdf",
-	".zip":  "application/zip",
-}
 
 // UploadOptions 上传选项
 type UploadOptions struct {
@@ -156,16 +138,13 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		return nil, fmt.Errorf("failed to rewind input file: %w", err)
 	}
 
-	// 自动检测 Content type
-	contentType := "application/octet-stream"
-	if opts != nil && opts.ContentType != "" {
-		contentType = opts.ContentType
-	} else {
-		ext := filepath.Ext(inputPath)
-		if ct, ok := contentTypes[ext]; ok {
-			contentType = ct
-		}
+	// Content-Type 内容优先：显式 --content-type > magic sniff > 扩展名兜底，
+	// 防止 HTML/XML 错误页借 .jpg 扩展名以 image/jpeg 上传。
+	var explicitContentType string
+	if opts != nil {
+		explicitContentType = opts.ContentType
 	}
+	contentType := ResolveContentType(inputPath, explicitContentType)
 
 	// 获取文件大小
 	fileSize := fileInfo.Size()

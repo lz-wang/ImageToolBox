@@ -135,7 +135,7 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 			},
 			&cli.StringFlag{
 				Name:  "content-type",
-				Usage: "内容类型（自动检测）",
+				Usage: "内容类型 `MIME`（默认按文件内容检测，扩展名仅作兜底）",
 			},
 			&cli.StringSliceFlag{
 				Name:  "metadata",

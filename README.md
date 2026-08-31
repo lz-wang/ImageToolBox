@@ -447,6 +447,10 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 `--metadata` 必须是 `key=value` 格式（可重复指定），键统一转小写、不可为空、
 禁含控制字符，重复键与保留键 `itb-sha256` 会报参数错误（在任何网络请求之前）。
 
+`--content-type` 缺省时按**文件内容**检测 MIME（magic sniff 覆盖 JPEG/PNG/GIF/
+WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——HTML 错误页改名成
+`error.jpg` 会以 `text/html` 上传，而不是 `image/jpeg`。
+
 <details>
 <summary>upload 参数</summary>
 
@@ -454,7 +458,7 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 |------|--------|------|
 | `-i, --input` | (必填) | 本地文件路径 |
 | `-k, --key` | 文件名 | 对象键名 |
-| `--content-type` | 自动检测 | 内容类型 |
+| `--content-type` | 内容检测 | 内容类型（显式指定原样生效） |
 | `--metadata` | (空) | 对象用户 metadata `KEY=VALUE`（可重复） |
 | `--cache-control` | (空) | Cache-Control 响应头（如 `no-cache`、`max-age=31536000`） |
 | `--content-disposition` | (空) | Content-Disposition 响应头 |

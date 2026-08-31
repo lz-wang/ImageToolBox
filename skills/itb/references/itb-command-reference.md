@@ -202,6 +202,11 @@ lowercased, must be non-empty, may not contain control characters, and
 object's standard HTTP response headers — use `--cache-control no-cache` when
 publishing images under stable URLs.
 
+Without `--content-type`, the MIME type is detected from file content (magic
+sniffing for JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG); the extension is only
+a fallback. An HTML error page renamed to `.jpg` uploads as `text/html`, so
+HTML/XML error bodies never masquerade as images.
+
 ## Serve (WebUI)
 
 Starts the local-first WebUI. It calls the same Go domain packages as the CLI (no subprocesses) and embeds the built frontend, so a single binary is all you need.
