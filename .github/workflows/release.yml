@@ -74,6 +74,26 @@ jobs:
     needs: prepare
     runs-on: ubuntu-24.04
 
+    services:
+      minio:
+        image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+        args: server /data --console-address ":9001"
+        ports:
+          - 127.0.0.1:9000:9000
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      ITB_TEST_MINIO_ENDPOINT: http://127.0.0.1:9000
+      ITB_TEST_MINIO_ACCESS_KEY: minioadmin
+      ITB_TEST_MINIO_SECRET_KEY: minioadmin
+
     steps:
       - name: Checkout release source
         uses: actions/checkout@v5
@@ -89,6 +109,7 @@ jobs:
         run: |
           make check
           make test
+          go test ./internal/s3 -run TestMinIOIntegration -v
 
   build:
     name: ${{ matrix.target.name }}

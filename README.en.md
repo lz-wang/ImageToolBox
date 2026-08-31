@@ -402,6 +402,13 @@ Output convention: **stdout carries formal results only** (switch with
 with a `schema_version` contract), while progress hints and diagnostics go to
 **stderr** — scripts can safely pipe stdout JSON.
 
+MinIO compatibility is continuously verified in CI: a real MinIO service
+container runs the integration test (`internal/s3/minio_test.go`) covering
+upload / stat / download / skip-existing / skip-unchanged / metadata /
+cache-control / overwrite / verify / delete, and path-style addressing.
+Local `go test` skips it when MinIO is unreachable; point
+`ITB_TEST_MINIO_ENDPOINT` (and friends) at your own instance to run it.
+
 ### Environment variables
 
 ```bash

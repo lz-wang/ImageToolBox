@@ -79,6 +79,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 - 不使用 `testdata/`，测试中用 `image.NewNRGBA` 等就地合成图片，避免二进制 fixture。
 - 根目录的 `test-images/` 仅作手动验证（已 gitignore），不要在测试里引用。
 - 纯 Go 单测不依赖内嵌的原生二进制；涉及 `compress` 的集成测试才会触发解压流程。
+- `internal/s3/minio_test.go` 是针对真实 MinIO 的集成测试（upload/stat/download/skip/metadata/cache-control/overwrite/verify/delete + path-style）：CI 以 service container 启动 MinIO 真实执行；本地默认跳过，可用 `ITB_TEST_MINIO_ENDPOINT`（默认 `http://127.0.0.1:9000`）、`ITB_TEST_MINIO_ACCESS_KEY`/`ITB_TEST_MINIO_SECRET_KEY`（默认 `minioadmin`）指向自建实例运行。
 
 ## 文档约定
 

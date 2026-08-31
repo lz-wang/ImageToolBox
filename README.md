@@ -402,6 +402,12 @@ make test     # go test
 均支持机器可读 JSON 与 `schema_version` 契约），进度提示与诊断信息走 **stderr**，
 脚本可以放心用管道消费 stdout 的 JSON。
 
+MinIO 兼容性由 CI 持续验证：CI 以 service container 启动真实 MinIO，执行覆盖
+upload / stat / download / skip-existing / skip-unchanged / metadata /
+cache-control / overwrite / verify / delete 与 path-style 的集成测试
+（`internal/s3/minio_test.go`）；本地 `go test` 在 MinIO 不可达时自动跳过，
+可通过 `ITB_TEST_MINIO_ENDPOINT` 等环境变量指向自建实例运行。
+
 ### 环境变量
 
 ```bash
