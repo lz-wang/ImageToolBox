@@ -11,7 +11,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"imagetoolbox/internal/compress"
 )
 
@@ -37,6 +36,15 @@ func testPNG(t *testing.T, width, height int) []byte {
 		t.Fatalf("encode test png: %v", err)
 	}
 	return buf.Bytes()
+}
+
+func decodePNG(t *testing.T, data []byte) image.Image {
+	t.Helper()
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("decode png: %v", err)
+	}
+	return img
 }
 
 // newMultipartRequest 构造 multipart/form-data 请求，不监听任何端口。
@@ -65,15 +73,6 @@ func newMultipartRequest(t *testing.T, method, target string, fields map[string]
 	req := httptest.NewRequest(method, target, &buf)
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	return req
-}
-
-func newTestContext(t *testing.T, req *http.Request) (*gin.Context, *httptest.ResponseRecorder) {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-	return c, w
 }
 
 func decodeJSONError(t *testing.T, body []byte) string {
