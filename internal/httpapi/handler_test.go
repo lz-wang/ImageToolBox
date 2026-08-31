@@ -582,8 +582,32 @@ func TestEndpointSuccess(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		if result.SchemaVersion != "itb.inspect.v1" || result.Image == nil || result.Image.Width != 32 {
-			t.Fatalf("result = %+v, want schema itb.inspect.v1 with width 32", result)
+		if result.SchemaVersion != "itb.inspect.v2" || result.Image == nil || result.Image.Width != 32 {
+			t.Fatalf("result = %+v, want schema itb.inspect.v2 with width 32", result)
+		}
+	})
+	t.Run("inspect full-decode returns animation info", func(t *testing.T) {
+		gifInput := formFile{field: "input", filename: "a.gif", content: testAnimatedGIF(t, 3)}
+		w := post(t, "/api/v1/inspect", map[string]string{"no-hash": "true", "full-decode": "true"}, gifInput)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var result struct {
+			Image *struct {
+				Animated       bool  `json:"animated"`
+				AnimationKnown bool  `json:"animation_known"`
+				FrameCount     int   `json:"frame_count"`
+				FullDecodeOK   *bool `json:"full_decode_ok"`
+			} `json:"image"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if result.Image == nil || !result.Image.Animated || !result.Image.AnimationKnown {
+			t.Fatalf("image = %+v, want animated with animation_known", result.Image)
+		}
+		if result.Image.FrameCount != 3 || result.Image.FullDecodeOK == nil || !*result.Image.FullDecodeOK {
+			t.Fatalf("image = %+v, want frame_count=3 and full_decode_ok=true", result.Image)
 		}
 	})
 }

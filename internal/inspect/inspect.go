@@ -68,6 +68,23 @@ func File(path string, opts Options) (*Result, error) {
 		}
 	} else {
 		result.Image = imgInfo
+		// WebP 动画信息来自 VP8X 头嗅探，无需完整解码即可断言
+		if imgInfo.Format == "webp" {
+			animated, known := webpAnimation(header)
+			imgInfo.Animated = animated
+			imgInfo.AnimationKnown = known
+		}
+	}
+
+	// 完整解码：捕获"header 正常但文件后半部分损坏"，GIF 额外解析
+	// 帧数与动画状态
+	if opts.FullDecode && result.Image != nil {
+		if err := applyFullDecode(path, result.Image); err != nil {
+			if opts.Strict {
+				return nil, fmt.Errorf("完整解码失败: %w", err)
+			}
+			result.Warnings = append(result.Warnings, fmt.Sprintf("full decode failed: %v", err))
+		}
 	}
 
 	if opts.Detail {
@@ -99,7 +116,7 @@ func decodeImageConfig(path string) (*ImageInfo, error) {
 		return nil, err
 	}
 
-	return &ImageInfo{
+	info := &ImageInfo{
 		Format:         format,
 		Width:          cfg.Width,
 		Height:         cfg.Height,
@@ -107,9 +124,15 @@ func decodeImageConfig(path string) (*ImageInfo, error) {
 		Megapixels:     float64(cfg.Width*cfg.Height) / 1_000_000,
 		ColorModel:     fmt.Sprintf("%T", cfg.ColorModel),
 		HasAlpha:       hasAlpha(cfg.ColorModel),
-		Animated:       false,
 		DecodeConfigOK: true,
-	}, nil
+	}
+	// JPEG/PNG 是静态格式，header 阶段即可断言非动画；
+	// GIF 需要完整解码数帧，WebP 由 VP8X 嗅探判断
+	switch format {
+	case "jpeg", "png":
+		info.AnimationKnown = true
+	}
+	return info, nil
 }
 
 func readHeader(path string, n int) ([]byte, error) {

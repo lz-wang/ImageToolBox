@@ -71,6 +71,32 @@ func testGIF(t *testing.T, width, height int) []byte {
 	return buf.Bytes()
 }
 
+// testAnimatedGIF 生成指定帧数的动画 GIF，用于 --full-decode 的
+// 帧数与动画状态断言。
+func testAnimatedGIF(t *testing.T, frames int) []byte {
+	t.Helper()
+
+	palette := color.Palette{color.Gray{0}, color.Gray{255}}
+	g := &gif.GIF{Config: image.Config{Width: 8, Height: 8, ColorModel: palette}}
+	for i := range frames {
+		img := image.NewPaletted(image.Rect(0, 0, 8, 8), palette)
+		for y := range 8 {
+			for x := range 8 {
+				if (x+y+i)%2 == 0 {
+					img.Set(x, y, color.Gray{0})
+				}
+			}
+		}
+		g.Image = append(g.Image, img)
+		g.Delay = append(g.Delay, 10)
+	}
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, g); err != nil {
+		t.Fatalf("encode animated gif: %v", err)
+	}
+	return buf.Bytes()
+}
+
 func decodePNG(t *testing.T, data []byte) image.Image {
 	t.Helper()
 	img, err := png.Decode(bytes.NewReader(data))

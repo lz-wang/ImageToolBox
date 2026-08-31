@@ -294,6 +294,9 @@ Read file info, basic image info, detailed metadata, and file hash.
 
 # Skip hash computation
 ./itb inspect -i photo.jpg --no-hash
+
+# Full-decode validation (frame-by-frame for GIF); usable as an upload preflight
+./itb inspect -i image.png --strict --full-decode --format json
 ```
 
 <details>
@@ -307,8 +310,20 @@ Read file info, basic image info, detailed metadata, and file hash.
 | `--detail` | `true` | Kept for compatibility; equivalent to not passing `--no-detail` |
 | `--no-hash` | `false` | Skip file hash computation |
 | `--strict` | `false` | Return an error immediately if image parsing fails |
+| `--full-decode` | `false` | Fully decode the image (frame-by-frame for GIF), validating the file tail and reporting frame/animation info |
 
 </details>
+
+The JSON contract version is `itb.inspect.v2`. By default (header decoding)
+only the image header is read, which cannot detect files whose header is fine
+but whose tail is corrupted; `--full-decode` fully decodes the file and adds:
+
+| Field | Description |
+|------|------|
+| `full_decode_ok` | Tri-state: omitted = not attempted; `true` = full decode passed; `false` = corrupted tail |
+| `frame_count` | Frame count from full GIF decode (omitted for other formats) |
+| `animation_known` | Whether `animated` is trustworthy: always `true` for JPEG/PNG; GIF requires `--full-decode`; WebP comes from the VP8X header sniff |
+| `animated` | Animation state, meaningful only when `animation_known=true` |
 
 ## HTTP API (itb serve)
 

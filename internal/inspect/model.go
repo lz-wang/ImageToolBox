@@ -2,12 +2,20 @@ package inspect
 
 import "time"
 
-const SchemaVersion = "itb.inspect.v1"
+// SchemaVersion 是 inspect JSON 输出的契约版本。
+// v2：新增 full_decode_ok / frame_count / animation_known，
+// animated 仅在 animation_known 为 true 时有意义。
+const SchemaVersion = "itb.inspect.v2"
 
 type Options struct {
 	Detail bool
 	NoHash bool
 	Strict bool
+
+	// FullDecode 为 true 时对文件做完整解码（GIF 用 gif.DecodeAll，
+	// 其余格式用 image.Decode），捕获"文件头正常但后半部分损坏"的
+	// 情况，并解析动画/帧数信息。
+	FullDecode bool
 }
 
 type Result struct {
@@ -40,8 +48,27 @@ type ImageInfo struct {
 	Megapixels     float64 `json:"megapixels"`
 	ColorModel     string  `json:"color_model,omitempty"`
 	HasAlpha       bool    `json:"has_alpha"`
-	Animated       bool    `json:"animated"`
-	DecodeConfigOK bool    `json:"decode_config_ok"`
+
+	// DecodeConfigOK 表示 header 解码（image.DecodeConfig）成功，
+	// 是 v1 就存在的字段。
+	DecodeConfigOK bool `json:"decode_config_ok"`
+
+	// FullDecodeOK 三态：nil 表示未尝试（--full-decode 未开启），
+	// 非 nil 表示完整解码结果（true = 通过，false = 文件后半部分
+	// 损坏等完整解码失败）。指针 + omitempty 区分"未尝试"与"失败"。
+	FullDecodeOK *bool `json:"full_decode_ok,omitempty"`
+
+	// FrameCount 是完整解码得到的帧数；0 表示未知或非动画格式
+	//（omitempty 省略）。仅 GIF 支持逐帧计数。
+	FrameCount int `json:"frame_count,omitempty"`
+
+	// AnimationKnown 表示 animated 字段是否可信：
+	//   - GIF（DecodeAll）与 WebP（VP8X 头嗅探）→ true
+	//   - JPEG/PNG 等静态格式 → true（animated 恒为 false）
+	//   - 仅 DecodeConfig、未开启 --full-decode 的 GIF → false
+	//     （此时 animated=false 是"未知"，不是"断言非动画"）
+	AnimationKnown bool `json:"animation_known"`
+	Animated       bool `json:"animated"`
 }
 
 type DetailInfo struct {

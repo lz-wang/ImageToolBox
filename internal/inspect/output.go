@@ -22,6 +22,15 @@ func PrintTable(w io.Writer, result *Result) error {
 		fmt.Fprintf(w, "  Megapixels:  %.4f\n", result.Image.Megapixels)
 		fmt.Fprintf(w, "  ColorModel:  %s\n", result.Image.ColorModel)
 		fmt.Fprintf(w, "  Alpha:       %t\n", result.Image.HasAlpha)
+		if result.Image.AnimationKnown {
+			fmt.Fprintf(w, "  Animated:    %t\n", result.Image.Animated)
+		}
+		if result.Image.FrameCount > 0 {
+			fmt.Fprintf(w, "  Frames:      %d\n", result.Image.FrameCount)
+		}
+		if result.Image.FullDecodeOK != nil {
+			fmt.Fprintf(w, "  FullDecode:  %t\n", *result.Image.FullDecodeOK)
+		}
 	}
 
 	if result.Detail != nil {

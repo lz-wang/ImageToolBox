@@ -18,9 +18,11 @@ Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is re
 | `POST /api/v1/crop` | `input`, `anchor`, `width`, `height` |
 | `POST /api/v1/convert` | `input`, `to`, `quality`, `lossless`, `background` |
 | `POST /api/v1/watermark` | `input`, `text`, `image`, `mode`, `color`, `space`, `angle`, `opacity`, `font`, `font-size`, `position`, `margin`, `scale` |
-| `POST /api/v1/inspect` | `input`, `detail`, `no-detail`, `no-hash`, `strict` |
+| `POST /api/v1/inspect` | `input`, `detail`, `no-detail`, `no-hash`, `strict`, `full-decode` |
 
 `inspect` never requires a decodable image: with `strict` unset (or `false`) it returns file metadata plus an `error` object for undecodable inputs; with `strict=true` decoding failures return `400`.
+
+`full-decode=true` fully decodes the image (frame-by-frame for GIF, validating the file tail) and extends the JSON (`itb.inspect.v2`) with `full_decode_ok` (omitted when not attempted), `frame_count` (GIF only), `animation_known`, and `animated`. With `strict=true` a full-decode failure returns `400`; otherwise the failure is reported in `warnings` and as `full_decode_ok: false`.
 
 `width`, `height`, `quality`, `space`, `angle`, and `font-size` are integers. `opacity`, `margin`, and `scale` are floating-point numbers. Boolean fields accept the standard Go boolean forms, including `true`, `false`, `1`, and `0`.
 

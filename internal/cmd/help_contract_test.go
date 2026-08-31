@@ -125,12 +125,13 @@ func TestWatermarkHelpContract(t *testing.T) {
 	}
 }
 
-// inspect：--no-detail 与 plain 格式语义。
+// inspect：--no-detail、plain 格式语义与 full-decode 能力。
 func TestInspectHelpContract(t *testing.T) {
 	out := helpOutput(t, "inspect")
 
 	assertContains(t, out, "--no-detail")
 	assertContains(t, out, "plain 仅输出 SHA-256")
+	assertContains(t, out, "--full-decode")
 }
 
 // s3：环境变量契约与配置优先级必须在 help 中说明。

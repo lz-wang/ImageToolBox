@@ -136,6 +136,28 @@ Flags:
 - `--angle`: repeat text angle; default `30`; range `-360` to `360`.
 - `--space`: repeat spacing; `0` auto-calculates.
 
+## Inspect
+
+Read-only file/image inspection with hashes; JSON contract `itb.inspect.v2`.
+
+```bash
+itb inspect -i photo.jpg
+itb inspect -i photo.jpg --format json
+itb inspect -i photo.jpg --format plain   # sha256 only
+itb inspect -i image.png --strict --full-decode --format json   # upload preflight
+```
+
+Flags:
+
+- `-i, --input`: required input image path.
+- `--format`: `table` (default) / `json` / `plain`.
+- `--no-detail` / `--no-hash`: skip detail or hash computation.
+- `--strict`: return an error instead of an `error` object when parsing fails.
+- `--full-decode`: fully decode the image (frame-by-frame for GIF). Detects
+  files whose header is fine but tail is corrupted; adds `full_decode_ok`
+  (tri-state), `frame_count` (GIF), `animation_known`, and `animated`.
+  Combine with `--strict` as a preflight before uploading.
+
 ## S3-Compatible Storage
 
 Supports AWS S3, MinIO, Alibaba OSS, Tencent COS, and other S3-compatible services.

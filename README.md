@@ -294,6 +294,9 @@ brew install lz-wang/tap/itb
 
 # 不计算 hash
 ./itb inspect -i photo.jpg --no-hash
+
+# 完整解码校验（GIF 逐帧），可作为上传前 preflight
+./itb inspect -i image.png --strict --full-decode --format json
 ```
 
 <details>
@@ -307,8 +310,20 @@ brew install lz-wang/tap/itb
 | `--detail` | `true` | 兼容保留，等价于不传 `--no-detail` |
 | `--no-hash` | `false` | 不计算文件 hash |
 | `--strict` | `false` | 图像解析失败时直接返回错误 |
+| `--full-decode` | `false` | 完整解码图片（GIF 逐帧），校验文件后半部分并输出帧数/动画状态 |
 
 </details>
+
+JSON 契约版本为 `itb.inspect.v2`。默认（header 解码）只读取图片头，
+无法发现"文件头正常但后半部分损坏"的文件；`--full-decode` 对文件做
+完整解码并补充以下字段：
+
+| 字段 | 说明 |
+|------|------|
+| `full_decode_ok` | 三态：省略 = 未尝试；`true` = 完整解码通过；`false` = 文件后半部分损坏 |
+| `frame_count` | GIF 完整解码得到的帧数（其他格式省略） |
+| `animation_known` | `animated` 是否可信：JPEG/PNG 恒为 `true`；GIF 需要 `--full-decode`；WebP 来自 VP8X 头嗅探 |
+| `animated` | 动画状态，仅在 `animation_known=true` 时有意义 |
 
 ## HTTP API（itb serve）
 

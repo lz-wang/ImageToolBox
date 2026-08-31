@@ -19,12 +19,17 @@ func newInspectCommand() *cli.Command {
 
 该命令为只读操作，不会修改原始图片。
 
+--full-decode 对文件做完整解码（GIF 逐帧），能捕获"文件头正常但
+后半部分损坏"的问题，并给出帧数与动画状态；配合 --strict 可作为
+上传前 preflight。
+
 示例:
   itb inspect -i photo.jpg
   itb inspect -i photo.jpg --format json
   itb inspect -i photo.jpg --format plain
   itb inspect -i photo.jpg --no-detail
-  itb inspect -i photo.jpg --no-hash`,
+  itb inspect -i photo.jpg --no-hash
+  itb inspect -i image.png --strict --full-decode --format json`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "input",
@@ -55,6 +60,10 @@ func newInspectCommand() *cli.Command {
 				Name:  "strict",
 				Usage: "图像解析失败时直接返回错误",
 			},
+			&cli.BoolFlag{
+				Name:  "full-decode",
+				Usage: "完整解码图片（GIF 逐帧），校验文件后半部分并输出帧数/动画状态",
+			},
 		},
 		Action: runInspect,
 	}
@@ -62,9 +71,10 @@ func newInspectCommand() *cli.Command {
 
 func runInspect(ctx context.Context, cmd *cli.Command) error {
 	result, err := inspect.File(cmd.String("input"), inspect.Options{
-		Detail: cmd.Bool("detail") && !cmd.Bool("no-detail"),
-		NoHash: cmd.Bool("no-hash"),
-		Strict: cmd.Bool("strict"),
+		Detail:     cmd.Bool("detail") && !cmd.Bool("no-detail"),
+		NoHash:     cmd.Bool("no-hash"),
+		Strict:     cmd.Bool("strict"),
+		FullDecode: cmd.Bool("full-decode"),
 	})
 	if err != nil {
 		return err

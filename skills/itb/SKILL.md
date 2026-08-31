@@ -17,7 +17,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `resize` for dimensions, aspect-ratio fitting, filling, stretching, or percentage scaling.
    - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion (inputs limited to these formats).
    - `watermark` for text or image watermarking.
-   - `inspect` for metadata and file hash checks.
+   - `inspect` for metadata and file hash checks; add `--strict --full-decode` as an upload preflight (catches corrupted tails and reports GIF frame/animation info).
    - `s3` for S3-compatible upload/download/list/stat/delete.
    - `serve` for the interactive local WebUI (browser-based, same processing core as the CLI).
 4. Prefer explicit `-o` / `--output` for single-file transformations so follow-up steps can use predictable paths.

@@ -272,7 +272,7 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, multipartErrorStatus(err), err)
 			return
 		}
-		input, err := f.input("input", "detail", "no-detail", "no-hash", "strict")
+		input, err := f.input("input", "detail", "no-detail", "no-hash", "strict", "full-decode")
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
@@ -310,13 +310,18 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		fullDecode, err := f.bool("full-decode")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
 		if !detail {
 			detail = true
 		}
 		if noDetail {
 			detail = false
 		}
-		result, err := inspect.File(input.Path, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
+		result, err := inspect.File(input.Path, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict, FullDecode: fullDecode})
 		if err != nil {
 			// strict=true 时解析失败在此报错；其余失败（路径/读取等）
 			// 同样归为客户端输入问题。
