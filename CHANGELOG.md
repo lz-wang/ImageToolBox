@@ -4,9 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- HTTP API 由 Gin 迁移至 Go 标准库 `net/http`，并改用与 CLI long flag 一致的 multipart 字段。
+- 图片操作的默认值和最终校验收敛至领域包；水印改为统一文件级领域入口。
+
+### Added
+
+- `ITB_API_TOKEN` Bearer 认证、上传/图片/并发/超时限制与优雅关闭。
+- 结构化 API 错误、`slog` 访问日志与流式图片响应。
+
 ### Removed
 
 - **BREAKING:** 移除内置 WebUI、React/MUI/Vite 前端及 `itb serve --open`；`itb serve` 现为纯 HTTP API 服务。
+- **BREAKING:** 移除 Gin 和旧版 `file + options JSON` HTTP 参数契约。
 
 ## [v0.5.0] - 2026-08-30
 

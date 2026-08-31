@@ -322,7 +322,7 @@ Alongside the local CLI, `itb serve` provides a `/api/v1` HTTP API that calls do
 
 ### Security boundary
 
-The server binds to `127.0.0.1` by default. Production deployments should use Nginx/Caddy to reverse proxy HTTPS traffic to localhost; a subsequent API version will use `ITB_API_TOKEN` Bearer authentication.
+The server binds to `127.0.0.1` by default. `ITB_API_TOKEN` is the required production Bearer token; use Nginx/Caddy to reverse proxy HTTPS traffic to localhost. `--no-auth` is only for local development and only permits loopback addresses.
 
 <details>
 <summary>Command options and HTTP API</summary>
@@ -330,6 +330,12 @@ The server binds to `127.0.0.1` by default. Production deployments should use Ng
 | Option | Default | Description |
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | Listen address |
+| `--max-upload` | `64MiB` | Maximum multipart request size |
+| `--max-pixels` | `50000000` | Maximum image pixel count |
+| `--max-dimension` | `16384` | Maximum image dimension |
+| `--max-concurrent` | `2` | Maximum concurrent image operations |
+| `--timeout` | `2m` | Per-image operation timeout |
+| `--no-auth` | `false` | Disable authentication only for loopback development |
 
 The API uses the `/api/v1` prefix, for example the health check:
 
@@ -337,7 +343,15 @@ The API uses the `/api/v1` prefix, for example the health check:
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-Image endpoints accept `multipart/form-data` and return raw image bytes. Complete API parameters and VPS deployment instructions will live in `docs/api.md` and `docs/deployment.md`.
+Image endpoints accept `multipart/form-data` fields named after CLI long flags and stream binary responses. See the complete [API reference](docs/api.md) and [VPS deployment guide](docs/deployment.md).
+
+```bash
+curl -H "Authorization: Bearer $ITB_API_TOKEN" \
+  -F 'input=@photo.png' \
+  -F 'to=webp' \
+  -F 'quality=80' \
+  https://itb.example.com/api/v1/convert -o photo.webp
+```
 
 </details>
 

@@ -30,7 +30,7 @@ go vet ./...            # 静态检查
 - HTTP API 只暴露 `compress`、`resize`、`crop`、`convert`、`watermark` 和 `inspect`；S3 管理能力只由 CLI 暴露。
 - HTTP 操作参数使用对应 CLI long flag 名称；`input` 是 multipart 上传文件，`output` 和 `in-place` 不属于 HTTP 参数。
 - HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
-- `serve` 负责 HTTP server 生命周期；`internal/httpapi`（迁移完成后）只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
+- `serve` 负责 HTTP server 生命周期；`internal/httpapi` 只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
 
 ### 分层与依赖方向
 
@@ -56,8 +56,8 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 - Web handler 直接构造领域 `Options`，与 CLI 命令参数状态完全隔离，保证并发 HTTP 请求互不污染。
 - 图片处理端点统一 `multipart/form-data`，使用 CLI long flag 名称；结果以二进制流返回并带 `Content-Disposition` 与 `X-ITB-*-Size` 头。
-- 每个请求使用独立临时目录（`newRequestDir`），`defer` 清理；不引入数据库/session/任务系统。
-- 安全边界：默认只绑定 `127.0.0.1`；远程部署以 Bearer token 和反向代理保护。
+- 每个请求使用独立临时目录（`os.MkdirTemp`），`defer` 清理；不引入数据库/session/任务系统。
+- 安全边界：默认只绑定 `127.0.0.1`；远程部署必须使用 `ITB_API_TOKEN` Bearer token 和反向代理保护。`--no-auth` 仅限 loopback 开发。
 - 上传文件名经 `sanitizeFilename` 清洗，防止路径穿越。
 
 ### 内嵌二进制机制（核心约束）

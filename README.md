@@ -322,7 +322,7 @@ brew install lz-wang/tap/itb
 
 ### 安全边界
 
-默认只监听 `127.0.0.1`。生产部署应由 Nginx/Caddy 在 HTTPS 下反向代理至 localhost；后续 API 版本将通过 `ITB_API_TOKEN` 进行 Bearer 认证。
+默认只监听 `127.0.0.1`。`ITB_API_TOKEN` 是生产环境必需的 Bearer Token；生产部署应由 Nginx/Caddy 在 HTTPS 下反向代理至 localhost。仅本地开发可以使用 `--no-auth`，且它只能绑定 loopback 地址。
 
 <details>
 <summary>命令参数与 HTTP API</summary>
@@ -330,6 +330,12 @@ brew install lz-wang/tap/itb
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | 监听地址 |
+| `--max-upload` | `64MiB` | 最大 multipart 请求大小 |
+| `--max-pixels` | `50000000` | 最大图片像素数 |
+| `--max-dimension` | `16384` | 最大图片单边尺寸 |
+| `--max-concurrent` | `2` | 最大并发图片操作数 |
+| `--timeout` | `2m` | 单个图片操作超时 |
+| `--no-auth` | `false` | 仅 loopback 本地开发时禁用认证 |
 
 API 统一前缀 `/api/v1`，例如健康检查：
 
@@ -337,7 +343,15 @@ API 统一前缀 `/api/v1`，例如健康检查：
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-图片处理端点使用 `multipart/form-data`，处理结果直接以图片二进制流返回。完整 API 参数和 VPS 部署说明将在 `docs/api.md` 与 `docs/deployment.md` 中维护。
+图片处理端点使用与 CLI long flag 同名的 `multipart/form-data` 字段，处理结果以流式二进制响应返回。完整参数与部署说明见 [API 文档](docs/api.md) 和 [VPS 部署文档](docs/deployment.md)。
+
+```bash
+curl -H "Authorization: Bearer $ITB_API_TOKEN" \
+  -F 'input=@photo.png' \
+  -F 'to=webp' \
+  -F 'quality=80' \
+  https://itb.example.com/api/v1/convert -o photo.webp
+```
 
 </details>
 
