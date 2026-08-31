@@ -530,6 +530,8 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 写盘错误、校验不通过）都会删除临时文件，目标路径不会留下 partial 文件。
 `--verify` / `--verify-sha256` 哈希不一致时返回校验错误（`ErrChecksumMismatch`），
 这才是对 body 字节的真正完整性校验（upload 的 `--verify` 只校验 header/metadata）。
+`--verify-sha256` 必须是 64 个十六进制字符（32 字节）的合法 SHA-256 digest，
+否则在任何网络请求之前返回参数错误（`ErrInvalidSHA256`）。
 
 <details>
 <summary>download 参数</summary>
@@ -539,7 +541,7 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 | `-k, --key` | 对象键名（必填） |
 | `-o, --output` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
 | `--verify` | 读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对 |
-| `--verify-sha256` | 期望的十六进制 SHA-256，独立于对象 metadata 的完整性校验 |
+| `--verify-sha256` | 期望的 SHA-256（64 个十六进制字符），独立于对象 metadata 的完整性校验 |
 | `--format` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.download.v1`） |
 
 </details>

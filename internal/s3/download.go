@@ -87,8 +87,12 @@ func Download(ctx context.Context, client *Client, key string, outputPath string
 		return nil, ErrMissingKey
 	}
 	if opts != nil && opts.VerifySHA256 != "" {
-		if _, err := hex.DecodeString(opts.VerifySHA256); err != nil {
-			return nil, fmt.Errorf("--verify-sha256 must be a hex SHA-256 digest: %w", err)
+		// 严格要求 64 个十六进制字符（32 字节）："0000" 这类短串
+		// 不是 SHA-256 digest，必须在参数阶段拒绝，否则只能等下载
+		// 完成后误报 checksum mismatch。
+		digest, err := hex.DecodeString(opts.VerifySHA256)
+		if err != nil || len(digest) != sha256.Size {
+			return nil, fmt.Errorf("%w: --verify-sha256 must be 64 hex characters, got %q", ErrInvalidSHA256, opts.VerifySHA256)
 		}
 	}
 

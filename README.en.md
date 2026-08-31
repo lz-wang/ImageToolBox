@@ -538,7 +538,9 @@ Downloads stream into a temp file in the output directory and rename into place
 on success; any failure (network interruption, write error, checksum mismatch)
 removes the temp file, so the target path never holds a partial file. A hash
 mismatch fails with `ErrChecksumMismatch` — this is the real body-integrity
-check (upload `--verify` only checks headers/metadata).
+check (upload `--verify` only checks headers/metadata). `--verify-sha256` must
+be a valid SHA-256 digest (64 hex characters / 32 bytes); anything else fails
+with `ErrInvalidSHA256` before any network request is made.
 
 <details>
 <summary>download options</summary>
@@ -548,7 +550,7 @@ check (upload `--verify` only checks headers/metadata).
 | `-k, --key` | Object key (required) |
 | `-o, --output` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
 | `--verify` | Read the object's itb-sha256 metadata and compare the SHA-256 computed while streaming |
-| `--verify-sha256` | Expected hex SHA-256, independent of object metadata |
+| `--verify-sha256` | Expected SHA-256 (64 hex characters), independent of object metadata |
 | `--format` | Output format: `table` / `json` (JSON contract `itb.s3.download.v1`) |
 
 </details>

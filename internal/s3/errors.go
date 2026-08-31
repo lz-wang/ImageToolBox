@@ -56,6 +56,11 @@ var (
 	// metadata（--verify）或期望值（--verify-sha256）不一致。
 	// 失败时本次下载的 partial 文件已被删除。
 	ErrChecksumMismatch = errors.New("checksum mismatch")
+
+	// ErrInvalidSHA256 --verify-sha256 参数不是合法的 SHA-256 digest
+	//（64 个十六进制字符 / 32 字节）。参数错误必须在任何网络请求
+	// 之前失败，而不是等下载完成后才变成 checksum mismatch。
+	ErrInvalidSHA256 = errors.New("invalid SHA-256 digest")
 )
 
 // WrapError 包装 S3 API 错误，提供更友好的错误信息。

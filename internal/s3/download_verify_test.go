@@ -106,9 +106,24 @@ func TestDownloadVerifySHA256(t *testing.T) {
 		dir := t.TempDir()
 		output := filepath.Join(dir, "hello.txt")
 
+		// 64 位十六进制但内容错误：格式合法，必须走到 checksum 比对
+		_, err := Download(context.Background(), client, "hello.txt", output, &DownloadOptions{VerifySHA256: strings.Repeat("0", 64)})
+		if !errors.Is(err, ErrChecksumMismatch) {
+			t.Fatalf("got %v, want ErrChecksumMismatch", err)
+		}
+		assertNoLeftovers(t, dir, output)
+	})
+
+	t.Run("短 digest 报参数错误而非 checksum mismatch", func(t *testing.T) {
+		_, client := newDownloadTestServer(t, []byte(helloContent))
+		dir := t.TempDir()
+		output := filepath.Join(dir, "hello.txt")
+
+		// "0000" 不是 SHA-256 digest（须为 64 hex 字符 / 32 字节），
+		// 必须在参数校验阶段失败，而不是等下载完才报 checksum mismatch
 		_, err := Download(context.Background(), client, "hello.txt", output, &DownloadOptions{VerifySHA256: "0000"})
-		if err == nil {
-			t.Fatal("expected checksum error")
+		if !errors.Is(err, ErrInvalidSHA256) {
+			t.Fatalf("got %v, want ErrInvalidSHA256（\"0000\" 不是 32 字节 digest）", err)
 		}
 		assertNoLeftovers(t, dir, output)
 	})
@@ -119,8 +134,8 @@ func TestDownloadVerifySHA256(t *testing.T) {
 		output := filepath.Join(dir, "hello.txt")
 
 		_, err := Download(context.Background(), client, "hello.txt", output, &DownloadOptions{VerifySHA256: "not-hex"})
-		if err == nil || errors.Is(err, ErrChecksumMismatch) {
-			t.Fatalf("expected format error, got %v", err)
+		if !errors.Is(err, ErrInvalidSHA256) {
+			t.Fatalf("got %v, want ErrInvalidSHA256", err)
 		}
 		assertNoLeftovers(t, dir, output)
 	})
@@ -137,7 +152,7 @@ func TestDownloadVerifySHA256(t *testing.T) {
 		}
 
 		output2 := filepath.Join(dir, "hello2.txt")
-		_, err := Download(context.Background(), client, "hello.txt", output2, &DownloadOptions{Verify: true, VerifySHA256: "1111"})
+		_, err := Download(context.Background(), client, "hello.txt", output2, &DownloadOptions{Verify: true, VerifySHA256: strings.Repeat("1", 64)})
 		if !errors.Is(err, ErrChecksumMismatch) {
 			t.Fatalf("got %v, want ErrChecksumMismatch", err)
 		}
