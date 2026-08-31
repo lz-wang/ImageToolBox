@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"image"
 	"net/http"
@@ -326,6 +327,136 @@ func TestOperationAdmission(t *testing.T) {
 	})
 }
 
+func TestInspectSemantics(t *testing.T) {
+	post := func(t *testing.T, fields map[string]string, file formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/inspect", fields, file))
+		return w
+	}
+	t.Run("gif inspect succeeds", func(t *testing.T) {
+		w := post(t, nil, formFile{field: "input", filename: "a.gif", content: testGIF(t, 32, 16)})
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var result struct {
+			Image *struct {
+				Format string `json:"format"`
+				Width  int    `json:"width"`
+				Height int    `json:"height"`
+			} `json:"image"`
+			Error json.RawMessage `json:"error"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if result.Image == nil || result.Image.Format != "gif" || result.Image.Width != 32 {
+			t.Fatalf("image = %+v, want gif 32x16", result.Image)
+		}
+		if len(result.Error) > 0 && string(result.Error) != "null" {
+			t.Fatalf("unexpected error field: %s", result.Error)
+		}
+	})
+	t.Run("invalid image with strict=false returns metadata and error", func(t *testing.T) {
+		w := post(t, nil, formFile{field: "input", filename: "junk.bin", content: []byte("not an image")})
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var result struct {
+			File struct {
+				Name string `json:"name"`
+			} `json:"file"`
+			Image *json.RawMessage `json:"image"`
+			Error *struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if result.File.Name != "junk.bin" {
+			t.Fatalf("file.name = %q, want junk.bin", result.File.Name)
+		}
+		if result.Image != nil {
+			t.Fatalf("image = %s, want absent", *result.Image)
+		}
+		if result.Error == nil || result.Error.Code != "decode_config_failed" {
+			t.Fatalf("error = %+v, want decode_config_failed", result.Error)
+		}
+	})
+	t.Run("invalid image with strict=true is rejected", func(t *testing.T) {
+		w := post(t, map[string]string{"strict": "true"}, formFile{field: "input", filename: "junk.bin", content: []byte("not an image")})
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+	t.Run("oversized image is rejected", func(t *testing.T) {
+		w := post(t, map[string]string{"no-hash": "true"}, formFile{field: "input", filename: "huge.png", content: pngHeader(t, 100000, 100000)})
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+}
+
+func TestErrorStatusMapping(t *testing.T) {
+	post := func(t *testing.T, path string, fields map[string]string, file formFile) (*httptest.ResponseRecorder, string) {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, path, fields, file))
+		return w, decodeJSONError(t, w.Body.Bytes())
+	}
+	t.Run("gif transform input is unsupported format", func(t *testing.T) {
+		w, code := post(t, "/api/v1/resize", map[string]string{"width": "16"}, formFile{field: "input", filename: "a.gif", content: testGIF(t, 32, 16)})
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusUnsupportedMediaType, w.Body.String())
+		}
+		if code != "unsupported_format" {
+			t.Fatalf("error code = %q, want unsupported_format", code)
+		}
+	})
+	t.Run("junk transform input is unsupported format", func(t *testing.T) {
+		w, code := post(t, "/api/v1/resize", map[string]string{"width": "16"}, formFile{field: "input", filename: "a.bin", content: []byte("junk")})
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusUnsupportedMediaType, w.Body.String())
+		}
+		if code != "unsupported_format" {
+			t.Fatalf("error code = %q, want unsupported_format", code)
+		}
+	})
+	t.Run("gif compress input is unsupported format", func(t *testing.T) {
+		w, code := post(t, "/api/v1/compress", nil, formFile{field: "input", filename: "a.gif", content: testGIF(t, 32, 16)})
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusUnsupportedMediaType, w.Body.String())
+		}
+		if code != "unsupported_format" {
+			t.Fatalf("error code = %q, want unsupported_format", code)
+		}
+	})
+	t.Run("oversized transform input is image too large", func(t *testing.T) {
+		w, code := post(t, "/api/v1/resize", map[string]string{"width": "16"}, formFile{field: "input", filename: "huge.png", content: pngHeader(t, 100000, 100000)})
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("parameter error stays invalid argument", func(t *testing.T) {
+		w, code := post(t, "/api/v1/resize", map[string]string{"width": "abc"}, formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)})
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+		if code != "invalid_argument" {
+			t.Fatalf("error code = %q, want invalid_argument", code)
+		}
+	})
+}
+
 func TestAdmitImageTypedErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "input.png")
@@ -338,15 +469,29 @@ func TestAdmitImageTypedErrors(t *testing.T) {
 			t.Fatalf("admitImage error = %v, want ErrImageTooLarge", err)
 		}
 	})
-	t.Run("unsupported input wraps imageio.ErrUnsupportedFormat", func(t *testing.T) {
+	t.Run("undecodable input wraps imageio.ErrUnsupportedFormat", func(t *testing.T) {
+		junkPath := filepath.Join(dir, "input.bin")
+		if err := os.WriteFile(junkPath, []byte("this is not an image"), 0o600); err != nil {
+			t.Fatalf("write junk: %v", err)
+		}
+		_, err := imageio.Probe(junkPath)
+		if !errors.Is(err, imageio.ErrUnsupportedFormat) {
+			t.Fatalf("Probe(junk) error = %v, want imageio.ErrUnsupportedFormat", err)
+		}
+	})
+	t.Run("probe reports raw formats without encode normalization", func(t *testing.T) {
 		gifPath := filepath.Join(dir, "input.gif")
-		// GIF 能被 image.DecodeConfig 识别，但不在 imageio 支持的编码集合内。
+		// GIF 能被 image.DecodeConfig 识别；Probe 只报告识别结果，
+		// 不做受支持编码集合的归一化（那是 NormalizeFormat 的职责）。
 		if err := os.WriteFile(gifPath, testGIF(t, 32, 16), 0o600); err != nil {
 			t.Fatalf("write gif: %v", err)
 		}
-		_, err := imageio.Probe(gifPath)
-		if !errors.Is(err, imageio.ErrUnsupportedFormat) {
-			t.Fatalf("Probe(gif) error = %v, want imageio.ErrUnsupportedFormat", err)
+		info, err := imageio.Probe(gifPath)
+		if err != nil {
+			t.Fatalf("Probe(gif) error = %v", err)
+		}
+		if info.Format != "gif" || info.Width != 32 || info.Height != 16 {
+			t.Fatalf("Probe(gif) = %+v, want format=gif 32x16", info)
 		}
 	})
 	t.Run("within limits passes", func(t *testing.T) {

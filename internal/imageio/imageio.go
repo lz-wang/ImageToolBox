@@ -36,12 +36,17 @@ type SaveOptions struct {
 
 // Info is lightweight image metadata decoded without loading pixel data.
 type Info struct {
-	Format Format
+	// Format 是 image decoder 识别出的原始格式名（jpeg/png/gif/webp/...）。
+	// Probe 只报告识别结果；格式能否被编码属于 Format/NormalizeFormat 的
+	// 职责，两个概念不应绑定。
+	Format string
 	Width  int
 	Height int
 }
 
-// Probe decodes image configuration for resource admission checks.
+// Probe decodes image configuration for resource admission checks. It only
+// reports what the image decoder recognizes; it does not normalize the format
+// against the supported encode set.
 func Probe(path string) (Info, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -50,13 +55,12 @@ func Probe(path string) (Info, error) {
 	defer f.Close()
 	config, format, err := image.DecodeConfig(f)
 	if err != nil {
+		if errors.Is(err, image.ErrFormat) {
+			return Info{}, fmt.Errorf("%w: 无法识别的图片数据", ErrUnsupportedFormat)
+		}
 		return Info{}, err
 	}
-	normalized, err := NormalizeFormat(format)
-	if err != nil {
-		return Info{}, err
-	}
-	return Info{Format: normalized, Width: config.Width, Height: config.Height}, nil
+	return Info{Format: format, Width: config.Width, Height: config.Height}, nil
 }
 
 // SuffixedPath returns a path in the input directory with suffix before its extension.

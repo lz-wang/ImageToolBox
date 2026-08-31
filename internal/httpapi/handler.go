@@ -174,7 +174,7 @@ func imageHandler(cfg Config, operationName string, op operation) http.HandlerFu
 			return
 		}
 		if err := admitImage(f.files["input"].Path, cfg); err != nil {
-			writeError(w, http.StatusRequestEntityTooLarge, err)
+			writeError(w, operationErrorStatus(err), err)
 			return
 		}
 		if err := r.Context().Err(); err != nil {
@@ -194,17 +194,19 @@ func imageHandler(cfg Config, operationName string, op operation) http.HandlerFu
 	}
 }
 
+// operationErrorStatus 统一把领域/准入错误映射为 HTTP 状态码，
+// 全部基于 typed errors 判别，不做字符串匹配。
 func operationErrorStatus(err error) int {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return http.StatusGatewayTimeout
-	}
-	if errors.Is(err, ErrImageTooLarge) {
+	case errors.Is(err, ErrImageTooLarge):
 		return http.StatusRequestEntityTooLarge
-	}
-	if strings.Contains(err.Error(), "不支持") {
+	case errors.Is(err, imageio.ErrUnsupportedFormat), errors.Is(err, compress.ErrUnsupportedFormat):
 		return http.StatusUnsupportedMediaType
+	default:
+		return http.StatusBadRequest
 	}
-	return http.StatusBadRequest
 }
 
 func multipartErrorStatus(err error) int {
@@ -345,7 +347,7 @@ func (f form) input(allowed ...string) (uploadedFile, error) {
 	}
 	file := f.files["input"]
 	if file.Path == "" {
-		return uploadedFile{}, fmt.Errorf("missing input")
+		return uploadedFile{}, errMissingInput
 	}
 	return file, nil
 }
@@ -551,9 +553,14 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, 400, err)
 			return
 		}
-		if err := admitImage(input.Path, cfg); err != nil {
-			writeError(w, http.StatusRequestEntityTooLarge, err)
-			return
+		// inspect 的 Probe 是可选的尺寸检查：识别成功才执行限制；
+		// 识别失败不提前终止，交给 inspect.File 按 strict 语义决定
+		// 是返回 metadata+error 还是直接报错。
+		if info, err := imageio.Probe(input.Path); err == nil {
+			if err := validateImageSize(info.Width, info.Height, cfg); err != nil {
+				writeError(w, operationErrorStatus(err), err)
+				return
+			}
 		}
 		if err := r.Context().Err(); err != nil {
 			writeError(w, http.StatusGatewayTimeout, err)
@@ -587,7 +594,9 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 		}
 		result, err := inspect.File(input.Path, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
 		if err != nil {
-			writeError(w, operationErrorStatus(err), err)
+			// strict=true 时解析失败在此报错；其余失败（路径/读取等）
+			// 同样归为客户端输入问题。
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		if err := r.Context().Err(); err != nil {
@@ -625,7 +634,7 @@ func writeError(w http.ResponseWriter, status int, err error) {
 func errorResponse(status int, err error) (string, string) {
 	switch status {
 	case http.StatusBadRequest:
-		if strings.Contains(err.Error(), "missing input") {
+		if errors.Is(err, errMissingInput) {
 			return "missing_input", "input is required"
 		}
 		return "invalid_argument", err.Error()

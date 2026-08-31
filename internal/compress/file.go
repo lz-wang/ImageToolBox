@@ -74,7 +74,7 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 	case "jpeg":
 		err = compressJPEGTo(ctx, inputPath, outputPath, opts.Quality)
 	default:
-		err = fmt.Errorf("不支持的图片格式: %s", format)
+		err = fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
 	}
 	if err != nil {
 		return Result{}, err

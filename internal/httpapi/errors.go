@@ -10,4 +10,6 @@ var (
 	ErrPayloadTooLarge = errors.New("payload too large")
 	// ErrImageTooLarge 表示图片尺寸或像素数超过服务限制。
 	ErrImageTooLarge = errors.New("image too large")
+	// errMissingInput 表示请求缺少必填的 input 文件。
+	errMissingInput = errors.New("missing input")
 )
