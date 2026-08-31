@@ -2,6 +2,7 @@ package compress
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 
 // PNGOptions PNG 压缩选项
 type PNGOptions struct {
+	Context     context.Context
 	Quality     int // 质量 1-100
 	OxiPngLevel int // oxipng 优化级别 0-6
 	Input       io.Reader
@@ -41,7 +43,7 @@ func runPngQuant(opts PNGOptions) (*bytes.Buffer, error) {
 	// 将单一质量值转换为 min-max 范围
 	qualityRange := fmt.Sprintf("%d-%d", opts.Quality, 100)
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(commandContext(opts.Context),
 		binPath,
 		"--quality", qualityRange,
 		"--speed", "1",
@@ -66,7 +68,7 @@ func runOxiPng(input *bytes.Buffer, opts PNGOptions) error {
 		return err
 	}
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(commandContext(opts.Context),
 		binPath,
 		fmt.Sprintf("-o%d", opts.OxiPngLevel),
 		"--strip", "all",
@@ -77,4 +79,11 @@ func runOxiPng(input *bytes.Buffer, opts PNGOptions) error {
 	cmd.Stdin = input
 	cmd.Stdout = opts.Output
 	return runCommand(cmd)
+}
+
+func commandContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }

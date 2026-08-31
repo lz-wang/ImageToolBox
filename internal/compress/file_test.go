@@ -1,6 +1,10 @@
 package compress
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+)
 
 func TestFileOptionsNormalizeAndValidate(t *testing.T) {
 	tests := []struct {
@@ -26,5 +30,14 @@ func TestFileOptionsNormalizeAndValidate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestCompressFileStopsBeforeStartingCommandsWhenContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := CompressFile(ctx, "missing.png", "output.png", FileOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("CompressFile() error = %v, want context.Canceled", err)
 	}
 }

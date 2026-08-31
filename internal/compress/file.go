@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"context"
 	"fmt"
 	"os"
 )
@@ -36,7 +37,11 @@ type Result struct {
 
 // CompressFile 检测输入图片格式（PNG/JPEG），执行对应的压缩管道并写入 outputPath。
 // 供 CLI 与 Web API 共用；原地覆盖（输出回输入路径）由调用方自行处理。
-func CompressFile(inputPath, outputPath string, opts FileOptions) (Result, error) {
+func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOptions) (Result, error) {
+	ctx = commandContext(ctx)
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	opts.Normalize()
 	if err := opts.Validate(); err != nil {
 		return Result{}, err
@@ -59,16 +64,22 @@ func CompressFile(inputPath, outputPath string, opts FileOptions) (Result, error
 	if err != nil {
 		return Result{}, fmt.Errorf("无法检测图片格式: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 
 	switch format {
 	case "png":
-		err = compressPNGTo(inputPath, outputPath, opts.Quality)
+		err = compressPNGTo(ctx, inputPath, outputPath, opts.Quality)
 	case "jpeg":
-		err = compressJPEGTo(inputPath, outputPath, opts.Quality)
+		err = compressJPEGTo(ctx, inputPath, outputPath, opts.Quality)
 	default:
 		err = fmt.Errorf("不支持的图片格式: %s", format)
 	}
 	if err != nil {
+		return Result{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 
@@ -84,7 +95,7 @@ func CompressFile(inputPath, outputPath string, opts FileOptions) (Result, error
 	}, nil
 }
 
-func compressPNGTo(inputPath, outputPath string, quality int) error {
+func compressPNGTo(ctx context.Context, inputPath, outputPath string, quality int) error {
 	input, err := os.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("无法打开输入文件: %w", err)
@@ -98,6 +109,7 @@ func compressPNGTo(inputPath, outputPath string, quality int) error {
 	defer output.Close()
 
 	return CompressPNG(PNGOptions{
+		Context:     ctx,
 		Quality:     quality,
 		OxiPngLevel: 4,
 		Input:       input,
@@ -105,7 +117,7 @@ func compressPNGTo(inputPath, outputPath string, quality int) error {
 	})
 }
 
-func compressJPEGTo(inputPath, outputPath string, quality int) error {
+func compressJPEGTo(ctx context.Context, inputPath, outputPath string, quality int) error {
 	output, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("无法创建输出文件: %w", err)
@@ -113,6 +125,7 @@ func compressJPEGTo(inputPath, outputPath string, quality int) error {
 	defer output.Close()
 
 	return CompressJPEG(JPEGOptions{
+		Context:     ctx,
 		Quality:     quality,
 		Progressive: true,
 		Optimize:    true,

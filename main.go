@@ -5,6 +5,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"imagetoolbox/internal/cmd"
 	"imagetoolbox/internal/compress"
@@ -18,7 +20,9 @@ var version = "dev"
 func main() {
 	compress.InitBinaries(binaries)
 
-	if err := cmd.Execute(context.Background(), version); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := cmd.Execute(ctx, version); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

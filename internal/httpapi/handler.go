@@ -114,7 +114,7 @@ type form struct {
 	values map[string]string
 	files  map[string]string
 }
-type operation func(form, string) (string, string, int64, error)
+type operation func(context.Context, form, string) (string, string, int64, error)
 
 func imageHandler(cfg Config, op operation) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -133,9 +133,17 @@ func imageHandler(cfg Config, op operation) http.HandlerFunc {
 			writeError(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
-		path, name, inputSize, err := op(f, dir)
+		if err := r.Context().Err(); err != nil {
+			writeError(w, http.StatusGatewayTimeout, err)
+			return
+		}
+		path, name, inputSize, err := op(r.Context(), f, dir)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := r.Context().Err(); err != nil {
+			writeError(w, http.StatusGatewayTimeout, err)
 			return
 		}
 		serveFile(w, path, name, inputSize)
@@ -269,7 +277,7 @@ func (f form) bool(name string) (bool, error) {
 	return strconv.ParseBool(f.values[name])
 }
 
-func compressImage(f form, dir string) (string, string, int64, error) {
+func compressImage(ctx context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "quality")
 	if err != nil {
 		return "", "", 0, err
@@ -279,10 +287,10 @@ func compressImage(f form, dir string) (string, string, int64, error) {
 		return "", "", 0, err
 	}
 	output := filepath.Join(dir, "output"+filepath.Ext(input))
-	result, err := compress.CompressFile(input, output, compress.FileOptions{Quality: quality})
+	result, err := compress.CompressFile(ctx, input, output, compress.FileOptions{Quality: quality})
 	return output, filepath.Base(input), result.InputSize, err
 }
-func resizeImage(f form, dir string) (string, string, int64, error) {
+func resizeImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "width", "height", "percent", "mode", "anchor", "filter")
 	if err != nil {
 		return "", "", 0, err
@@ -300,7 +308,7 @@ func resizeImage(f form, dir string) (string, string, int64, error) {
 	err = resize.ResizeFile(input, output, resize.Options{Width: width, Height: height, Percent: f.values["percent"], Mode: resize.Mode(f.values["mode"]), Anchor: f.values["anchor"], Filter: f.values["filter"]})
 	return output, name, fileSize(input), err
 }
-func cropImage(f form, dir string) (string, string, int64, error) {
+func cropImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "anchor", "width", "height")
 	if err != nil {
 		return "", "", 0, err
@@ -310,7 +318,7 @@ func cropImage(f form, dir string) (string, string, int64, error) {
 	_, err = crop.CropFile(input, output, crop.Options{Anchor: crop.Anchor(f.values["anchor"]), Width: f.values["width"], Height: f.values["height"]})
 	return output, name, fileSize(input), err
 }
-func convertImage(f form, dir string) (string, string, int64, error) {
+func convertImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "to", "quality", "lossless", "background")
 	if err != nil {
 		return "", "", 0, err
@@ -330,7 +338,7 @@ func convertImage(f form, dir string) (string, string, int64, error) {
 	err = convert.ConvertFile(input, output, convert.Options{To: f.values["to"], Quality: quality, Lossless: lossless, Background: f.values["background"]})
 	return output, filepath.Base(output), fileSize(input), err
 }
-func watermarkImage(f form, dir string) (string, string, int64, error) {
+func watermarkImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "text", "image", "mode", "color", "space", "angle", "opacity", "font", "font-size", "position", "margin", "scale")
 	if err != nil {
 		return "", "", 0, err
@@ -393,6 +401,10 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
+		if err := r.Context().Err(); err != nil {
+			writeError(w, http.StatusGatewayTimeout, err)
+			return
+		}
 		detail, err := f.bool("detail")
 		if err != nil {
 			writeError(w, 400, err)
@@ -422,6 +434,10 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 		result, err := inspect.File(input, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
 		if err != nil {
 			writeError(w, 400, err)
+			return
+		}
+		if err := r.Context().Err(); err != nil {
+			writeError(w, http.StatusGatewayTimeout, err)
 			return
 		}
 		result.File.Path = filepath.Base(result.File.Path)

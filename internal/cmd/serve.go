@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/httpapi"
@@ -44,7 +45,7 @@ func newServeCommand() *cli.Command {
 	}
 }
 
-func runServe(_ context.Context, cmd *cli.Command) error {
+func runServe(ctx context.Context, cmd *cli.Command) error {
 	addr := cmd.String("addr")
 	noAuth := cmd.Bool("no-auth")
 	if noAuth && !isLoopbackAddress(addr) {
@@ -59,16 +60,33 @@ func runServe(_ context.Context, cmd *cli.Command) error {
 		return err
 	}
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: httpapi.New(httpapi.Config{Token: token, NoAuth: noAuth, MaxUpload: maxUpload, MaxPixels: cmd.Int64("max-pixels"), MaxDimension: cmd.Int("max-dimension"), MaxConcurrent: cmd.Int("max-concurrent"), Timeout: cmd.Duration("timeout")}),
+		Addr:              addr,
+		Handler:           httpapi.New(httpapi.Config{Token: token, NoAuth: noAuth, MaxUpload: maxUpload, MaxPixels: cmd.Int64("max-pixels"), MaxDimension: cmd.Int("max-dimension"), MaxConcurrent: cmd.Int("max-concurrent"), Timeout: cmd.Duration("timeout")}),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	url := "http://" + addr
 	fmt.Printf("Image Tool Box HTTP API 已启动: %s/api/v1/health\n", url)
 	fmt.Println("按 Ctrl+C 停止")
 
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("启动 HTTP API 失败: %w", err)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ListenAndServe()
+	}()
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("关闭 HTTP API 失败: %w", err)
+		}
+		return nil
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("启动 HTTP API 失败: %w", err)
+		}
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package compress
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 // JPEGOptions JPEG 压缩选项
 type JPEGOptions struct {
+	Context     context.Context
 	Quality     int    // 压缩质量 1-100
 	Progressive bool   // 是否使用渐进式编码
 	Optimize    bool   // 是否优化霍夫曼表
@@ -43,10 +45,10 @@ func CompressJPEG(opts JPEGOptions) error {
 	}
 
 	// djpeg 读取文件，输出到 stdout
-	djpegCmd := exec.Command(djpegPath, opts.InputPath)
+	djpegCmd := exec.CommandContext(commandContext(opts.Context), djpegPath, opts.InputPath)
 
 	// cjpeg 从 stdin 读取，输出到 stdout
-	cjpegCmd := exec.Command(cjpegPath, cjpegArgs...)
+	cjpegCmd := exec.CommandContext(commandContext(opts.Context), cjpegPath, cjpegArgs...)
 
 	// 连接管道：djpeg stdout -> cjpeg stdin
 	pipe, err := djpegCmd.StdoutPipe()

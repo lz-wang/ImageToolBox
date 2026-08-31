@@ -87,7 +87,7 @@ func runCompress(ctx context.Context, cmd *cli.Command) error {
 		outputPath = imageio.SuffixedPath(inputFile, "_compressed")
 	}
 
-	result, err := compress.CompressFile(inputFile, outputPath, compress.FileOptions{Quality: cmd.Int("quality")})
+	result, err := compress.CompressFile(ctx, inputFile, outputPath, compress.FileOptions{Quality: cmd.Int("quality")})
 	if err != nil {
 		if tmpPath != "" {
 			os.Remove(tmpPath)
