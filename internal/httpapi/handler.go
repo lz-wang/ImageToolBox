@@ -2,7 +2,10 @@
 package httpapi
 
 import (
+	"context"
+	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -12,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"imagetoolbox/internal/compress"
 	"imagetoolbox/internal/convert"
@@ -22,20 +26,84 @@ import (
 	"imagetoolbox/internal/watermark"
 )
 
-// Config configures the HTTP adapter. Security limits are added by serve configuration.
-type Config struct{}
+const (
+	DefaultMaxUpload     int64 = 64 << 20
+	DefaultMaxPixels     int64 = 50_000_000
+	DefaultMaxDimension        = 16_384
+	DefaultMaxConcurrent       = 2
+	DefaultTimeout             = 2 * time.Minute
+)
+
+// Config configures the trusted remote HTTP API.
+type Config struct {
+	Token         string
+	NoAuth        bool
+	MaxUpload     int64
+	MaxPixels     int64
+	MaxDimension  int
+	MaxConcurrent int
+	Timeout       time.Duration
+}
 
 // New creates the versioned Image Tool Box HTTP API.
-func New(Config) http.Handler {
+func New(cfg Config) http.Handler {
+	cfg.normalize()
+	sem := make(chan struct{}, cfg.MaxConcurrent)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", health)
-	mux.HandleFunc("POST /api/v1/compress", imageHandler(compressImage))
-	mux.HandleFunc("POST /api/v1/resize", imageHandler(resizeImage))
-	mux.HandleFunc("POST /api/v1/crop", imageHandler(cropImage))
-	mux.HandleFunc("POST /api/v1/convert", imageHandler(convertImage))
-	mux.HandleFunc("POST /api/v1/watermark", imageHandler(watermarkImage))
-	mux.HandleFunc("POST /api/v1/inspect", inspectImage)
+	mux.HandleFunc("POST /api/v1/compress", protected(cfg, sem, imageHandler(cfg, compressImage)))
+	mux.HandleFunc("POST /api/v1/resize", protected(cfg, sem, imageHandler(cfg, resizeImage)))
+	mux.HandleFunc("POST /api/v1/crop", protected(cfg, sem, imageHandler(cfg, cropImage)))
+	mux.HandleFunc("POST /api/v1/convert", protected(cfg, sem, imageHandler(cfg, convertImage)))
+	mux.HandleFunc("POST /api/v1/watermark", protected(cfg, sem, imageHandler(cfg, watermarkImage)))
+	mux.HandleFunc("POST /api/v1/inspect", protected(cfg, sem, inspectHandler(cfg)))
 	return mux
+}
+
+func (c *Config) normalize() {
+	if c.MaxUpload == 0 {
+		c.MaxUpload = DefaultMaxUpload
+	}
+	if c.MaxPixels == 0 {
+		c.MaxPixels = DefaultMaxPixels
+	}
+	if c.MaxDimension == 0 {
+		c.MaxDimension = DefaultMaxDimension
+	}
+	if c.MaxConcurrent == 0 {
+		c.MaxConcurrent = DefaultMaxConcurrent
+	}
+	if c.Timeout == 0 {
+		c.Timeout = DefaultTimeout
+	}
+}
+
+func protected(cfg Config, sem chan struct{}, next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !cfg.NoAuth && !authorized(r, cfg.Token) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			writeError(w, http.StatusUnauthorized, fmt.Errorf("unauthorized"))
+			return
+		}
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+		default:
+			w.Header().Set("Retry-After", "1")
+			writeError(w, http.StatusTooManyRequests, fmt.Errorf("busy"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), cfg.Timeout)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+func authorized(r *http.Request, token string) bool {
+	if token == "" {
+		return false
+	}
+	value := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return len(value) == len(token) && subtle.ConstantTimeCompare([]byte(value), []byte(token)) == 1
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {
@@ -48,7 +116,7 @@ type form struct {
 }
 type operation func(form, string) (string, string, int64, error)
 
-func imageHandler(op operation) http.HandlerFunc {
+func imageHandler(cfg Config, op operation) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		dir, err := os.MkdirTemp("", "itb-api-*")
 		if err != nil {
@@ -56,9 +124,13 @@ func imageHandler(op operation) http.HandlerFunc {
 			return
 		}
 		defer os.RemoveAll(dir)
-		f, err := parseMultipart(r, dir)
+		f, err := parseMultipart(w, r, dir, cfg)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			writeError(w, multipartErrorStatus(err), err)
+			return
+		}
+		if err := admitImage(f.files["input"], cfg); err != nil {
+			writeError(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
 		path, name, inputSize, err := op(f, dir)
@@ -70,7 +142,16 @@ func imageHandler(op operation) http.HandlerFunc {
 	}
 }
 
-func parseMultipart(r *http.Request, dir string) (form, error) {
+func multipartErrorStatus(err error) int {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return http.StatusRequestEntityTooLarge
+	}
+	return http.StatusBadRequest
+}
+
+func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Config) (form, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxUpload)
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return form{}, fmt.Errorf("Content-Type must be multipart/form-data")
 	}
@@ -125,6 +206,20 @@ func parseMultipart(r *http.Request, dir string) (form, error) {
 		f.files[name] = path
 	}
 	return f, nil
+}
+
+func admitImage(path string, cfg Config) error {
+	if path == "" {
+		return nil
+	}
+	info, err := imageio.Probe(path)
+	if err != nil {
+		return err
+	}
+	if info.Width > cfg.MaxDimension || info.Height > cfg.MaxDimension || int64(info.Width)*int64(info.Height) > cfg.MaxPixels {
+		return fmt.Errorf("image exceeds configured limits")
+	}
+	return nil
 }
 
 func (f form) input(allowed ...string) (string, error) {
@@ -276,57 +371,63 @@ func intPtr(raw string, value int) *int {
 	return &value
 }
 
-func inspectImage(w http.ResponseWriter, r *http.Request) {
-	dir, err := os.MkdirTemp("", "itb-api-*")
-	if err != nil {
-		writeError(w, 500, err)
-		return
+func inspectHandler(cfg Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		dir, err := os.MkdirTemp("", "itb-api-*")
+		if err != nil {
+			writeError(w, 500, err)
+			return
+		}
+		defer os.RemoveAll(dir)
+		f, err := parseMultipart(w, r, dir, cfg)
+		if err != nil {
+			writeError(w, multipartErrorStatus(err), err)
+			return
+		}
+		input, err := f.input("input", "detail", "no-detail", "no-hash", "strict")
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		if err := admitImage(input, cfg); err != nil {
+			writeError(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
+		detail, err := f.bool("detail")
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		noDetail, err := f.bool("no-detail")
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		noHash, err := f.bool("no-hash")
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		strict, err := f.bool("strict")
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		if !detail {
+			detail = true
+		}
+		if noDetail {
+			detail = false
+		}
+		result, err := inspect.File(input, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
+		if err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		result.File.Path = filepath.Base(result.File.Path)
+		result.File.AbsPath = ""
+		writeJSON(w, 200, result)
 	}
-	defer os.RemoveAll(dir)
-	f, err := parseMultipart(r, dir)
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	input, err := f.input("input", "detail", "no-detail", "no-hash", "strict")
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	detail, err := f.bool("detail")
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	noDetail, err := f.bool("no-detail")
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	noHash, err := f.bool("no-hash")
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	strict, err := f.bool("strict")
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	if !detail {
-		detail = true
-	}
-	if noDetail {
-		detail = false
-	}
-	result, err := inspect.File(input, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
-	if err != nil {
-		writeError(w, 400, err)
-		return
-	}
-	result.File.Path = filepath.Base(result.File.Path)
-	result.File.AbsPath = ""
-	writeJSON(w, 200, result)
 }
 
 func sanitizeFilename(name string) string {

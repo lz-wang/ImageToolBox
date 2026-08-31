@@ -30,6 +30,31 @@ type SaveOptions struct {
 	Flatten    bool
 }
 
+// Info is lightweight image metadata decoded without loading pixel data.
+type Info struct {
+	Format Format
+	Width  int
+	Height int
+}
+
+// Probe decodes image configuration for resource admission checks.
+func Probe(path string) (Info, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return Info{}, err
+	}
+	defer f.Close()
+	config, format, err := image.DecodeConfig(f)
+	if err != nil {
+		return Info{}, err
+	}
+	normalized, err := NormalizeFormat(format)
+	if err != nil {
+		return Info{}, err
+	}
+	return Info{Format: normalized, Width: config.Width, Height: config.Height}, nil
+}
+
 // SuffixedPath returns a path in the input directory with suffix before its extension.
 func SuffixedPath(inputPath, suffix string) string {
 	ext := filepath.Ext(inputPath)
