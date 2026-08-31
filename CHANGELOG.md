@@ -4,10 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-08-31
+
 ### Changed
 
 - HTTP API 由 Gin 迁移至 Go 标准库 `net/http`，并改用与 CLI long flag 一致的 multipart 字段。
 - 图片操作的默认值和最终校验收敛至领域包；水印改为统一文件级领域入口。
+- Linux 内嵌压缩工具的构建与 CI 门禁固定为 glibc 2.28 兼容契约；修正 Windows 内嵌二进制缓存命中。
 
 ### Added
 
