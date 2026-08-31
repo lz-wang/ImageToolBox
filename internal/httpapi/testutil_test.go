@@ -78,13 +78,16 @@ func newMultipartRequest(t *testing.T, method, target string, fields map[string]
 func decodeJSONError(t *testing.T, body []byte) string {
 	t.Helper()
 	var payload struct {
-		Error string `json:"error"`
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("decode error body %q: %v", body, err)
 	}
-	if payload.Error == "" {
-		t.Fatalf("expected non-empty error field, got %q", body)
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code and message, got %q", body)
 	}
-	return payload.Error
+	return payload.Error.Code
 }

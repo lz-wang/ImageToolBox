@@ -41,6 +41,15 @@ func TestNewMultipartContract(t *testing.T) {
 				if img.Bounds() != image.Rect(0, 0, 16, 8) {
 					t.Fatalf("bounds = %v", img.Bounds())
 				}
+				if got := w.Header().Get("X-ITB-Operation"); got != "resize" {
+					t.Fatalf("X-ITB-Operation = %q, want resize", got)
+				}
+				if got := w.Header().Get("X-ITB-Input-Size"); got == "" {
+					t.Fatal("X-ITB-Input-Size is empty")
+				}
+				if got := w.Header().Get("X-ITB-Output-Size"); got == "" {
+					t.Fatal("X-ITB-Output-Size is empty")
+				}
 			}
 		})
 	}
@@ -77,6 +86,17 @@ func TestAuthenticationAndLimits(t *testing.T) {
 					t.Fatalf("status = %d, want %d: %s", w.Code, tt.want, w.Body.String())
 				}
 			})
+		}
+	})
+	t.Run("errors use the stable structured contract", func(t *testing.T) {
+		h := New(Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/resize", nil))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "missing_input" {
+			t.Fatalf("error code = %q, want missing_input", code)
 		}
 	})
 	t.Run("oversized dimensions are rejected", func(t *testing.T) {

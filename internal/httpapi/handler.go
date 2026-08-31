@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
@@ -38,6 +39,7 @@ const (
 type Config struct {
 	Token         string
 	NoAuth        bool
+	Logger        *slog.Logger
 	MaxUpload     int64
 	MaxPixels     int64
 	MaxDimension  int
@@ -51,13 +53,13 @@ func New(cfg Config) http.Handler {
 	sem := make(chan struct{}, cfg.MaxConcurrent)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", health)
-	mux.HandleFunc("POST /api/v1/compress", protected(cfg, sem, imageHandler(cfg, compressImage)))
-	mux.HandleFunc("POST /api/v1/resize", protected(cfg, sem, imageHandler(cfg, resizeImage)))
-	mux.HandleFunc("POST /api/v1/crop", protected(cfg, sem, imageHandler(cfg, cropImage)))
-	mux.HandleFunc("POST /api/v1/convert", protected(cfg, sem, imageHandler(cfg, convertImage)))
-	mux.HandleFunc("POST /api/v1/watermark", protected(cfg, sem, imageHandler(cfg, watermarkImage)))
+	mux.HandleFunc("POST /api/v1/compress", protected(cfg, sem, imageHandler(cfg, "compress", compressImage)))
+	mux.HandleFunc("POST /api/v1/resize", protected(cfg, sem, imageHandler(cfg, "resize", resizeImage)))
+	mux.HandleFunc("POST /api/v1/crop", protected(cfg, sem, imageHandler(cfg, "crop", cropImage)))
+	mux.HandleFunc("POST /api/v1/convert", protected(cfg, sem, imageHandler(cfg, "convert", convertImage)))
+	mux.HandleFunc("POST /api/v1/watermark", protected(cfg, sem, imageHandler(cfg, "watermark", watermarkImage)))
 	mux.HandleFunc("POST /api/v1/inspect", protected(cfg, sem, inspectHandler(cfg)))
-	return mux
+	return accessLog(cfg, mux)
 }
 
 func (c *Config) normalize() {
@@ -75,6 +77,9 @@ func (c *Config) normalize() {
 	}
 	if c.Timeout == 0 {
 		c.Timeout = DefaultTimeout
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 }
 
@@ -116,7 +121,7 @@ type form struct {
 }
 type operation func(context.Context, form, string) (string, string, int64, error)
 
-func imageHandler(cfg Config, op operation) http.HandlerFunc {
+func imageHandler(cfg Config, operationName string, op operation) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		dir, err := os.MkdirTemp("", "itb-api-*")
 		if err != nil {
@@ -139,15 +144,25 @@ func imageHandler(cfg Config, op operation) http.HandlerFunc {
 		}
 		path, name, inputSize, err := op(r.Context(), f, dir)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			writeError(w, operationErrorStatus(err), err)
 			return
 		}
 		if err := r.Context().Err(); err != nil {
 			writeError(w, http.StatusGatewayTimeout, err)
 			return
 		}
-		serveFile(w, path, name, inputSize)
+		serveFile(w, r, path, name, inputSize, operationName)
 	}
+}
+
+func operationErrorStatus(err error) int {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
+	}
+	if strings.Contains(err.Error(), "不支持") {
+		return http.StatusUnsupportedMediaType
+	}
+	return http.StatusBadRequest
 }
 
 func multipartErrorStatus(err error) int {
@@ -433,7 +448,7 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 		}
 		result, err := inspect.File(input, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
 		if err != nil {
-			writeError(w, 400, err)
+			writeError(w, operationErrorStatus(err), err)
 			return
 		}
 		if err := r.Context().Err(); err != nil {
@@ -463,23 +478,101 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	code, message := errorResponse(status, err)
+	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
-func serveFile(w http.ResponseWriter, path, name string, inputSize int64) {
-	data, err := os.ReadFile(path)
+func errorResponse(status int, err error) (string, string) {
+	switch status {
+	case http.StatusBadRequest:
+		if strings.Contains(err.Error(), "missing input") {
+			return "missing_input", "input is required"
+		}
+		return "invalid_argument", err.Error()
+	case http.StatusUnauthorized:
+		return "unauthorized", "valid bearer token is required"
+	case http.StatusRequestEntityTooLarge:
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return "payload_too_large", "request exceeds the configured upload limit"
+		}
+		return "image_too_large", "image exceeds configured limits"
+	case http.StatusUnsupportedMediaType:
+		return "unsupported_format", "unsupported image format"
+	case http.StatusTooManyRequests:
+		return "busy", "too many image operations in progress"
+	case http.StatusGatewayTimeout:
+		return "timeout", "image operation timed out"
+	default:
+		return "internal_error", "internal server error"
+	}
+}
+func serveFile(w http.ResponseWriter, r *http.Request, path, name string, inputSize int64, operationName string) {
+	f, err := os.Open(path)
 	if err != nil {
-		writeError(w, 500, err)
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	contentType := mime.TypeByExtension(filepath.Ext(path))
 	if contentType == "" {
-		contentType = http.DetectContentType(data)
+		buffer := make([]byte, 512)
+		n, readErr := f.Read(buffer)
+		if readErr != nil && readErr != io.EOF {
+			writeError(w, http.StatusInternalServerError, readErr)
+			return
+		}
+		contentType = http.DetectContentType(buffer[:n])
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", contentDisposition(name))
 	w.Header().Set("X-ITB-Input-Size", strconv.FormatInt(inputSize, 10))
-	w.Header().Set("X-ITB-Output-Size", strconv.Itoa(len(data)))
-	_, _ = w.Write(data)
+	w.Header().Set("X-ITB-Output-Size", strconv.FormatInt(stat.Size(), 10))
+	w.Header().Set("X-ITB-Operation", operationName)
+	http.ServeContent(w, r, name, stat.ModTime(), f)
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int64
+}
+
+func (w *loggingResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *loggingResponseWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	n, err := w.ResponseWriter.Write(data)
+	w.bytes += int64(n)
+	return n, err
+}
+func accessLog(cfg Config, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		recorder := &loggingResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(recorder, r)
+		status := recorder.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		inputBytes := r.ContentLength
+		if inputBytes < 0 {
+			inputBytes = 0
+		}
+		cfg.Logger.Info("http_request", "method", r.Method, "path", r.URL.Path, "status", status, "duration_ms", time.Since(start).Milliseconds(), "input_bytes", inputBytes, "output_bytes", recorder.bytes, "remote_addr", r.RemoteAddr)
+	})
 }
 func contentDisposition(name string) string {
 	for _, r := range name {
