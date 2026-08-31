@@ -76,17 +76,17 @@ Linux 内置压缩器的发布 ABI 基线是 **glibc 2.28**。不要在 Ubuntu r
 
 ```bash
 ./scripts/build-linux-bins-container.sh amd64 bins/linux-amd64
-./scripts/verify-linux-abi.sh bins/linux-amd64
+./scripts/verify-linux-abi.sh amd64 bins/linux-amd64
 ```
 
 arm64 使用同样的流程：
 
 ```bash
 ./scripts/build-linux-bins-container.sh arm64 bins/linux-arm64
-./scripts/verify-linux-abi.sh bins/linux-arm64
+./scripts/verify-linux-abi.sh arm64 bins/linux-arm64
 ```
 
-构建脚本固定 Rust 1.89.0；`pngquant` 启用 `static,z-static` feature，并且 `cjpeg-static` / `djpeg-static` 静态链接 libjpeg-turbo。ABI 校验会拒绝 `GLIBC_2.29+`，也会拒绝 `libz`、`libpng`、`liblcms`、`libstdc++` 等非基础 Linux 共享库依赖。
+构建脚本固定 Rust 1.89.0 和对应 manylinux 镜像 digest；`pngquant` 启用 `static,z-static` feature，并且 `cjpeg-static` / `djpeg-static` 静态链接 libjpeg-turbo。ABI 校验会验证 ELF 架构、拒绝 `GLIBC_2.29+`，也会拒绝 `libz`、`libpng`、`liblcms`、`libstdc++` 等非基础 Linux 共享库依赖。
 
 ### 手动调试 Linux amd64
 

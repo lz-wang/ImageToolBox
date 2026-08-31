@@ -35,8 +35,10 @@ git clone --depth 1 --branch 3.1.3 https://github.com/libjpeg-turbo/libjpeg-turb
 cmake -S "$work_dir/libjpeg-turbo" -B "$work_dir/libjpeg-turbo/build" \
     -DENABLE_SHARED=FALSE \
     -DENABLE_STATIC=TRUE \
+    -DWITH_TESTS=FALSE \
+    -DWITH_TURBOJPEG=FALSE \
     -DCMAKE_BUILD_TYPE=Release
-cmake --build "$work_dir/libjpeg-turbo/build" --parallel
+cmake --build "$work_dir/libjpeg-turbo/build" --target cjpeg-static djpeg-static --parallel
 install -m 0755 "$work_dir/libjpeg-turbo/build/cjpeg-static" "$output_dir/cjpeg-static"
 install -m 0755 "$work_dir/libjpeg-turbo/build/djpeg-static" "$output_dir/djpeg-static"
 

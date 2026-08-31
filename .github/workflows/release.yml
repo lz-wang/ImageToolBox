@@ -352,7 +352,7 @@ jobs:
       - name: Verify Linux ABI contract
         if: runner.os == 'Linux'
         shell: bash
-        run: ./scripts/verify-linux-abi.sh "${{ matrix.target.bins_dir }}"
+        run: ./scripts/verify-linux-abi.sh "${{ matrix.target.goarch }}" "${{ matrix.target.bins_dir }}"
 
       - name: Build itb (Unix)
         if: runner.os != 'Windows'

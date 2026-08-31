@@ -2,8 +2,10 @@ package compress
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 )
 
@@ -57,20 +59,51 @@ func CompressJPEG(opts JPEGOptions) error {
 	djpegCmd.Stderr = &djpegStderr
 	cjpegCmd.Stderr = &cjpegStderr
 
-	// 启动 djpeg
+	// Start both commands before waiting so either process can be terminated if
+	// its pipeline sibling fails.
 	if err := djpegCmd.Start(); err != nil {
 		return commandError(err, djpegStderr.String())
 	}
-
-	// 运行 cjpeg 并等待完成
-	if err := cjpegCmd.Run(); err != nil {
-		djpegCmd.Wait()
+	if err := cjpegCmd.Start(); err != nil {
+		if stopErr := stopCommand(djpegCmd); stopErr != nil {
+			return fmt.Errorf("%w; terminate djpeg: %v", commandError(err, cjpegStderr.String()), stopErr)
+		}
 		return commandError(err, cjpegStderr.String())
 	}
+	if err := pipe.Close(); err != nil {
+		if stopErr := stopCommand(cjpegCmd); stopErr != nil {
+			return fmt.Errorf("close JPEG pipe: %w; terminate cjpeg: %v", err, stopErr)
+		}
+		if stopErr := stopCommand(djpegCmd); stopErr != nil {
+			return fmt.Errorf("close JPEG pipe: %w; terminate djpeg: %v", err, stopErr)
+		}
+		return fmt.Errorf("close JPEG pipe: %w", err)
+	}
 
-	// 等待 djpeg 完成
+	if err := cjpegCmd.Wait(); err != nil {
+		if stopErr := stopCommand(djpegCmd); stopErr != nil {
+			return fmt.Errorf("%w; terminate djpeg: %v", commandError(err, cjpegStderr.String()), stopErr)
+		}
+		return commandError(err, cjpegStderr.String())
+	}
 	if err := djpegCmd.Wait(); err != nil {
 		return commandError(err, djpegStderr.String())
+	}
+	return nil
+}
+
+func stopCommand(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	if err := cmd.Wait(); err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			return err
+		}
 	}
 	return nil
 }

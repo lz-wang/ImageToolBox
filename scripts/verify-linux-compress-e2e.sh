@@ -7,8 +7,8 @@ if [[ $# -ne 2 ]]; then
 fi
 
 case "$1" in
-    amd64) image="quay.io/pypa/manylinux_2_28_x86_64" ;;
-    arm64) image="quay.io/pypa/manylinux_2_28_aarch64" ;;
+    amd64) image="quay.io/pypa/manylinux_2_28_x86_64@sha256:0bf9db09181f36be8cf0628332abb5d31855b7d0f372faa776f492ccd9d3100d" ;;
+    arm64) image="quay.io/pypa/manylinux_2_28_aarch64@sha256:d3524021bb8b15d2258481be1ea46f1dfa8a9c7fc09bec43a6c5407945f9dc11" ;;
     *) echo "unsupported architecture: $1" >&2; exit 2 ;;
 esac
 
@@ -17,10 +17,9 @@ trap 'rm -rf "$work_dir"' EXIT
 cp "$2" "$work_dir/itb"
 chmod 0755 "$work_dir/itb"
 
-# Tiny valid fixtures are generated here so production Go tests keep their
-# fixture-free convention while this release smoke test exercises real codecs.
-printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlKDwAAAABJRU5ErkJggg==' | base64 --decode > "$work_dir/sample.png"
-printf '%s' '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9k=' | base64 --decode > "$work_dir/sample.jpg"
+# Generate transparent, auditable fixtures with Go's standard codecs. This
+# keeps production tests fixture-free while exercising the real native codecs.
+go run ./scripts/generate-compress-fixtures.go "$work_dir"
 
 docker run --rm -v "$work_dir:/workspace" -w /workspace "$image" sh -ec '
     ./itb compress -i sample.png -o output.png -q 80

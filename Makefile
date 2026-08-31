@@ -25,7 +25,7 @@ endif
 
 verify-bins:
 ifeq ($(GOOS),linux)
-	./scripts/verify-linux-abi.sh bins/linux-$(GOARCH)
+	./scripts/verify-linux-abi.sh $(GOARCH) bins/linux-$(GOARCH)
 else
 	@echo "verify-bins target currently supports Linux only"
 	@exit 1

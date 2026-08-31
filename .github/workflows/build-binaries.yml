@@ -18,8 +18,38 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+
+      - name: Run checks
+        run: |
+          make check
+          make test
+          go test -race ./internal/compress
+
   build:
     name: ${{ matrix.target.name }}
+    needs: checks
     runs-on: ${{ matrix.target.runs_on }}
     strategy:
       fail-fast: false
@@ -272,7 +302,7 @@ jobs:
       - name: Verify Linux ABI contract
         if: runner.os == 'Linux'
         shell: bash
-        run: ./scripts/verify-linux-abi.sh "${{ matrix.target.bins_dir }}"
+        run: ./scripts/verify-linux-abi.sh "${{ matrix.target.goarch }}" "${{ matrix.target.bins_dir }}"
 
       - name: Build itb (Unix)
         if: runner.os != 'Windows'
