@@ -127,6 +127,40 @@ func TestEnsureBinaryConcurrentExtraction(t *testing.T) {
 	}
 }
 
+func TestIsUsableBinaryFile(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "binary")
+	if err := os.WriteFile(filePath, []byte("binary"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isUsableBinaryFile(info) {
+		t.Fatal("executable regular file must be usable")
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(filePath, 0644); err != nil {
+			t.Fatal(err)
+		}
+		info, err = os.Stat(filePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if isUsableBinaryFile(info) {
+			t.Fatal("non-executable Unix regular file must not be usable")
+		}
+	}
+
+	dirInfo, err := os.Stat(filepath.Dir(filePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isUsableBinaryFile(dirInfo) {
+		t.Fatal("directory must not be usable as a binary")
+	}
+}
+
 func withTestBinaries(t *testing.T, cacheDir string, pngquant []byte) {
 	t.Helper()
 	platformPaths, ok := binaryPaths[getPlatformKey()]

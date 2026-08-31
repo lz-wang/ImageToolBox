@@ -381,6 +381,31 @@ jobs:
         shell: bash
         run: ./scripts/verify-linux-compress-e2e.sh "${{ matrix.target.goarch }}" "dist/itb-${{ matrix.target.name }}/itb"
 
+      - name: Verify Windows persistent compression cache
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $workDir = Join-Path $env:RUNNER_TEMP "itb-compress-e2e-$([guid]::NewGuid())"
+          $cacheDir = Join-Path $env:RUNNER_TEMP "itb-cache-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Force -Path $workDir, $cacheDir | Out-Null
+          $env:LOCALAPPDATA = $cacheDir
+          go run ./scripts/generate-compress-fixtures.go $workDir
+          $itb = Join-Path "dist/itb-${{ matrix.target.name }}" "itb.exe"
+
+          & $itb compress -i (Join-Path $workDir "sample.png") -o (Join-Path $workDir "output1.png") -q 80
+          if ($LASTEXITCODE -ne 0) { throw "First PNG compression failed" }
+          $before = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -File | Select-Object FullName, Length, LastWriteTimeUtc)
+          $beforeDirectories = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -Directory | Select-Object FullName, LastWriteTimeUtc)
+          if ($before.Count -ne 2) { throw "Expected two extracted PNG tools, got $($before.Count)" }
+
+          & $itb compress -i (Join-Path $workDir "sample.png") -o (Join-Path $workDir "output2.png") -q 80
+          if ($LASTEXITCODE -ne 0) { throw "Second PNG compression failed" }
+          $after = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -File | Select-Object FullName, Length, LastWriteTimeUtc)
+          $afterDirectories = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -Directory | Select-Object FullName, LastWriteTimeUtc)
+          if ((Compare-Object $before $after -Property FullName, Length, LastWriteTimeUtc) -or (Compare-Object $beforeDirectories $afterDirectories -Property FullName, LastWriteTimeUtc)) {
+            throw "Second process rewrote the persistent compression cache"
+          }
+
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
         shell: bash

@@ -15,7 +15,7 @@ func TestCommandError(t *testing.T) {
 		{
 			name:   "glibc incompatibility",
 			stderr: "pngquant: version `GLIBC_2.28' not found",
-			want:   "当前 Linux 运行环境不兼容；itb compress 要求 glibc >= 2.28",
+			want:   "当前 Linux 运行环境无法满足内置压缩器的 glibc 依赖；官方 Linux 构建兼容基线为 glibc >= 2.28",
 		},
 		{
 			name:   "ordinary native error",

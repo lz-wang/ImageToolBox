@@ -162,7 +162,7 @@ func fileMatchesHash(path string, expected [sha256.Size]byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
+	if !isUsableBinaryFile(info) {
 		return false, nil
 	}
 	hash := sha256.New()
@@ -170,6 +170,16 @@ func fileMatchesHash(path string, expected [sha256.Size]byte) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(hash.Sum(nil), expected[:]), nil
+}
+
+func isUsableBinaryFile(info fs.FileInfo) bool {
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return info.Mode().Perm()&0111 != 0
 }
 
 func writeAtomically(dir, targetPath string, data []byte) error {
