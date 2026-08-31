@@ -27,11 +27,12 @@ const (
 	FormatWEBP Format = "webp"
 )
 
+// SaveOptions 控制编码行为。是否铺底由目标格式唯一决定（JPEG 铺底、
+// PNG/WebP 保留 Alpha），调用方不能干预。
 type SaveOptions struct {
 	Quality    int
 	Lossless   bool
 	Background color.NRGBA
-	Flatten    bool
 }
 
 // Info is lightweight image metadata decoded without loading pixel data.
@@ -145,30 +146,30 @@ func Encode(w io.Writer, img image.Image, format Format, opts SaveOptions) error
 
 	switch format {
 	case FormatJPEG:
-		flattened := Flatten(img, background)
-		return jpeg.Encode(w, flattened, &jpeg.Options{Quality: quality})
+		// JPEG 不支持 Alpha，固定铺底。
+		return jpeg.Encode(w, Flatten(img, background), &jpeg.Options{Quality: quality})
 	case FormatPNG:
-		if opts.Flatten {
-			return png.Encode(w, Flatten(img, background))
-		}
 		return png.Encode(w, img)
 	case FormatWEBP:
-		encodeImg := img
-		if opts.Flatten {
-			encodeImg = Flatten(img, background)
-		}
-		return encodeWEBP(w, encodeImg, opts.Lossless, quality)
+		return encodeWEBP(w, img, opts.Lossless, quality)
 	default:
 		return fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
 	}
 }
 
+// encodeWEBP 基于 libwebp 标准 DefaultOptions 构建 encoder 配置：
+// 多个字段使用 -1 哨兵值区分 Go 零值与 C 默认值（SNS/Filter/Alpha 等），
+// 直接构造零值 struct 会得到非标准默认参数。
 func encodeWEBP(w io.Writer, img image.Image, lossless bool, quality int) error {
-	return webp.Encode(w, img, &webp.EncoderOptions{
-		Lossless: lossless,
-		Quality:  float32(quality),
-		Method:   4,
-	})
+	opts := webp.DefaultOptions()
+	opts.Lossless = lossless
+	opts.Quality = float32(quality)
+	opts.Method = 4
+	if lossless {
+		// Exact 保留透明像素下的 RGB，保证 lossless 逐像素往返。
+		opts.Exact = true
+	}
+	return webp.Encode(w, img, opts)
 }
 
 func SupportsWEBPEncoding() bool {

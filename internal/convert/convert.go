@@ -74,7 +74,6 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		Quality:    opts.Quality,
 		Lossless:   opts.Lossless,
 		Background: background,
-		Flatten:    format == imageio.FormatJPEG || (format == imageio.FormatWEBP && !opts.Lossless),
 	})
 }
 
