@@ -113,6 +113,44 @@ func newMultipartRequest(t *testing.T, method, target string, fields map[string]
 	return req
 }
 
+// rawPart 是按序写入的 multipart 部件，可表达重复字段等负例。
+type rawPart struct {
+	name     string
+	value    string
+	isFile   bool
+	filename string
+	content  []byte
+}
+
+// newRawMultipartRequest 按给定顺序写入部件，构造普通 helper 无法
+// 表达的请求（重复字段、重复文件）。
+func newRawMultipartRequest(t *testing.T, target string, parts ...rawPart) *http.Request {
+	t.Helper()
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	for _, p := range parts {
+		if p.isFile {
+			fw, err := w.CreateFormFile(p.name, p.filename)
+			if err != nil {
+				t.Fatalf("create form file: %v", err)
+			}
+			if _, err := fw.Write(p.content); err != nil {
+				t.Fatalf("write form file: %v", err)
+			}
+			continue
+		}
+		if err := w.WriteField(p.name, p.value); err != nil {
+			t.Fatalf("write field %s: %v", p.name, err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, target, &buf)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	return req
+}
+
 // mustNew 构造测试 handler；New 对非法配置返回 error 而不是 panic。
 func mustNew(t *testing.T, cfg Config) http.Handler {
 	t.Helper()

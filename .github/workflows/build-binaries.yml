@@ -35,7 +35,7 @@ jobs:
         run: |
           make check
           make test
-          go test -race ./internal/compress
+          go test -race ./internal/compress ./internal/httpapi
 
   build:
     name: ${{ matrix.target.name }}

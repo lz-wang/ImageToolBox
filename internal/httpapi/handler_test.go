@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"image"
@@ -499,4 +500,263 @@ func TestAdmitImageTypedErrors(t *testing.T) {
 			t.Fatalf("admitImage() = %v, want nil", err)
 		}
 	})
+}
+
+func TestEndpointSuccess(t *testing.T) {
+	input := formFile{field: "input", filename: "a.png", content: testPNG(t, 32, 16)}
+	post := func(t *testing.T, path string, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, path, fields, files...))
+		return w
+	}
+	t.Run("compress", func(t *testing.T) {
+		if _, err := compress.EnsureBinary(compress.PngQuant); err != nil {
+			t.Skipf("native compression binaries unavailable: %v", err)
+		}
+		w := post(t, "/api/v1/compress", map[string]string{"quality": "80"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if ct := w.Header().Get("Content-Type"); ct != "image/png" {
+			t.Fatalf("Content-Type = %q, want image/png", ct)
+		}
+	})
+	t.Run("resize", func(t *testing.T) {
+		w := post(t, "/api/v1/resize", map[string]string{"width": "16"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 16, 8) {
+			t.Fatalf("bounds = %v, want 16x8", got)
+		}
+	})
+	t.Run("crop", func(t *testing.T) {
+		w := post(t, "/api/v1/crop", map[string]string{"anchor": "center", "width": "50%", "height": "50%"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 16, 8) {
+			t.Fatalf("bounds = %v, want 16x8", got)
+		}
+	})
+	t.Run("convert", func(t *testing.T) {
+		w := post(t, "/api/v1/convert", map[string]string{"to": "webp", "quality": "90"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if ct := w.Header().Get("Content-Type"); ct != "image/webp" {
+			t.Fatalf("Content-Type = %q, want image/webp", ct)
+		}
+		if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "a_converted.webp") {
+			t.Fatalf("Content-Disposition = %q, want a_converted.webp", cd)
+		}
+	})
+	t.Run("watermark text", func(t *testing.T) {
+		w := post(t, "/api/v1/watermark", map[string]string{"text": "DRAFT", "position": "center", "opacity": "0.5"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "a_watermarked.png") {
+			t.Fatalf("Content-Disposition = %q, want a_watermarked.png", cd)
+		}
+	})
+	t.Run("watermark image", func(t *testing.T) {
+		logo := formFile{field: "image", filename: "logo.png", content: testPNG(t, 8, 8)}
+		w := post(t, "/api/v1/watermark", map[string]string{"scale": "0.5"}, input, logo)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 32, 16) {
+			t.Fatalf("bounds = %v, want 32x16", got)
+		}
+	})
+	t.Run("inspect", func(t *testing.T) {
+		w := post(t, "/api/v1/inspect", map[string]string{"no-hash": "true"}, input)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var result struct {
+			SchemaVersion string `json:"schema_version"`
+			Image         *struct {
+				Width int `json:"width"`
+			} `json:"image"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if result.SchemaVersion != "itb.inspect.v1" || result.Image == nil || result.Image.Width != 32 {
+			t.Fatalf("result = %+v, want schema itb.inspect.v1 with width 32", result)
+		}
+	})
+}
+
+func TestUnknownFieldsRejected(t *testing.T) {
+	for _, path := range []string{
+		"/api/v1/compress",
+		"/api/v1/resize",
+		"/api/v1/crop",
+		"/api/v1/convert",
+		"/api/v1/watermark",
+		"/api/v1/inspect",
+	} {
+		t.Run(path, func(t *testing.T) {
+			h := mustNew(t, Config{NoAuth: true})
+			w := httptest.NewRecorder()
+			input := formFile{field: "input", filename: "a.png", content: testPNG(t, 8, 8)}
+			h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, path, map[string]string{"foo": "bar"}, input))
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+			}
+			if code := decodeJSONError(t, w.Body.Bytes()); code != "invalid_argument" {
+				t.Fatalf("error code = %q, want invalid_argument", code)
+			}
+		})
+	}
+}
+
+func TestDuplicatePartsRejected(t *testing.T) {
+	t.Run("duplicate scalar field", func(t *testing.T) {
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newRawMultipartRequest(t, "/api/v1/compress",
+			rawPart{name: "quality", value: "80"},
+			rawPart{name: "quality", value: "90"},
+			rawPart{name: "input", isFile: true, filename: "a.png", content: testPNG(t, 8, 8)}))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+	t.Run("duplicate file field", func(t *testing.T) {
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		png := testPNG(t, 8, 8)
+		h.ServeHTTP(w, newRawMultipartRequest(t, "/api/v1/resize",
+			rawPart{name: "input", isFile: true, filename: "a.png", content: png},
+			rawPart{name: "input", isFile: true, filename: "b.png", content: png},
+			rawPart{name: "width", value: "4"}))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+}
+
+func TestAuthEdgeCases(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   int
+	}{
+		{name: "exact bearer token", header: "Bearer secret", want: http.StatusOK},
+		{name: "lowercase scheme", header: "bearer secret", want: http.StatusUnauthorized},
+		{name: "scheme only", header: "Bearer", want: http.StatusUnauthorized},
+		{name: "basic scheme", header: "Basic secret", want: http.StatusUnauthorized},
+		{name: "trailing extra word", header: "Bearer secret extra", want: http.StatusUnauthorized},
+		{name: "double space", header: "Bearer  secret", want: http.StatusUnauthorized},
+		{name: "missing header", header: "", want: http.StatusUnauthorized},
+		{name: "wrong token", header: "Bearer wrong", want: http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := mustNew(t, Config{Token: "secret"})
+			req := newMultipartRequest(t, http.MethodPost, "/api/v1/resize",
+				map[string]string{"width": "8"},
+				formFile{field: "input", filename: "a.png", content: testPNG(t, 16, 8)})
+			if tt.header != "" {
+				req.Header.Set("Authorization", tt.header)
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != tt.want {
+				t.Fatalf("status = %d, want %d: %s", w.Code, tt.want, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestConcurrencyLimiter(t *testing.T) {
+	cfg := Config{NoAuth: true, MaxConcurrent: 1}
+	cfg.Normalize()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusOK)
+	})
+	h := protected(cfg, make(chan struct{}, 1), next)
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/resize", nil))
+		done <- w
+	}()
+	<-started
+
+	// 第一个请求占住唯一 slot，第二个请求应立即 429。
+	w2 := httptest.NewRecorder()
+	h.ServeHTTP(w2, httptest.NewRequest(http.MethodPost, "/api/v1/resize", nil))
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", w2.Code, http.StatusTooManyRequests)
+	}
+	if got := w2.Header().Get("Retry-After"); got != "1" {
+		t.Fatalf("Retry-After = %q, want 1", got)
+	}
+	if code := decodeJSONError(t, w2.Body.Bytes()); code != "busy" {
+		t.Fatalf("error code = %q, want busy", code)
+	}
+
+	close(release)
+	if w1 := <-done; w1.Code != http.StatusOK {
+		t.Fatalf("first request status = %d, want %d", w1.Code, http.StatusOK)
+	}
+}
+
+func TestOperationTimeout(t *testing.T) {
+	cfg := Config{NoAuth: true, Timeout: 20 * time.Millisecond}
+	cfg.Normalize()
+	op := func(ctx context.Context, _ form, _ string, _ Config) (string, string, int64, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+	h := protected(cfg, make(chan struct{}, 1), imageHandler(cfg, "test", op))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/resize", nil,
+		formFile{field: "input", filename: "a.png", content: testPNG(t, 4, 4)}))
+	if w.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusGatewayTimeout, w.Body.String())
+	}
+	if code := decodeJSONError(t, w.Body.Bytes()); code != "timeout" {
+		t.Fatalf("error code = %q, want timeout", code)
+	}
+}
+
+func TestStreamingHeaders(t *testing.T) {
+	h := mustNew(t, Config{NoAuth: true})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/resize",
+		map[string]string{"width": "16"},
+		formFile{field: "input", filename: "a.png", content: testPNG(t, 32, 16)}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	headers := map[string]string{
+		"Content-Type":        "image/png",
+		"Content-Disposition": "a_resized.png",
+		"Content-Length":      "",
+		"X-ITB-Input-Size":    "",
+		"X-ITB-Output-Size":   "",
+		"X-ITB-Operation":     "resize",
+	}
+	for name, want := range headers {
+		got := w.Header().Get(name)
+		if want != "" && !strings.Contains(got, want) {
+			t.Fatalf("%s = %q, want to contain %q", name, got, want)
+		}
+		if got == "" {
+			t.Fatalf("%s header is empty", name)
+		}
+	}
 }
