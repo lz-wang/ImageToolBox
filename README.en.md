@@ -386,11 +386,17 @@ Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, T
 ITB_S3_ENDPOINT           # S3 endpoint URL
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_SESSION_TOKEN      # Session token for temporary credentials (optional)
 ITB_S3_REGION             # Region (default us-east-1)
 ITB_S3_BUCKET             # Bucket name (can omit -b)
+ITB_S3_FORCE_PATH_STYLE   # Force path-style URL (true/false)
 ```
 
 Priority: CLI flag > `ITB_S3_*` environment variables > defaults; environment variables satisfy the required checks for `--endpoint` / `--access-key` / `--secret-key` / `--bucket`.
+
+For temporary credentials (access key + secret key + session token), prefer
+injecting them all via environment variables so the session token never
+lands in your shell history.
 
 <details>
 <summary>Common options</summary>
@@ -402,9 +408,10 @@ All S3 subcommands share the following options:
 | `-e, --endpoint` | (required) | S3 endpoint URL (or `ITB_S3_ENDPOINT`) |
 | `-a, --access-key` | (required) | Access Key ID (or `ITB_S3_ACCESS_KEY_ID`) |
 | `-s, --secret-key` | (required) | Secret Access Key (or `ITB_S3_SECRET_ACCESS_KEY`) |
+| `--session-token` | (empty) | Session token for temporary credentials (or `ITB_S3_SESSION_TOKEN`; prefer the env var) |
 | `-r, --region` | `us-east-1` | Region |
 | `-b, --bucket` | (required) | Bucket name (or `ITB_S3_BUCKET`) |
-| `--force-path-style` | `false` | Force path-style URL (required by MinIO) |
+| `--force-path-style` | `false` | Force path-style URL (required by MinIO; or `ITB_S3_FORCE_PATH_STYLE`; auto-enabled for loopback / `:9000` endpoints) |
 
 </details>
 

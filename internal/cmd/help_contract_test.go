@@ -141,7 +141,9 @@ func TestS3HelpContract(t *testing.T) {
 		"ITB_S3_ENDPOINT",
 		"ITB_S3_ACCESS_KEY_ID",
 		"ITB_S3_SECRET_ACCESS_KEY",
+		"ITB_S3_SESSION_TOKEN",
 		"ITB_S3_BUCKET",
+		"ITB_S3_FORCE_PATH_STYLE",
 		"CLI flag > ITB_S3_*",
 	} {
 		assertContains(t, out, want)

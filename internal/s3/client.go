@@ -28,11 +28,13 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 	// 创建自定义 HTTP 客户端（不设请求总超时，见 newHTTPClient）
 	httpClient := newHTTPClient()
 
-	// 创建凭证提供者
+	// 创建凭证提供者：长期凭证 SessionToken 留空；
+	// 临时凭证（AccessKey + SecretKey + SessionToken）会以
+	// X-Amz-Security-Token 参与签名。
 	creds := credentials.NewStaticCredentialsProvider(
 		cfg.AccessKeyID,
 		cfg.SecretAccessKey,
-		"", // session token，通常为空
+		cfg.SessionToken,
 	)
 
 	// 加载 AWS 配置

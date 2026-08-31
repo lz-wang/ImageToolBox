@@ -146,8 +146,10 @@ Environment variables:
 ITB_S3_ENDPOINT
 ITB_S3_ACCESS_KEY_ID
 ITB_S3_SECRET_ACCESS_KEY
+ITB_S3_SESSION_TOKEN
 ITB_S3_REGION
 ITB_S3_BUCKET
+ITB_S3_FORCE_PATH_STYLE
 ```
 
 Priority: CLI flag > `ITB_S3_*` environment variables > defaults. Environment variables satisfy required flags such as `--bucket`.
@@ -157,9 +159,10 @@ Common flags:
 - `-e, --endpoint`: required S3 endpoint URL (or `ITB_S3_ENDPOINT`).
 - `-a, --access-key`: required access key; prefer the `ITB_S3_ACCESS_KEY_ID` environment variable.
 - `-s, --secret-key`: required secret key; prefer the `ITB_S3_SECRET_ACCESS_KEY` environment variable.
+- `--session-token`: session token for temporary credentials; prefer `ITB_S3_SESSION_TOKEN` so the token stays out of shell history.
 - `-r, --region`: default `us-east-1`.
 - `-b, --bucket`: required bucket (or `ITB_S3_BUCKET`).
-- `--force-path-style`: often required for MinIO.
+- `--force-path-style`: often required for MinIO (or `ITB_S3_FORCE_PATH_STYLE`; auto-enabled for loopback / `:9000` endpoints).
 
 Examples:
 

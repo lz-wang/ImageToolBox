@@ -2,7 +2,7 @@ package s3
 
 import (
 	"fmt"
-	"strings"
+	"net/url"
 )
 
 // Config S3 客户端配置
@@ -10,6 +10,7 @@ type Config struct {
 	Endpoint        string // S3 端点 URL
 	AccessKeyID     string // Access Key ID
 	SecretAccessKey string // Secret Access Key
+	SessionToken    string // 临时凭证 Session Token（长期凭证留空）
 	Region          string // 区域
 	Bucket          string // 存储桶名称
 	ForcePathStyle  bool   // 是否强制路径样式（MinIO 需要）
@@ -24,13 +25,20 @@ func (c *Config) Normalize() {
 		c.Region = "us-east-1"
 	}
 
-	// 自动检测 MinIO，默认启用路径样式
+	// 自动检测 MinIO 等自建端点，默认启用路径样式。
+	// 用 url.Parse 的 Hostname/Port 精确判断，而不是子串匹配：
+	// "https://example.com/?redirect=localhost" 这类 URL 不应误命中。
 	if c.Endpoint != "" && !c.ForcePathStyle {
-		// MinIO 通常使用 localhost 或内网地址
-		if strings.Contains(c.Endpoint, "localhost") ||
-			strings.Contains(c.Endpoint, "127.0.0.1") ||
-			strings.Contains(c.Endpoint, ":9000") {
-			c.ForcePathStyle = true
+		if u, err := url.Parse(c.Endpoint); err == nil {
+			switch host := u.Hostname(); host {
+			case "localhost", "127.0.0.1", "::1":
+				c.ForcePathStyle = true
+			default:
+				// 9000 是 MinIO 默认端口（如 http://minio.internal:9000）
+				if u.Port() == "9000" {
+					c.ForcePathStyle = true
+				}
+			}
 		}
 	}
 }

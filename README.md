@@ -386,11 +386,16 @@ make test     # go test
 ITB_S3_ENDPOINT           # S3 端点 URL
 ITB_S3_ACCESS_KEY_ID      # Access Key ID
 ITB_S3_SECRET_ACCESS_KEY  # Secret Access Key
+ITB_S3_SESSION_TOKEN      # 临时凭证 Session Token（可选）
 ITB_S3_REGION             # 区域（默认 us-east-1）
 ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
+ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 ```
 
 配置优先级：CLI flag > `ITB_S3_*` 环境变量 > 默认值；环境变量可满足 `--endpoint` / `--access-key` / `--secret-key` / `--bucket` 的必填校验。
+
+临时凭证（AccessKey + SecretKey + SessionToken）建议全部通过环境变量注入，
+避免 Session Token 进入 shell history。
 
 <details>
 <summary>公共参数</summary>
@@ -402,9 +407,10 @@ ITB_S3_BUCKET             # 存储桶名称（可省略 -b）
 | `-e, --endpoint` | (必填) | S3 端点 URL（或 `ITB_S3_ENDPOINT`） |
 | `-a, --access-key` | (必填) | Access Key ID（或 `ITB_S3_ACCESS_KEY_ID`） |
 | `-s, --secret-key` | (必填) | Secret Access Key（或 `ITB_S3_SECRET_ACCESS_KEY`） |
+| `--session-token` | (空) | 临时凭证 Session Token（或 `ITB_S3_SESSION_TOKEN`，建议用环境变量） |
 | `-r, --region` | `us-east-1` | 区域 |
 | `-b, --bucket` | (必填) | 存储桶名称（或 `ITB_S3_BUCKET`） |
-| `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要） |
+| `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要；或 `ITB_S3_FORCE_PATH_STYLE`；loopback / `:9000` 端点自动启用） |
 
 </details>
 

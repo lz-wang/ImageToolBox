@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"strings"
@@ -164,7 +165,11 @@ func TestS3ParentFlagParsing(t *testing.T) {
 func setS3Env(t *testing.T, env map[string]string) {
 	t.Helper()
 
-	for _, k := range []string{"ITB_S3_ENDPOINT", "ITB_S3_ACCESS_KEY_ID", "ITB_S3_SECRET_ACCESS_KEY", "ITB_S3_REGION", "ITB_S3_BUCKET"} {
+	for _, k := range []string{
+		"ITB_S3_ENDPOINT", "ITB_S3_ACCESS_KEY_ID", "ITB_S3_SECRET_ACCESS_KEY",
+		"ITB_S3_SESSION_TOKEN", "ITB_S3_REGION", "ITB_S3_BUCKET",
+		"ITB_S3_FORCE_PATH_STYLE",
+	} {
 		if v, ok := env[k]; ok {
 			t.Setenv(k, v)
 			continue
@@ -198,6 +203,7 @@ func runS3ConfigCapture(t *testing.T, env map[string]string, args ...string) (s3
 					Endpoint:        cmd.String("endpoint"),
 					AccessKeyID:     cmd.String("access-key"),
 					SecretAccessKey: cmd.String("secret-key"),
+					SessionToken:    cmd.String("session-token"),
 					Region:          cmd.String("region"),
 					Bucket:          cmd.String("bucket"),
 					ForcePathStyle:  cmd.Bool("force-path-style"),
@@ -269,6 +275,77 @@ func TestS3EnvSources(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "Required flag") {
 			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+// withBaseEnv 在 base 配置上叠加额外环境变量，构造测试用 env。
+func withBaseEnv(base, extra map[string]string) map[string]string {
+	env := maps.Clone(base)
+	maps.Copy(env, extra)
+	return env
+}
+
+// ITB_S3_SESSION_TOKEN 注入临时凭证 Session Token，CLI flag 优先。
+func TestS3SessionTokenEnv(t *testing.T) {
+	base := map[string]string{
+		"ITB_S3_ENDPOINT":          "https://s3.example.com",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	}
+
+	t.Run("环境变量注入 session token", func(t *testing.T) {
+		env := withBaseEnv(base, map[string]string{"ITB_S3_SESSION_TOKEN": "env-token"})
+		got, err := runS3ConfigCapture(t, env, "s3", "list")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.SessionToken != "env-token" {
+			t.Fatalf("SessionToken = %q, want env-token", got.SessionToken)
+		}
+	})
+
+	t.Run("CLI flag 优先于环境变量", func(t *testing.T) {
+		env := withBaseEnv(base, map[string]string{"ITB_S3_SESSION_TOKEN": "env-token"})
+		got, err := runS3ConfigCapture(t, env, "s3", "list", "--session-token", "flag-token")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.SessionToken != "flag-token" {
+			t.Fatalf("SessionToken = %q, want flag-token", got.SessionToken)
+		}
+	})
+}
+
+// ITB_S3_FORCE_PATH_STYLE 显式控制路径样式，CLI flag 优先。
+func TestForcePathStyleEnv(t *testing.T) {
+	base := map[string]string{
+		"ITB_S3_ENDPOINT":          "https://s3.example.com",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	}
+
+	t.Run("环境变量启用 force-path-style", func(t *testing.T) {
+		env := withBaseEnv(base, map[string]string{"ITB_S3_FORCE_PATH_STYLE": "true"})
+		got, err := runS3ConfigCapture(t, env, "s3", "list")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !got.ForcePathStyle {
+			t.Fatal("ForcePathStyle should be enabled via env")
+		}
+	})
+
+	t.Run("CLI 显式关闭优先于环境变量启用", func(t *testing.T) {
+		env := withBaseEnv(base, map[string]string{"ITB_S3_FORCE_PATH_STYLE": "true"})
+		got, err := runS3ConfigCapture(t, env, "s3", "list", "--force-path-style=false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.ForcePathStyle {
+			t.Fatal("ForcePathStyle should stay off when flag is explicitly false")
 		}
 	})
 }

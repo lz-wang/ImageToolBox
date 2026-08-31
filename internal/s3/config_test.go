@@ -65,6 +65,37 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
+// TestNormalizeEndpointDetection 锁定端点 → 路径样式的自动检测：
+// 基于 url.Parse 的 Hostname/Port 精确判断，URL 中的子串（查询参数、
+// 路径）不得误命中；9000 作为 MinIO 默认端口触发路径样式。
+func TestNormalizeEndpointDetection(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     bool
+	}{
+		{"localhost 启用路径样式", "http://localhost:9000", true},
+		{"127.0.0.1 启用路径样式", "http://127.0.0.1:9000", true},
+		{"IPv6 loopback 启用路径样式", "http://[::1]:9000", true},
+		{"MinIO 默认端口 9000 启用路径样式", "http://minio.internal:9000", true},
+		{"非 loopback 且非 9000 端口不启用", "http://minio.internal:9001", false},
+		{"普通公网端点不启用", "https://s3.example.com", false},
+		{"查询参数包含 localhost 不误命中", "https://example.com/?redirect=localhost", false},
+		{"路径包含 127.0.0.1 不误命中", "https://example.com/127.0.0.1/asset", false},
+		{"端口 9000 但主机名为 localhost 也启用", "http://localhost:8080", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{Endpoint: tt.endpoint}
+			cfg.Normalize()
+			if cfg.ForcePathStyle != tt.want {
+				t.Fatalf("ForcePathStyle = %v, want %v", cfg.ForcePathStyle, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string

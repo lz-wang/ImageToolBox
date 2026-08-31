@@ -25,8 +25,13 @@ func newS3Command() *cli.Command {
   ITB_S3_ENDPOINT           S3 端点 URL
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
+  ITB_S3_SESSION_TOKEN      临时凭证 Session Token
   ITB_S3_REGION             区域
-  ITB_S3_BUCKET             存储桶名称（可省略 --bucket）`,
+  ITB_S3_BUCKET             存储桶名称（可省略 --bucket）
+  ITB_S3_FORCE_PATH_STYLE   强制路径样式 URL（true/false）
+
+临时凭证建议通过环境变量注入（AccessKey + SecretKey + SessionToken），
+避免 Session Token 进入 shell history。`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "endpoint",
@@ -50,6 +55,11 @@ func newS3Command() *cli.Command {
 				Required: true,
 			},
 			&cli.StringFlag{
+				Name:    "session-token",
+				Usage:   "临时凭证 Session Token（建议使用 ITB_S3_SESSION_TOKEN 环境变量，避免进入 shell history）",
+				Sources: cli.EnvVars("ITB_S3_SESSION_TOKEN"),
+			},
+			&cli.StringFlag{
 				Name:    "region",
 				Aliases: []string{"r"},
 				Value:   "us-east-1",
@@ -64,8 +74,9 @@ func newS3Command() *cli.Command {
 				Required: true,
 			},
 			&cli.BoolFlag{
-				Name:  "force-path-style",
-				Usage: "强制路径样式 URL（MinIO 需要）",
+				Name:    "force-path-style",
+				Usage:   "强制路径样式 URL（MinIO 需要）",
+				Sources: cli.EnvVars("ITB_S3_FORCE_PATH_STYLE"),
 			},
 		},
 		Commands: []*cli.Command{
@@ -277,6 +288,7 @@ func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 		Endpoint:        cmd.String("endpoint"),
 		AccessKeyID:     cmd.String("access-key"),
 		SecretAccessKey: cmd.String("secret-key"),
+		SessionToken:    cmd.String("session-token"),
 		Region:          cmd.String("region"),
 		Bucket:          cmd.String("bucket"),
 		ForcePathStyle:  cmd.Bool("force-path-style"),

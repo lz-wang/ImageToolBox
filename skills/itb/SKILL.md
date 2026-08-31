@@ -43,8 +43,8 @@ itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0
 - `convert` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; it preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` is mutually exclusive with `-o`/`--output`).
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
-- Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials.
-- Use `--force-path-style` for MinIO-style endpoints when needed.
+- Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).
+- Use `--force-path-style` (or `ITB_S3_FORCE_PATH_STYLE`) for MinIO-style endpoints; loopback and `:9000` endpoints enable path style automatically.
 - For `watermark`, use either text (`-t`) or image (`--image`) watermarks. Image watermarks only support `position` mode; tiled image watermarks are not supported.
 - `serve` binds to `127.0.0.1` by default; never suggest `0.0.0.0` on untrusted networks.
 - When a result is user-facing, confirm the expected output path exists and preview the image when practical.
