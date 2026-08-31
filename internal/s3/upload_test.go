@@ -114,16 +114,34 @@ func assertMethods(t *testing.T, got, want []string) {
 
 // TestUploadDefaultPutsWithoutHead 锁定默认上传的请求特征：
 // 0 × HEAD + 1 × PUT，且 PUT 携带 itb-sha256 metadata。
+// 同时锁定 UploadResult 契约与 domain 不写 stdout。
 func TestUploadDefaultPutsWithoutHead(t *testing.T) {
 	rec, client := newUploadTestServer(t, nil)
 	path := writeUploadFixture(t)
 
-	result, err := Upload(context.Background(), client, path, "hello.txt", nil)
-	if err != nil {
-		t.Fatalf("Upload: %v", err)
+	var result *UploadResult
+	out := captureStdout(t, func() {
+		var err error
+		result, err = Upload(context.Background(), client, path, "hello.txt", nil)
+		if err != nil {
+			t.Errorf("Upload: %v", err)
+		}
+	})
+
+	if out != "" {
+		t.Errorf("domain must not write to stdout, got %q", out)
 	}
 	if result.Skipped {
 		t.Error("default upload must not be skipped")
+	}
+	if result.Key != "hello.txt" {
+		t.Errorf("result.Key = %q, want hello.txt", result.Key)
+	}
+	if result.Size != int64(len(helloContent)) {
+		t.Errorf("result.Size = %d, want %d", result.Size, len(helloContent))
+	}
+	if result.SHA256 != helloSHA256 {
+		t.Errorf("result.SHA256 = %q, want %q", result.SHA256, helloSHA256)
 	}
 	assertMethods(t, rec.snapshotMethods(), []string{http.MethodPut})
 

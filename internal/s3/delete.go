@@ -2,7 +2,6 @@ package s3
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,7 +12,8 @@ type DeleteOptions struct {
 	Key string
 }
 
-// Delete 从存储桶删除对象
+// Delete 从存储桶删除对象。本函数不输出任何内容，结果呈现由
+// adapter（CLI）负责。
 func Delete(ctx context.Context, client *Client, key string, _ *DeleteOptions) error {
 	if key == "" {
 		return ErrMissingKey
@@ -26,6 +26,5 @@ func Delete(ctx context.Context, client *Client, key string, _ *DeleteOptions) e
 	if err != nil {
 		return WrapError(err)
 	}
-	fmt.Printf("Delete completed: s3://%s/%s\n", client.bucket, key)
 	return nil
 }

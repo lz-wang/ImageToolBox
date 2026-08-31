@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -304,12 +305,24 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 
 	opts := &s3.UploadOptions{
 		ContentType:   cmd.String("content-type"),
+		Progress:      os.Stderr,
 		SkipExisting:  cmd.Bool("skip-existing"),
 		SkipUnchanged: cmd.Bool("skip-unchanged"),
 	}
 
-	_, err = s3.Upload(ctx, client, input, key, opts)
-	return err
+	result, err := s3.Upload(ctx, client, input, key, opts)
+	if err != nil {
+		return err
+	}
+
+	// 输出统一由 CLI 层负责：stdout 只承载正式结果，
+	// 进度提示已由 domain 写入 opts.Progress（stderr）。
+	if result.Skipped {
+		fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", input, cmd.String("bucket"), key, result.Reason)
+		return nil
+	}
+	fmt.Printf("Upload completed: %s -> s3://%s/%s (%d bytes)\n", input, cmd.String("bucket"), key, result.Size)
+	return nil
 }
 
 func runS3Download(ctx context.Context, cmd *cli.Command) error {
@@ -325,7 +338,12 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 		output = filepath.Base(key)
 	}
 
-	return s3.Download(ctx, client, key, output, nil)
+	result, err := s3.Download(ctx, client, key, output, &s3.DownloadOptions{Progress: os.Stderr})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Download completed: %s -> %s (%d bytes)\n", result.Key, result.OutputPath, result.Size)
+	return nil
 }
 
 func runS3Delete(ctx context.Context, cmd *cli.Command) error {
@@ -347,7 +365,11 @@ func runS3Delete(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	return s3.Delete(ctx, client, key, nil)
+	if err := s3.Delete(ctx, client, key, nil); err != nil {
+		return err
+	}
+	fmt.Printf("Delete completed: s3://%s/%s\n", cmd.String("bucket"), key)
+	return nil
 }
 
 func runS3List(ctx context.Context, cmd *cli.Command) error {

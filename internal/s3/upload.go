@@ -41,6 +41,11 @@ var contentTypes = map[string]string{
 type UploadOptions struct {
 	ContentType string
 
+	// Progress 接收大文件（>5MB）传输提示等进度信息，nil 表示不输出。
+	// 进度信息不是执行结果，domain 不直接写 stdout，由 adapter 决定
+	// 输出去向（CLI 传 os.Stderr，保持 stdout 只承载正式结果）。
+	Progress io.Writer
+
 	// SkipExisting 为 true 时，对象键已存在即跳过上传（同名跳过）。
 	SkipExisting bool
 
@@ -51,6 +56,15 @@ type UploadOptions struct {
 
 // UploadResult 上传结果
 type UploadResult struct {
+	// Key 实际写入的对象键
+	Key string `json:"key"`
+
+	// Size 上传对象的字节数
+	Size int64 `json:"size"`
+
+	// SHA256 本地文件内容 SHA-256，同时写入 itb-sha256 metadata
+	SHA256 string `json:"sha256"`
+
 	// Skipped 表示命中跳过规则，未执行上传
 	Skipped bool `json:"skipped"`
 
@@ -69,6 +83,9 @@ type UploadResult struct {
 // 上传时把本地文件 SHA-256 写入 itb-sha256 用户 metadata，供后续
 // --skip-unchanged 比对。默认无条件覆盖已存在对象；
 // SkipExisting/SkipUnchanged 只增加跳过语义，不改变默认行为。
+//
+// 本函数不输出任何内容：结果通过 UploadResult 返回，进度提示写入
+// opts.Progress，由 adapter（CLI/脚本）决定如何呈现。
 func Upload(ctx context.Context, client *Client, inputPath string, key string, opts *UploadOptions) (*UploadResult, error) {
 	if inputPath == "" {
 		return nil, ErrMissingInput
@@ -99,7 +116,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}
 
 		if remote != nil && opts.SkipExisting {
-			return skippedUpload(inputPath, client, key, "object already exists"), nil
+			return &UploadResult{Key: key, Skipped: true, Reason: "object already exists"}, nil
 		}
 	}
 
@@ -109,7 +126,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	}
 
 	if opts != nil && opts.SkipUnchanged && isUnchanged(remote, sha256Value) {
-		return skippedUpload(inputPath, client, key, "content unchanged (itb-sha256 match)"), nil
+		return &UploadResult{Key: key, Skipped: true, Reason: "content unchanged (itb-sha256 match)"}, nil
 	}
 
 	// hash 已消费文件内容，回卷到起点后再交给 PutObject
@@ -131,9 +148,13 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	// 获取文件大小
 	fileSize := fileInfo.Size()
 
-	// 如果文件大于 5MB，显示进度提示
-	if fileSize > 5*1024*1024 {
-		fmt.Printf("Uploading %s (%.2f MB)...\n", inputPath, float64(fileSize)/(1024*1024))
+	// 如果文件大于 5MB，向 Progress 输出传输提示
+	var progress io.Writer
+	if opts != nil {
+		progress = opts.Progress
+	}
+	if fileSize > 5*1024*1024 && progress != nil {
+		fmt.Fprintf(progress, "Uploading %s (%.2f MB)...\n", inputPath, float64(fileSize)/(1024*1024))
 	}
 
 	// 执行上传
@@ -149,14 +170,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	if err != nil {
 		return nil, WrapError(err)
 	}
-	fmt.Printf("Upload completed: %s -> s3://%s/%s (%d bytes)\n", inputPath, client.bucket, key, fileSize)
-	return &UploadResult{}, nil
-}
-
-// skippedUpload 打印跳过信息并构造 Skipped 结果。
-func skippedUpload(inputPath string, client *Client, key, reason string) *UploadResult {
-	fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", inputPath, client.bucket, key, reason)
-	return &UploadResult{Skipped: true, Reason: reason}
+	return &UploadResult{Key: key, Size: fileSize, SHA256: sha256Value}, nil
 }
 
 // statUploadTarget 对上传目标执行 1 次 HeadObject preflight。
