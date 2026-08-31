@@ -3,10 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"github.com/urfave/cli/v3"
+	"imagetoolbox/internal/imageio"
 	"imagetoolbox/internal/resize"
 )
 
@@ -85,10 +84,7 @@ func runResize(ctx context.Context, cmd *cli.Command) error {
 
 	outputPath := cmd.String("output")
 	if outputPath == "" {
-		ext := filepath.Ext(inputFile)
-		base := strings.TrimSuffix(filepath.Base(inputFile), ext)
-		dir := filepath.Dir(inputFile)
-		outputPath = filepath.Join(dir, base+"_resized"+ext)
+		outputPath = imageio.SuffixedPath(inputFile, "_resized")
 	}
 
 	err := resize.ResizeFile(inputFile, outputPath, resize.Options{

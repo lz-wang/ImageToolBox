@@ -85,8 +85,5 @@ func DefaultOutputPath(inputPath string, to string) (string, error) {
 	}
 
 	ext := "." + string(format)
-	baseExt := filepath.Ext(inputPath)
-	baseName := strings.TrimSuffix(filepath.Base(inputPath), baseExt)
-	dir := filepath.Dir(inputPath)
-	return filepath.Join(dir, baseName+"_converted"+ext), nil
+	return filepath.Join(filepath.Dir(inputPath), imageio.SuffixedName(filepath.Base(inputPath), "_converted", ext)), nil
 }

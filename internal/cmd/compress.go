@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/compress"
+	"imagetoolbox/internal/imageio"
 )
 
 func newCompressCommand() *cli.Command {
@@ -60,7 +60,7 @@ func newCompressCommand() *cli.Command {
 			&cli.IntFlag{
 				Name:      "quality",
 				Aliases:   []string{"q"},
-				Value:     80,
+				Value:     compress.DefaultQuality,
 				Usage:     "压缩质量 (1-100)",
 				Validator: intRangeValidator("quality", 1, 100),
 			},
@@ -84,7 +84,7 @@ func runCompress(ctx context.Context, cmd *cli.Command) error {
 		tmp.Close()
 		outputPath = tmpPath
 	} else if outputPath == "" {
-		outputPath = defaultSuffixedPath(inputFile, "_compressed")
+		outputPath = imageio.SuffixedPath(inputFile, "_compressed")
 	}
 
 	result, err := compress.CompressFile(inputFile, outputPath, compress.FileOptions{Quality: cmd.Int("quality")})
@@ -106,13 +106,6 @@ func runCompress(ctx context.Context, cmd *cli.Command) error {
 	fmt.Printf("检测到格式: %s\n", result.Format)
 	fmt.Printf("压缩完成: %s (%s → %s)\n", outputPath, formatSize(result.InputSize), formatSize(result.OutputSize))
 	return nil
-}
-
-// defaultSuffixedPath 生成默认输出路径：同目录、原名加后缀、保留扩展名。
-func defaultSuffixedPath(inputPath, suffix string) string {
-	ext := filepath.Ext(inputPath)
-	base := strings.TrimSuffix(filepath.Base(inputPath), ext)
-	return filepath.Join(filepath.Dir(inputPath), base+suffix+ext)
 }
 
 func formatSize(size int64) string {

@@ -39,7 +39,7 @@ func newConvertCommand() *cli.Command {
 			&cli.IntFlag{
 				Name:      "quality",
 				Aliases:   []string{"q"},
-				Value:     80,
+				Value:     convert.DefaultQuality,
 				Usage:     "输出质量 (1-100)",
 				Validator: intRangeValidator("quality", 1, 100),
 			},
@@ -49,7 +49,7 @@ func newConvertCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "background",
-				Value: "#FFFFFF",
+				Value: convert.DefaultBackground,
 				Usage: "透明图转不透明格式时的背景色",
 			},
 		},

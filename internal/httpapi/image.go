@@ -11,6 +11,7 @@ import (
 	"imagetoolbox/internal/compress"
 	"imagetoolbox/internal/convert"
 	"imagetoolbox/internal/crop"
+	"imagetoolbox/internal/imageio"
 	"imagetoolbox/internal/resize"
 	"imagetoolbox/internal/watermark"
 )
@@ -75,13 +76,8 @@ func handleCompress(c *gin.Context) {
 	if !ok {
 		return
 	}
-	quality := opts.Quality
-	if quality == 0 {
-		quality = 80
-	}
-
 	outputPath := filepath.Join(dir, "output"+filepath.Ext(inputPath))
-	result, err := compress.CompressFile(inputPath, outputPath, compress.FileOptions{Quality: quality})
+	result, err := compress.CompressFile(inputPath, outputPath, compress.FileOptions{Quality: opts.Quality})
 	if err != nil {
 		fail(c, http.StatusBadRequest, "压缩失败: %v", err)
 		return
@@ -108,7 +104,7 @@ func handleResize(c *gin.Context) {
 		return
 	}
 
-	outName := outputFileName(inputPath, "_resized", "")
+	outName := imageio.SuffixedName(inputPath, "_resized", "")
 	outputPath := filepath.Join(dir, outName)
 	if err := resize.ResizeFile(inputPath, outputPath, resize.Options{
 		Width:   opts.Width,
@@ -143,7 +139,7 @@ func handleCrop(c *gin.Context) {
 		return
 	}
 
-	outName := outputFileName(inputPath, "_cropped", "")
+	outName := imageio.SuffixedName(inputPath, "_cropped", "")
 	outputPath := filepath.Join(dir, outName)
 	if _, err := crop.CropFile(inputPath, outputPath, crop.Options{
 		Anchor: crop.Anchor(opts.Anchor),
@@ -178,11 +174,6 @@ func handleConvert(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "缺少目标格式 (to)")
 		return
 	}
-	quality := opts.Quality
-	if quality == 0 {
-		quality = 80
-	}
-
 	// DefaultOutputPath 复用 CLI 的命名约定（base_converted.<ext>），输出落在临时目录内
 	outputPath, err := convert.DefaultOutputPath(inputPath, opts.To)
 	if err != nil {
@@ -191,7 +182,7 @@ func handleConvert(c *gin.Context) {
 	}
 	if err := convert.ConvertFile(inputPath, outputPath, convert.Options{
 		To:         opts.To,
-		Quality:    quality,
+		Quality:    opts.Quality,
 		Lossless:   opts.Lossless,
 		Background: opts.Background,
 	}); err != nil {
@@ -229,7 +220,7 @@ func handleWatermark(c *gin.Context) {
 		return
 	}
 
-	outName := outputFileName(inputPath, "_watermarked", "")
+	outName := imageio.SuffixedName(inputPath, "_watermarked", "")
 	outputPath := filepath.Join(dir, outName)
 
 	if err := processWatermark(inputPath, outputPath, opts, wmImagePath, fontPath); err != nil {
@@ -285,15 +276,6 @@ func processWatermark(inputPath, outputPath string, opts WatermarkRequest, water
 	default:
 		return fmt.Errorf("不支持的水印模式: %s", mode)
 	}
-}
-
-// outputFileName 生成 base+suffix+ext 的输出文件名；ext 为空时沿用输入扩展名。
-func outputFileName(inputPath, suffix, ext string) string {
-	if ext == "" {
-		ext = filepath.Ext(inputPath)
-	}
-	base := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
-	return base + suffix + ext
 }
 
 func fileSize(path string) int64 {
