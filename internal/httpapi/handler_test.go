@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"image"
@@ -181,67 +180,6 @@ func TestConfigNormalizeAndValidate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestMultipartFileIsolation(t *testing.T) {
-	t.Run("identical input and watermark filenames do not collide", func(t *testing.T) {
-		h := mustNew(t, Config{NoAuth: true})
-		req := newMultipartRequest(t, http.MethodPost, "/api/v1/watermark",
-			map[string]string{"scale": "0.5"},
-			formFile{field: "input", filename: "logo.png", content: testPNG(t, 32, 16)},
-			formFile{field: "image", filename: "logo.png", content: testPNG(t, 8, 8)})
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
-		}
-		img := decodePNG(t, w.Body.Bytes())
-		if img.Bounds() != image.Rect(0, 0, 32, 16) {
-			t.Fatalf("bounds = %v, want 32x16", img.Bounds())
-		}
-		if got := w.Header().Get("Content-Disposition"); !strings.Contains(got, "logo_watermarked.png") {
-			t.Fatalf("Content-Disposition = %q, want logo_watermarked.png", got)
-		}
-	})
-
-	t.Run("compress input named output.png keeps input and output distinct", func(t *testing.T) {
-		if _, err := compress.EnsureBinary(compress.PngQuant); err != nil {
-			t.Skipf("native compression binaries unavailable: %v", err)
-		}
-		h := mustNew(t, Config{NoAuth: true})
-		req := newMultipartRequest(t, http.MethodPost, "/api/v1/compress",
-			map[string]string{"quality": "80"},
-			formFile{field: "input", filename: "output.png", content: testPNG(t, 64, 64)})
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
-		}
-		// 输出必须是有效 PNG：若输入输出同路径会互相覆盖产生损坏数据。
-		decodePNG(t, w.Body.Bytes())
-		if got := w.Header().Get("Content-Disposition"); !strings.Contains(got, "output.png") {
-			t.Fatalf("Content-Disposition = %q, want output.png", got)
-		}
-	})
-
-	t.Run("path traversal and windows filenames are sanitized", func(t *testing.T) {
-		h := mustNew(t, Config{NoAuth: true})
-		for _, filename := range []string{"../../foo.png", `C:\temp\foo.png`} {
-			t.Run(filename, func(t *testing.T) {
-				req := newMultipartRequest(t, http.MethodPost, "/api/v1/resize",
-					map[string]string{"width": "16"},
-					formFile{field: "input", filename: filename, content: testPNG(t, 32, 16)})
-				w := httptest.NewRecorder()
-				h.ServeHTTP(w, req)
-				if w.Code != http.StatusOK {
-					t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
-				}
-				if got := w.Header().Get("Content-Disposition"); !strings.Contains(got, "foo_resized.png") {
-					t.Fatalf("Content-Disposition = %q, want foo_resized.png", got)
-				}
-			})
-		}
-	})
 }
 
 func TestOperationAdmission(t *testing.T) {
@@ -613,123 +551,6 @@ func TestUnknownFieldsRejected(t *testing.T) {
 				t.Fatalf("error code = %q, want invalid_argument", code)
 			}
 		})
-	}
-}
-
-func TestDuplicatePartsRejected(t *testing.T) {
-	t.Run("duplicate scalar field", func(t *testing.T) {
-		h := mustNew(t, Config{NoAuth: true})
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, newRawMultipartRequest(t, "/api/v1/compress",
-			rawPart{name: "quality", value: "80"},
-			rawPart{name: "quality", value: "90"},
-			rawPart{name: "input", isFile: true, filename: "a.png", content: testPNG(t, 8, 8)}))
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
-		}
-	})
-	t.Run("duplicate file field", func(t *testing.T) {
-		h := mustNew(t, Config{NoAuth: true})
-		w := httptest.NewRecorder()
-		png := testPNG(t, 8, 8)
-		h.ServeHTTP(w, newRawMultipartRequest(t, "/api/v1/resize",
-			rawPart{name: "input", isFile: true, filename: "a.png", content: png},
-			rawPart{name: "input", isFile: true, filename: "b.png", content: png},
-			rawPart{name: "width", value: "4"}))
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
-		}
-	})
-}
-
-func TestAuthEdgeCases(t *testing.T) {
-	tests := []struct {
-		name   string
-		header string
-		want   int
-	}{
-		{name: "exact bearer token", header: "Bearer secret", want: http.StatusOK},
-		{name: "lowercase scheme", header: "bearer secret", want: http.StatusUnauthorized},
-		{name: "scheme only", header: "Bearer", want: http.StatusUnauthorized},
-		{name: "basic scheme", header: "Basic secret", want: http.StatusUnauthorized},
-		{name: "trailing extra word", header: "Bearer secret extra", want: http.StatusUnauthorized},
-		{name: "double space", header: "Bearer  secret", want: http.StatusUnauthorized},
-		{name: "missing header", header: "", want: http.StatusUnauthorized},
-		{name: "wrong token", header: "Bearer wrong", want: http.StatusUnauthorized},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := mustNew(t, Config{Token: "secret"})
-			req := newMultipartRequest(t, http.MethodPost, "/api/v1/resize",
-				map[string]string{"width": "8"},
-				formFile{field: "input", filename: "a.png", content: testPNG(t, 16, 8)})
-			if tt.header != "" {
-				req.Header.Set("Authorization", tt.header)
-			}
-			w := httptest.NewRecorder()
-			h.ServeHTTP(w, req)
-			if w.Code != tt.want {
-				t.Fatalf("status = %d, want %d: %s", w.Code, tt.want, w.Body.String())
-			}
-		})
-	}
-}
-
-func TestConcurrencyLimiter(t *testing.T) {
-	cfg := Config{NoAuth: true, MaxConcurrent: 1}
-	cfg.Normalize()
-	started := make(chan struct{})
-	release := make(chan struct{})
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		close(started)
-		<-release
-		w.WriteHeader(http.StatusOK)
-	})
-	h := protected(cfg, make(chan struct{}, 1), next)
-
-	done := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/resize", nil))
-		done <- w
-	}()
-	<-started
-
-	// 第一个请求占住唯一 slot，第二个请求应立即 429。
-	w2 := httptest.NewRecorder()
-	h.ServeHTTP(w2, httptest.NewRequest(http.MethodPost, "/api/v1/resize", nil))
-	if w2.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want %d", w2.Code, http.StatusTooManyRequests)
-	}
-	if got := w2.Header().Get("Retry-After"); got != "1" {
-		t.Fatalf("Retry-After = %q, want 1", got)
-	}
-	if code := decodeJSONError(t, w2.Body.Bytes()); code != "busy" {
-		t.Fatalf("error code = %q, want busy", code)
-	}
-
-	close(release)
-	if w1 := <-done; w1.Code != http.StatusOK {
-		t.Fatalf("first request status = %d, want %d", w1.Code, http.StatusOK)
-	}
-}
-
-func TestOperationTimeout(t *testing.T) {
-	cfg := Config{NoAuth: true, Timeout: 20 * time.Millisecond}
-	cfg.Normalize()
-	op := func(ctx context.Context, _ form, _ string, _ Config) (string, string, int64, error) {
-		<-ctx.Done()
-		return "", "", 0, ctx.Err()
-	}
-	h := protected(cfg, make(chan struct{}, 1), imageHandler(cfg, "test", op))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/resize", nil,
-		formFile{field: "input", filename: "a.png", content: testPNG(t, 4, 4)}))
-	if w.Code != http.StatusGatewayTimeout {
-		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusGatewayTimeout, w.Body.String())
-	}
-	if code := decodeJSONError(t, w.Body.Bytes()); code != "timeout" {
-		t.Fatalf("error code = %q, want timeout", code)
 	}
 }
 

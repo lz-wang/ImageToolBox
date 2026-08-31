@@ -1,0 +1,174 @@
+package httpapi
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// uploadedFile 区分服务端存储路径与客户端提供的原始文件名：
+// Path 是 CreateTemp 生成的随机路径，OriginalName 仅用于响应下载名等元数据。
+type uploadedFile struct {
+	Path         string
+	OriginalName string
+}
+
+type form struct {
+	values map[string]string
+	files  map[string]uploadedFile
+}
+
+const (
+	// defaultFieldLimit 限制普通标量字段大小。
+	defaultFieldLimit int64 = 4 << 10
+	// textFieldLimit 限制水印文字字段大小（更大的文本上限）。
+	textFieldLimit int64 = 16 << 10
+)
+
+// fieldLimit 返回单个 multipart 标量字段的字节上限。
+func fieldLimit(name string) int64 {
+	if name == "text" {
+		return textFieldLimit
+	}
+	return defaultFieldLimit
+}
+
+func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Config) (form, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxUpload)
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		return form{}, fmt.Errorf("Content-Type must be multipart/form-data")
+	}
+	reader, err := r.MultipartReader()
+	if err != nil {
+		return form{}, err
+	}
+	f := form{values: map[string]string{}, files: map[string]uploadedFile{}}
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return form{}, err
+		}
+		name := part.FormName()
+		if name == "" {
+			return form{}, fmt.Errorf("multipart field name is required")
+		}
+		if part.FileName() == "" {
+			if _, ok := f.values[name]; ok {
+				return form{}, fmt.Errorf("duplicate parameter: %s", name)
+			}
+			limit := fieldLimit(name)
+			data, err := io.ReadAll(io.LimitReader(part, limit+1))
+			if err != nil {
+				return form{}, err
+			}
+			if int64(len(data)) > limit {
+				return form{}, fmt.Errorf("%w: field %s exceeds %d bytes", ErrPayloadTooLarge, name, limit)
+			}
+			f.values[name] = string(data)
+			continue
+		}
+		if _, ok := f.files[name]; ok {
+			return form{}, fmt.Errorf("duplicate file: %s", name)
+		}
+		// 客户端 filename 只作为 OriginalName 元数据，绝不参与服务端
+		// 存储路径：路径由 CreateTemp 生成，避免文件名碰撞与路径注入。
+		original := sanitizeFilename(part.FileName())
+		if original == "" {
+			original = name + ".bin"
+		}
+		tmp, err := os.CreateTemp(dir, tempPrefix(name)+"-*"+filepath.Ext(original))
+		if err != nil {
+			return form{}, err
+		}
+		path := tmp.Name()
+		_, copyErr := io.Copy(tmp, part)
+		closeErr := tmp.Close()
+		if copyErr != nil {
+			return form{}, copyErr
+		}
+		if closeErr != nil {
+			return form{}, closeErr
+		}
+		f.files[name] = uploadedFile{Path: path, OriginalName: original}
+	}
+	return f, nil
+}
+
+// tempPrefix 把任意 multipart 字段名收敛为 CreateTemp 可用的安全前缀。
+func tempPrefix(name string) string {
+	safe := make([]rune, 0, len(name))
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			safe = append(safe, r)
+		}
+	}
+	if len(safe) == 0 {
+		return "upload"
+	}
+	return string(safe)
+}
+
+func sanitizeFilename(name string) string {
+	name = strings.ReplaceAll(name, "\\", "/")
+	return strings.TrimLeft(filepath.Base(name), ".")
+}
+
+func (f form) input(allowed ...string) (uploadedFile, error) {
+	if err := f.allowed(allowed...); err != nil {
+		return uploadedFile{}, err
+	}
+	file := f.files["input"]
+	if file.Path == "" {
+		return uploadedFile{}, errMissingInput
+	}
+	return file, nil
+}
+
+// file 返回指定字段的存储路径；字段未上传时返回空字符串。
+func (f form) file(name string) string {
+	return f.files[name].Path
+}
+func (f form) allowed(names ...string) error {
+	ok := map[string]bool{}
+	for _, name := range names {
+		ok[name] = true
+	}
+	for name := range f.values {
+		if !ok[name] {
+			return fmt.Errorf("unknown parameter: %s", name)
+		}
+	}
+	for name := range f.files {
+		if !ok[name] {
+			return fmt.Errorf("unknown parameter: %s", name)
+		}
+	}
+	return nil
+}
+func (f form) int(name string) (int, error) {
+	if f.values[name] == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(f.values[name])
+}
+func (f form) float(name string) (*float64, error) {
+	if f.values[name] == "" {
+		return nil, nil
+	}
+	v, err := strconv.ParseFloat(f.values[name], 64)
+	return &v, err
+}
+func (f form) bool(name string) (bool, error) {
+	if f.values[name] == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(f.values[name])
+}

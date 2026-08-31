@@ -7,6 +7,8 @@ All image operations require `Authorization: Bearer $ITB_API_TOKEN`. `GET /api/v
 
 Every operation uses `multipart/form-data`. `input` is the required source image file; all other field names match the corresponding CLI long flag. Image-transforming endpoints stream binary downloads with `Content-Disposition`, `X-ITB-Input-Size`, `X-ITB-Output-Size`, and `X-ITB-Operation` headers. `inspect` always returns JSON.
 
+Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is rejected with `413 payload_too_large`. Uploaded files are stored under server-generated temporary names — client filenames are only used for download names — so identical filenames for `input` and `image` never collide.
+
 ## Operations
 
 | Endpoint | Multipart fields |
@@ -17,6 +19,8 @@ Every operation uses `multipart/form-data`. `input` is the required source image
 | `POST /api/v1/convert` | `input`, `to`, `quality`, `lossless`, `background` |
 | `POST /api/v1/watermark` | `input`, `text`, `image`, `mode`, `color`, `space`, `angle`, `opacity`, `font`, `font-size`, `position`, `margin`, `scale` |
 | `POST /api/v1/inspect` | `input`, `detail`, `no-detail`, `no-hash`, `strict` |
+
+`inspect` never requires a decodable image: with `strict` unset (or `false`) it returns file metadata plus an `error` object for undecodable inputs; with `strict=true` decoding failures return `400`.
 
 `width`, `height`, `quality`, `space`, `angle`, and `font-size` are integers. `opacity`, `margin`, and `scale` are floating-point numbers. Boolean fields accept the standard Go boolean forms, including `true`, `false`, `1`, and `0`.
 
@@ -69,9 +73,11 @@ Errors use one stable JSON shape:
 }
 ```
 
-Codes are `invalid_argument`, `missing_input`, `unsupported_format`, `payload_too_large`, `image_too_large`, `unauthorized`, `busy`, `timeout`, and `internal_error`.
+Codes are `invalid_argument`, `missing_input`, `unsupported_format`, `payload_too_large`, `image_too_large`, `unauthorized`, `busy`, `timeout`, `not_found`, `method_not_allowed`, and `internal_error`. Router-level errors (unknown routes, wrong methods) use the same JSON shape.
 
 The default limits are a 64 MiB multipart request, 50,000,000 pixels, a 16,384 px maximum dimension, two concurrent image operations, and a two-minute operation timeout. `413` indicates request or image limits, `429` indicates all operation slots are busy, and `504` indicates a timeout.
+
+Limits apply to uploaded images and planned output dimensions where applicable: `--max-pixels` / `--max-dimension` gate the input image, the resolved resize target (including `percent` upscales and single-side `fit` outputs), and the final output. Uploaded watermark images (`image` on `watermark`) are also subject to the image limits.
 
 Configure these when starting the service:
 

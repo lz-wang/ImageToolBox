@@ -331,8 +331,8 @@ The server binds to `127.0.0.1` by default. `ITB_API_TOKEN` is the required prod
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | Listen address |
 | `--max-upload` | `64MiB` | Maximum multipart request size |
-| `--max-pixels` | `50000000` | Maximum image pixel count |
-| `--max-dimension` | `16384` | Maximum image dimension |
+| `--max-pixels` | `50000000` | Maximum image pixel count (applies to uploads, watermark images, and planned output sizes) |
+| `--max-dimension` | `16384` | Maximum image dimension (applies to uploads, watermark images, and planned output sizes) |
 | `--max-concurrent` | `2` | Maximum concurrent image operations |
 | `--timeout` | `2m` | Per-image operation timeout |
 | `--no-auth` | `false` | Disable authentication only for loopback development |

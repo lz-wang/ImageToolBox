@@ -331,8 +331,8 @@ brew install lz-wang/tap/itb
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | 监听地址 |
 | `--max-upload` | `64MiB` | 最大 multipart 请求大小 |
-| `--max-pixels` | `50000000` | 最大图片像素数 |
-| `--max-dimension` | `16384` | 最大图片单边尺寸 |
+| `--max-pixels` | `50000000` | 最大图片像素数（含上传图片、水印图与计划输出尺寸） |
+| `--max-dimension` | `16384` | 最大图片单边尺寸（含上传图片、水印图与计划输出尺寸） |
 | `--max-concurrent` | `2` | 最大并发图片操作数 |
 | `--timeout` | `2m` | 单个图片操作超时 |
 | `--no-auth` | `false` | 仅 loopback 本地开发时禁用认证 |

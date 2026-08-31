@@ -89,7 +89,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 ## 外部工具与 CI
 
-`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 会发布六个平台归档及各自 SHA-256 校验和；归档包含 `itb` 和运行时所需的 `bins/`。
+`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 会发布六个平台归档及各自 SHA-256 校验和。原生压缩工具在构建阶段放入 `bins/<platform>`，通过 `go:embed` 编入 `itb` 可执行文件；最终发行归档只包含 `itb`，无需独立携带 `bins/` 目录。
 
 ## Release and Homebrew publishing
 
