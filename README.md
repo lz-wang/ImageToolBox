@@ -402,7 +402,10 @@ make test     # go test
 均支持机器可读 JSON 与 `schema_version` 契约），进度提示与诊断信息走 **stderr**，
 脚本可以放心用管道消费 stdout 的 JSON。
 
-MinIO 兼容性由 CI 持续验证：CI 以 service container 启动真实 MinIO，执行覆盖
+MinIO 兼容性由 CI 持续验证：CI 在 step 内以 `docker run` 启动真实 MinIO
+（GitHub Actions 的 service container 不支持容器命令，无法传入
+`server /data`），并设置 `ITB_REQUIRE_MINIO=1`（strict 模式：MinIO 不可用时
+测试失败而非跳过），执行覆盖
 upload / stat / download / skip-existing / skip-unchanged / metadata /
 cache-control / overwrite / verify / delete 与 path-style 的集成测试
 （`internal/s3/minio_test.go`）；本地 `go test` 在 MinIO 不可达时自动跳过，

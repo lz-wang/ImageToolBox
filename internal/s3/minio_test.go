@@ -23,9 +23,12 @@ import (
 //	ITB_TEST_MINIO_ACCESS_KEY   默认 minioadmin
 //	ITB_TEST_MINIO_SECRET_KEY   默认 minioadmin
 //
-// CI（.github/workflows/build-binaries.yml）以 service container 方式
-// 启动 MinIO，使该测试在每次 push 时真实执行，防止 AWS SDK 升级或
-// S3 层重构在单测全部通过的情况下悄悄破坏 MinIO 兼容性。
+// CI（.github/workflows/build-binaries.yml、release.yml）在 step 内以
+// docker run 启动 MinIO（service container 不支持容器命令，无法传入
+// server /data），并设置 ITB_REQUIRE_MINIO=1（strict 模式），使该测试
+// 在每次 push 时真实执行，且 MinIO 起不来时必须失败而不是悄悄 skip，
+// 防止 AWS SDK 升级或 S3 层重构在单测全部通过的情况下悄悄破坏
+// MinIO 兼容性。
 
 const minioTestBucket = "itb-test"
 
@@ -49,7 +52,9 @@ func minioTestConfig(t *testing.T) *Config {
 	}
 }
 
-// skipIfMinIOUnreachable 以 TCP 探测 MinIO；不可达时跳过测试。
+// skipIfMinIOUnreachable 以 TCP 探测 MinIO；不可达时默认跳过测试，
+// 仅当 CI 设置 ITB_REQUIRE_MINIO=1（strict 模式）时改为失败——
+// CI 的目标是持续验证 MinIO 兼容性，MinIO 起不来必须红而不是悄悄 skip。
 // 只做连通性判断，鉴权问题留给后续真实断言暴露。
 func skipIfMinIOUnreachable(t *testing.T, cfg *Config) {
 	t.Helper()
@@ -68,9 +73,33 @@ func skipIfMinIOUnreachable(t *testing.T, cfg *Config) {
 	}
 	conn, err := net.DialTimeout("tcp", host, 2*time.Second)
 	if err != nil {
+		if minioRequired() {
+			t.Fatalf("MinIO required (ITB_REQUIRE_MINIO=1) but unreachable at %s: %v", cfg.Endpoint, err)
+		}
 		t.Skipf("MinIO not reachable at %s (%v); start MinIO or set ITB_TEST_MINIO_ENDPOINT to run this integration test", cfg.Endpoint, err)
 	}
 	conn.Close()
+}
+
+// minioRequired 报告 MinIO 集成测试是否处于 strict 模式：CI workflow
+// 设置 ITB_REQUIRE_MINIO=1，MinIO 不可达时测试必须失败；本地开发不设置，
+// 不可达时优雅跳过。
+func minioRequired() bool {
+	return os.Getenv("ITB_REQUIRE_MINIO") == "1"
+}
+
+// TestMinIORequiredStrictMode 锁定 strict 模式的决策契约：
+// 默认关闭（本地可跳过），ITB_REQUIRE_MINIO=1 时开启（CI 必须真实执行）。
+func TestMinIORequiredStrictMode(t *testing.T) {
+	t.Setenv("ITB_REQUIRE_MINIO", "")
+	if minioRequired() {
+		t.Fatal("minioRequired() = true by default, want false (local skip)")
+	}
+
+	t.Setenv("ITB_REQUIRE_MINIO", "1")
+	if !minioRequired() {
+		t.Fatal("minioRequired() = false with ITB_REQUIRE_MINIO=1, want true")
+	}
 }
 
 // newMinIOTestClient 返回连接真实 MinIO 的客户端，并确保测试桶存在。

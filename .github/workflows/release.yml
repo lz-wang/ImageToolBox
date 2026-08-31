@@ -74,25 +74,12 @@ jobs:
     needs: prepare
     runs-on: ubuntu-24.04
 
-    services:
-      minio:
-        image: minio/minio:RELEASE.2024-06-13T22-53-53Z
-        args: server /data --console-address ":9001"
-        ports:
-          - 127.0.0.1:9000:9000
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-
     env:
       ITB_TEST_MINIO_ENDPOINT: http://127.0.0.1:9000
       ITB_TEST_MINIO_ACCESS_KEY: minioadmin
       ITB_TEST_MINIO_SECRET_KEY: minioadmin
+      # strict 模式：MinIO 起不来时集成测试必须失败，不能悄悄 skip
+      ITB_REQUIRE_MINIO: "1"
 
     steps:
       - name: Checkout release source
@@ -104,6 +91,29 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+
+      # 不用 service container：GitHub Actions 的 services 不支持容器命令
+      # （args 是非法键，会使整个 workflow 在解析阶段失败且不创建任何
+      # job；options 又只能传 docker create 的 flags），而 minio/minio
+      # 镜像的默认 CMD 只有 "minio"，必须显式传 server /data 才能启动。
+      # 在 step 内 docker run 并等待健康检查，启动失败时本 step 直接红。
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2024-06-13T22-53-53Z server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              echo "MinIO is ready (probe $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::MinIO failed to become healthy"
+          docker logs minio
+          exit 1
 
       - name: Run release checks
         run: |
