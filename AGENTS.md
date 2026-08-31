@@ -9,49 +9,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
-make build              # 先构建 WebUI（npm）再编译 itb（注入 version ldflags）
-make web                # 仅构建前端到 web/dist
-make serve              # make build 后启动 WebUI
-make check              # go vet + 前端 type-check + biome lint
-make test               # go test + 前端 vitest
-make clean              # 删除 itb 与 web/dist 构建产物（保留 .placeholder）
+make build              # 编译 itb（注入 version ldflags）
+make serve              # make build 后启动 HTTP API
+make check              # go vet
+make test               # go test
+make clean              # 删除 itb 构建产物
 go build ./...          # 仅编译，不产出二进制
 go test ./...           # 运行全部测试
 go test ./internal/resize -run TestApplyPercent -v   # 运行单个测试
 go vet ./...            # 静态检查
 ```
 
-构建产物为根目录的 `itb`（已被 gitignore）。CI 中固定使用 `CGO_ENABLED=0`，本地无需 CGO。前端开发可用 `cd web && npm run dev`（Vite 会把 `/api` 代理到 `127.0.0.1:8080`）。
+构建产物为根目录的 `itb`（已被 gitignore）。CI 中固定使用 `CGO_ENABLED=0`，本地无需 CGO。
 
 ## 架构
+
+### 适配器与领域层边界
+
+- Domain 包是图片操作参数的唯一 Normalize/Validate 与业务规则来源。CLI 和 HTTP 只能将传输参数映射为领域 `Options`，不得通过调用 `cli.Command` 或复制业务分派来复用逻辑。
+- HTTP API 只暴露 `compress`、`resize`、`crop`、`convert`、`watermark` 和 `inspect`；S3 管理能力只由 CLI 暴露。
+- HTTP 操作参数使用对应 CLI long flag 名称；`input` 是 multipart 上传文件，`output` 和 `in-place` 不属于 HTTP 参数。
+- HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
+- `serve` 负责 HTTP server 生命周期；`internal/httpapi`（迁移完成后）只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
 
 ### 分层与依赖方向
 
 ```
 main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/convert/crop/watermark/...)
    │                                │
-   └──→ internal/server（WebUI API）┴──→ internal/imageio（共享的编解码/格式/铺底/取色层）
+   └──→ internal/httpapi（HTTP API）┴──→ internal/imageio（共享的编解码/格式/铺底/取色层）
 ```
 
 - `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
 - 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
-- `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，WebUI（`internal/server`）不提供任何存储相关 API。
-- `internal/server`：`itb serve` 的 Gin HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程；静态资源 SPA 回退。
-- `web/`：React 19 + TypeScript + Vite + MUI + Emotion + Biome 前端，构建产物经 `//go:embed all:web/dist` 内嵌（`web/dist/.placeholder` 是未构建时的兜底，必须保留在 git 中）。
+- `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，HTTP API 不提供任何存储相关 API。
+- `internal/httpapi`：`itb serve` 的标准库 HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程。
 
 ### 命令注册约定
 
-每个命令位于 `internal/cmd/<name>.go`，导出一个 `newXxxCommand() *cli.Command` constructor（需要注入依赖时带参数，如 `newServeCommand(staticFS)`）。根命令在 `root.go` 的 `New(version, staticFS)` 中一次性显式拼装命令树，`Execute(ctx, version, staticFS)` 由 `main.go` 调用并注入版本号（`-ldflags "-X main.version=..."`）与 WebUI 静态资源。
+每个命令位于 `internal/cmd/<name>.go`，导出一个 `newXxxCommand() *cli.Command` constructor。根命令在 `root.go` 的 `New(version)` 中一次性显式拼装命令树，`Execute(ctx, version)` 由 `main.go` 调用并注入版本号（`-ldflags "-X main.version=..."`）。
 
 **注意**：`cmd` 包内**禁止包级可变状态**——flag 值一律通过 Action 内的 `cmd.String()`/`cmd.Int()`/`cmd.Bool()` 读取，不引入包级 flag 变量或 `init()` 注册。
 
-### WebUI 约束（internal/server）
+### HTTP API 约束（internal/httpapi）
 
-- Web handler 使用 `server` 包内独立的 request struct（`image.go` 中定义），与 CLI 命令参数状态完全隔离，保证并发 HTTP 请求互不污染。
-- 图片处理端点统一 `multipart/form-data`：`file` + `options`（JSON 字符串）；结果以二进制流返回并带 `Content-Disposition` 与 `X-ITB-*-Size` 头。
+- Web handler 直接构造领域 `Options`，与 CLI 命令参数状态完全隔离，保证并发 HTTP 请求互不污染。
+- 图片处理端点统一 `multipart/form-data`，使用 CLI long flag 名称；结果以二进制流返回并带 `Content-Disposition` 与 `X-ITB-*-Size` 头。
 - 每个请求使用独立临时目录（`newRequestDir`），`defer` 清理；不引入数据库/session/任务系统。
-- 安全边界：默认只绑定 `127.0.0.1`；WebUI 只做本地图像处理，不涉及任何外部服务凭证。
+- 安全边界：默认只绑定 `127.0.0.1`；远程部署以 Bearer token 和反向代理保护。
 - 上传文件名经 `sanitizeFilename` 清洗，防止路径穿越。
 
 ### 内嵌二进制机制（核心约束）
@@ -83,7 +89,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 ## 外部工具与 CI
 
-`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，再执行 `web/` 的 `npm ci && npm run build` 产出 `web/dist` 供 go:embed，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 会发布六个平台归档及各自 SHA-256 校验和；归档包含 `itb` 和运行时所需的 `bins/`。
+`docs/build-bins.md` 记录 pngquant（3.0.3）、oxipng（v10.1.0）、libjpeg-turbo（3.1.3）的版本与各平台 cmake 构建方式。`.github/workflows/build-binaries.yml` 与 `release.yml` 在 CI 中从源码构建这些原生工具，注入 `bins/`，最后用 `CGO_ENABLED=0` 交叉构建 darwin/linux/windows × amd64/arm64；macOS/Linux 打 `.tar.gz`，Windows 打 `.zip`。Release 会发布六个平台归档及各自 SHA-256 校验和；归档包含 `itb` 和运行时所需的 `bins/`。
 
 ## Release and Homebrew publishing
 

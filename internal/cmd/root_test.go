@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"testing/fstest"
 
 	"github.com/urfave/cli/v3"
 
@@ -17,7 +16,7 @@ import (
 )
 
 func testApp() *cli.Command {
-	return New("1.2.3", fstest.MapFS{})
+	return New("1.2.3")
 }
 
 // runContract 执行 CLI 并返回错误，用于断言参数契约。
@@ -461,7 +460,7 @@ func TestInspectNoDetailFlag(t *testing.T) {
 }
 
 func TestServeFlagParsing(t *testing.T) {
-	cmd := New("1.2.3", fstest.MapFS{})
+	cmd := New("1.2.3")
 	for _, sub := range cmd.Commands {
 		if sub.Name != "serve" {
 			continue
