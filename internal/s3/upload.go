@@ -45,6 +45,12 @@ type UploadOptions struct {
 	// SkipUnchanged 为 true 时，仅当远端 metadata 中的 itb-sha256
 	// 与本地文件 SHA-256 一致才跳过上传（内容一致跳过）。
 	SkipUnchanged bool
+
+	// Verify 为 true 时，PUT 成功后追加 1 次 HeadObject，比对远端
+	// size / Content-Type / 标准 HTTP 头 / metadata 与本次 PUT 的
+	// 预期是否一致，不一致返回 ErrVerifyFailed。
+	// 跳过语义命中时不产生额外请求（HEAD preflight 已证明对象状态）。
+	Verify bool
 }
 
 // UploadResult 上传结果
@@ -71,7 +77,8 @@ type UploadResult struct {
 // Seek(0) → PUT，整个函数只打开一次文件。HEAD 必须先于 hash：
 // --skip-existing 命中时在 hash 之前直接返回，0 字节本地内容读取；
 // --skip-unchanged 复用同一次 HEAD 结果，单次上传最多
-// 1 × HEAD + 1 × PUT。
+// 1 × HEAD + 1 × PUT。--verify 在 PUT 成功后追加 1 次 HEAD 回读
+// 校验（skip 命中时不追加，preflight HEAD 已证明对象状态）。
 //
 // 上传时把本地文件 SHA-256 写入 itb-sha256 用户 metadata，供后续
 // --skip-unchanged 比对。默认无条件覆盖已存在对象；
@@ -187,7 +194,81 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	if err != nil {
 		return nil, WrapError(err)
 	}
+
+	if opts != nil && opts.Verify {
+		expect := uploadExpectations{
+			Size:               fileSize,
+			ContentType:        contentType,
+			CacheControl:       aws.ToString(putInput.CacheControl),
+			ContentDisposition: aws.ToString(putInput.ContentDisposition),
+			ContentEncoding:    aws.ToString(putInput.ContentEncoding),
+			Metadata:           objectMetadata,
+		}
+		if err := verifyUpload(ctx, client, key, expect); err != nil {
+			return nil, err
+		}
+	}
+
 	return &UploadResult{Key: key, Size: fileSize, SHA256: sha256Value}, nil
+}
+
+// uploadExpectations 记录本次 PUT 写入的对象属性，供 --verify 的
+// HEAD 回读比对。
+type uploadExpectations struct {
+	Size               int64
+	ContentType        string
+	CacheControl       string
+	ContentDisposition string
+	ContentEncoding    string
+	Metadata           map[string]string
+}
+
+// verifyUpload 对刚上传的对象执行 1 次 HeadObject，比对远端返回的
+// header/metadata 与 PUT 预期是否一致，不一致返回 ErrVerifyFailed。
+//
+// 注意：HEAD verify 只能证明 metadata/header 与预期一致，不等于
+// body SHA-256 校验；body 完整性校验由 download 的校验选项承担。
+func verifyUpload(ctx context.Context, client *Client, key string, expect uploadExpectations) error {
+	info, err := Stat(ctx, client, key)
+	if err != nil {
+		return fmt.Errorf("verify: %w", err)
+	}
+
+	if info.Size != expect.Size {
+		return fmt.Errorf("%w: content-length: got %d, want %d", ErrVerifyFailed, info.Size, expect.Size)
+	}
+	if info.ContentType != expect.ContentType {
+		return fmt.Errorf("%w: content-type: got %q, want %q", ErrVerifyFailed, info.ContentType, expect.ContentType)
+	}
+	for _, field := range []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"cache-control", info.CacheControl, expect.CacheControl},
+		{"content-disposition", info.ContentDisposition, expect.ContentDisposition},
+		{"content-encoding", info.ContentEncoding, expect.ContentEncoding},
+	} {
+		if field.want == "" {
+			continue
+		}
+		if field.got != field.want {
+			return fmt.Errorf("%w: %s: got %q, want %q", ErrVerifyFailed, field.name, field.got, field.want)
+		}
+	}
+
+	// metadata 键在写入与 HEAD 回读时均为小写；逐键精确比对，
+	// itb-sha256 与所有用户 metadata 都必须原样在场。
+	for k, want := range expect.Metadata {
+		got, ok := info.Metadata[k]
+		if !ok {
+			return fmt.Errorf("%w: metadata %q missing on remote object", ErrVerifyFailed, k)
+		}
+		if got != want {
+			return fmt.Errorf("%w: metadata %q: got %q, want %q", ErrVerifyFailed, k, got, want)
+		}
+	}
+	return nil
 }
 
 // statUploadTarget 对上传目标执行 1 次 HeadObject preflight。

@@ -173,6 +173,7 @@ itb s3 upload -i image.webp -b my-bucket -k image/xx.webp --cache-control no-cac
   --metadata source-sha256=abc123 --metadata width=1920
 itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+itb s3 upload -i photo.jpg -b my-bucket --verify
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
 itb s3 download -b my-bucket -k images/photo.jpg   # saves ./photo.jpg (last key segment)
 itb s3 list -b my-bucket -p images/ --format json
@@ -206,6 +207,12 @@ Without `--content-type`, the MIME type is detected from file content (magic
 sniffing for JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG); the extension is only
 a fallback. An HTML error page renamed to `.jpg` uploads as `text/html`, so
 HTML/XML error bodies never masquerade as images.
+
+`--verify` follows the PUT with one HEAD and checks that remote
+size/Content-Type/HTTP headers/metadata match the upload (request contract:
+`PUT → HEAD`; with skip flags a hit stays a single `HEAD`, a miss becomes
+`HEAD → PUT → HEAD`). It proves header/metadata consistency only — body
+integrity is verified on download, not here.
 
 ## Serve (WebUI)
 

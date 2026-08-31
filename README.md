@@ -438,6 +438,9 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 
 # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
 ./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+
+# PUT 后追加 1 次 HEAD，校验远端属性与本次上传一致
+./itb s3 upload -i photo.jpg -b my-bucket --verify
 ```
 
 上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
@@ -465,8 +468,15 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 | `--content-encoding` | (空) | Content-Encoding 响应头 |
 | `--skip-existing` | `false` | 对象键已存在即跳过上传 |
 | `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
+| `--verify` | `false` | PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致 |
 
 </details>
+
+`--verify` 的请求契约：默认上传 `PUT`；`--verify` 为 `PUT → HEAD`；
+`--skip-existing` 命中为单次 `HEAD`，未命中加 `--verify` 为
+`HEAD → PUT → HEAD`；`--skip-unchanged` 命中为单次 `HEAD`。
+HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA-256
+校验；body 完整性校验由 `download --verify` / `--verify-sha256` 承担。
 
 ### 下载文件
 

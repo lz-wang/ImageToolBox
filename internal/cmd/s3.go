@@ -120,7 +120,10 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
   itb s3 upload -i photo.jpg -b my-bucket --skip-existing
 
   # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
-  itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged`,
+  itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+
+  # PUT 后追加 HEAD 校验远端 header/metadata 与本次上传一致
+  itb s3 upload -i photo.jpg -b my-bucket --verify`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "input",
@@ -152,6 +155,10 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 			&cli.StringFlag{
 				Name:  "content-encoding",
 				Usage: "Content-Encoding 响应头 `VALUE`（如 gzip）",
+			},
+			&cli.BoolFlag{
+				Name:  "verify",
+				Usage: "PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致（不校验 body 字节）",
 			},
 		},
 		// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
@@ -352,6 +359,7 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		Progress:           os.Stderr,
 		SkipExisting:       cmd.Bool("skip-existing"),
 		SkipUnchanged:      cmd.Bool("skip-unchanged"),
+		Verify:             cmd.Bool("verify"),
 	}
 
 	result, err := s3.Upload(ctx, client, input, key, opts)

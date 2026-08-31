@@ -159,6 +159,7 @@ func TestS3UploadHelpContract(t *testing.T) {
 		"--cache-control",
 		"--content-disposition",
 		"--content-encoding",
+		"--verify",
 		"itb-sha256",
 		"按文件内容检测",
 	} {

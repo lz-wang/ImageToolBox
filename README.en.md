@@ -439,6 +439,9 @@ All S3 subcommands share the following options:
 
 # Skip only when content is unchanged (compares itb-sha256 metadata, not ETag)
 ./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+
+# Follow the PUT with one HEAD to verify the stored object matches this upload
+./itb s3 upload -i photo.jpg -b my-bucket --verify
 ```
 
 Every upload stores the local file's SHA-256 in object user metadata
@@ -470,8 +473,16 @@ uploads as `text/html`, not `image/jpeg`.
 | `--content-encoding` | (empty) | Content-Encoding response header |
 | `--skip-existing` | `false` | Skip upload when the object key already exists |
 | `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
+| `--verify` | `false` | After PUT, issue one HEAD to verify remote size/Content-Type/HTTP headers/metadata match this upload |
 
 </details>
+
+Request contract of `--verify`: a plain upload is `PUT`; `--verify` makes it
+`PUT → HEAD`; a `--skip-existing` hit is a single `HEAD` (a miss with
+`--verify` is `HEAD → PUT → HEAD`); a `--skip-unchanged` hit is a single
+`HEAD`. The HEAD check only proves the stored headers/metadata match — it is
+**not** a body SHA-256 check; body integrity is covered by
+`download --verify` / `--verify-sha256`.
 
 ### Download file
 

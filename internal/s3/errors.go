@@ -46,6 +46,11 @@ var (
 	// ErrReservedMetadataKey 试图占用系统保留的 metadata 键
 	// （itb-sha256 由 itb 内部写入，用户不可覆盖）
 	ErrReservedMetadataKey = errors.New("reserved metadata key")
+
+	// ErrVerifyFailed 上传后 HEAD 校验未通过：远端 header/metadata
+	// 与本次 PUT 的预期不一致。HEAD 只能证明 metadata/header 一致，
+	// 不能证明 body 字节完整；body 校验由 download 校验承担。
+	ErrVerifyFailed = errors.New("upload verification failed")
 )
 
 // WrapError 包装 S3 API 错误，提供更友好的错误信息。
