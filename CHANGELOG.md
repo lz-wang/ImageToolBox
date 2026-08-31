@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-09-01
+
+### Added
+
+- `itb s3 upload` 新增对象元数据与 HTTP 头：`--metadata key=value`（可重复）、`--cache-control`、`--content-disposition`、`--content-encoding`，随 PUT 写入对象；非法键值与系统保留键 `itb-sha256` 在任何网络请求之前拒绝。
+- `itb s3 upload --verify`：PUT 成功后追加一次 HEAD，比对 Content-Length、Content-Type、Cache-Control、`itb-sha256` 与全部用户 metadata，不一致时明确指出失配字段。
+- `itb s3 download --verify` / `--verify-sha256 <hex>`：边下载边计算 SHA-256，两种校验可同用；内容先写同目录临时文件，成功后 rename，任何失败路径都不留 partial 文件。
+- `itb s3` 支持会话凭证：`--session-token` / `ITB_S3_SESSION_TOKEN`（以 `X-Amz-Security-Token` 参与签名）；`--force-path-style` 新增 `ITB_S3_FORCE_PATH_STYLE` 环境变量。
+- `itb s3 stat`/`upload`/`download` 的 JSON 输出携带 `schema_version`；`upload`/`download` 新增 `--format table|json`（默认 table 不变）。stdout 只承载正式结果，进度与诊断走 stderr。
+- `itb inspect --full-decode`（HTTP `full-decode`）：GIF 逐帧、其余格式整图解码，捕获"文件头正常但后半部分损坏"；schema 升级 `itb.inspect.v2`，新增 `full_decode_ok`、`frame_count`、`animation_known`、`animated`。
+- `itb serve --max-working-bytes`（默认 512MiB）：对水印等操作的中间工作集执行内存准入，超限在分配前返回 413。
+- MinIO 集成测试：CI 以 service 方式启动真实 MinIO 并强制执行（`ITB_REQUIRE_MINIO=1`），本地默认优雅跳过，可用 `ITB_TEST_MINIO_*` 指向自建实例。
+
+### Changed
+
+- S3 Content-Type 按文件内容检测：显式 `--content-type` > magic sniff（覆盖 JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG）> 扩展名兜底 > `application/octet-stream`；HTML 错误页改名 `.jpg` 后不再伪装 `image/jpeg` 上传。
+- convert/resize/crop/watermark 统一解码入口 `imageio.OpenStatic`：输入严格限定 JPEG/PNG/WebP，GIF/BMP/TIFF 一律拒绝，animated GIF 不再被静默处理首帧（水印 logo 输入同样受限）。
+- EXIF Orientation 统一语义：`imageio.Info` 区分物理尺寸与逻辑尺寸，Probe 返回应用旋转后的逻辑尺寸并与解码后 bounds 恒等；所有静态 transform 在解码阶段烘焙方向，竖拍 JPEG 不再横躺。
+- resize `--percent` 修正为按百分比精确缩放（此前 `--percent 200` 在默认 fit 模式下输出仍为原尺寸）；输出规划 `Resolve` 与实际执行 `Apply` 恒等，fit 包围盒超限但真实输出在限内的请求不再被保守拒绝。
+- WebP 编码固定保留 Alpha；lossless WebP 开启 `Exact`，透明像素下 RGB 完整保留；是否铺底由目标格式唯一决定，调用方无法再让 lossy WebP 静默丢失透明度。
+- S3 领域结果与 CLI 输出分离：upload/download 返回结构化结果，进度提示经 stderr 输出，stdout 由 CLI 统一渲染。
+- HTTP API 错误状态映射改为 typed errors 分派：超时 504、尺寸超限 413、不支持的格式 415；handler panic 收敛为 JSON 500；`internal/httpapi` 按职责拆分为 handler/middleware/multipart/operations/response。
+
+### Fixed
+
+- multipart 上传文件存储路径隔离：客户端 filename 只作为元数据，服务端存储路径一律由 `os.CreateTemp` 生成，`input=image=logo.png` 同名碰撞与输入输出互相覆盖不再发生。
+- 数值校验拒绝 NaN/Inf：`opacity=NaN`、`scale=Inf`、`percent=NaN%` 此前可绕过范围检查；multipart 同名字段不论标量还是文件一律 400；API token 强制 `Bearer ` 前缀，裸 token 即使值正确也拒绝。
+- 水印资源边界升级为操作工作集准入：文字 repeat 画布、平铺画布与旋转包围盒纳入保守内存估算，`scale=1000000`、`font-size=4096` 之类参数在分配前返回 413。
+- JPEG background 强制不透明：`#00000000` 解析出的透明值不再静默变成默认白色，半透明色统一显式拒绝。
+- `--verify-sha256` 严格校验 64 个十六进制字符，短串在任何网络请求之前失败。
+- `--skip-existing` 命中时填充本地文件 size；`--skip-unchanged` 命中时填充 size 与 sha256，脚本消费方无需二次 stat。
+- JPEG orientation 解析统一为单一 parser：XMP APP1 前置于 EXIF APP1 的文件不再出现 Probe 与解码方向漂移；非 EXIF APP1 的伪造 TIFF 头被拒绝。
+
 ## [v0.6.0] - 2026-08-31
 
 ### Changed
