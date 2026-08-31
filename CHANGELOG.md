@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Removed
+
+- **BREAKING:** 移除内置 WebUI、React/MUI/Vite 前端及 `itb serve --open`；`itb serve` 现为纯 HTTP API 服务。
+
 ## [v0.5.0] - 2026-08-30
 
 ### Added

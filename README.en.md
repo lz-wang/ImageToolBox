@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="web/public/logo.svg" width="112" height="112" alt="Image Tool Box Logo">
-</p>
-
 # Go Image Toolbox
 
 > **中文文档**：[README.md](./README.md)
@@ -306,32 +302,27 @@ Read file info, basic image info, detailed metadata, and file hash.
 
 </details>
 
-## WebUI (itb serve)
+## HTTP API (itb serve)
 
-Besides the CLI, `itb` ships a local-first WebUI that shares exactly the same Go image-processing core (the WebUI does not spawn CLI subprocesses; it calls the domain packages directly).
+Alongside the local CLI, `itb serve` provides a `/api/v1` HTTP API that calls domain packages directly rather than spawning CLI subprocesses. It is intended for trusted personal VPS deployments, not a WebUI, S3-management, workflow, or user-management service.
 
 ```bash
-# Start the WebUI (default http://127.0.0.1:8080)
+# Start the HTTP API (default http://127.0.0.1:8080)
 ./itb serve
 
 # Custom listen address
 ./itb serve --addr 127.0.0.1:9000
 
-# Open the browser after startup
-./itb serve --open
 ```
-
-The frontend bundle is embedded in the binary, so no extra deployment files are needed; CI releases still publish a single `itb` executable.
-
-![WebUI](docs/screenshots/webui.png)
 
 ### Feature scope
 
-- **Image tools**: compress, resize, crop, format conversion, watermark (text/image, font upload supported); image metadata is shown automatically after upload — with Before/After comparison and size delta
+- **Image operations**: `compress`, `resize`, `crop`, `convert`, `watermark`, and `inspect`
+- **Not exposed**: S3 management, WebUI, workflows, user management, databases, or job queues
 
 ### Security boundary
 
-By default the server binds to `127.0.0.1` only; do not expose it to untrusted networks. The WebUI only performs local image processing and never handles external-service credentials.
+The server binds to `127.0.0.1` by default. Production deployments should use Nginx/Caddy to reverse proxy HTTPS traffic to localhost; a subsequent API version will use `ITB_API_TOKEN` Bearer authentication.
 
 <details>
 <summary>Command options and HTTP API</summary>
@@ -339,15 +330,14 @@ By default the server binds to `127.0.0.1` only; do not expose it to untrusted n
 | Option | Default | Description |
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | Listen address |
-| `--open` | `false` | Open the browser after startup |
 
-The backend API uses the `/api/v1` prefix, for example the health check:
+The API uses the `/api/v1` prefix, for example the health check:
 
 ```bash
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-Image endpoints (`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect`) accept `multipart/form-data`: `file` plus `options` (a JSON string); results are streamed back as raw image bytes.
+Image endpoints accept `multipart/form-data` and return raw image bytes. Complete API parameters and VPS deployment instructions will live in `docs/api.md` and `docs/deployment.md`.
 
 </details>
 
@@ -355,13 +345,11 @@ Image endpoints (`compress` / `resize` / `crop` / `convert` / `watermark` / `ins
 <summary>Building from source</summary>
 
 ```bash
-make build    # Build the WebUI (npm) then compile itb
-make serve    # Build and start the WebUI
-make check    # go vet + frontend type-check + lint
-make test     # go test + frontend tests
+make build    # Compile itb
+make serve    # Build and start the HTTP API
+make check    # go vet
+make test     # go test
 ```
-
-For frontend development, run `cd web && npm run dev` (the Vite dev server proxies `/api` to `127.0.0.1:8080`).
 
 </details>
 

@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="web/public/logo.svg" width="112" height="112" alt="Image Tool Box Logo">
-</p>
-
 # GO 图像工具箱
 
 > **English**: [README.en.md](./README.en.md)
@@ -306,32 +302,27 @@ brew install lz-wang/tap/itb
 
 </details>
 
-## WebUI（itb serve）
+## HTTP API（itb serve）
 
-除了 CLI，`itb` 还内置一个本地优先的 WebUI，与 CLI 共享完全相同的 Go 图片处理核心（WebUI 不执行 CLI 子进程，而是直接调用领域包）。
+除本地 CLI 外，`itb serve` 提供 `/api/v1` HTTP API，直接调用领域包而不执行 CLI 子进程。API 面向可信的个人 VPS 部署，不提供 WebUI、S3 管理、工作流或用户系统。
 
 ```bash
-# 启动 WebUI（默认 http://127.0.0.1:8080）
+# 启动 HTTP API（默认 http://127.0.0.1:8080）
 ./itb serve
 
 # 指定监听地址
 ./itb serve --addr 127.0.0.1:9000
 
-# 启动后自动打开浏览器
-./itb serve --open
 ```
-
-前端产物已内嵌进二进制，无需额外部署文件；CI Release 仍然只发布单个 `itb` 可执行文件。
-
-![WebUI](docs/screenshots/webui.png)
 
 ### 功能范围
 
-- **图片工具**：压缩、缩放、裁剪、格式转换、水印（文字/图片，支持上传字体）；上传图片后自动展示元数据检查结果，带 Before/After 对比与体积变化展示
+- **图片操作**：`compress`、`resize`、`crop`、`convert`、`watermark`、`inspect`
+- **不提供**：S3 管理、WebUI、工作流、用户系统、数据库或任务队列
 
 ### 安全边界
 
-默认只监听 `127.0.0.1`，请勿绑定到不可信网络。WebUI 仅提供本地图像处理，不涉及任何外部服务凭证。
+默认只监听 `127.0.0.1`。生产部署应由 Nginx/Caddy 在 HTTPS 下反向代理至 localhost；后续 API 版本将通过 `ITB_API_TOKEN` 进行 Bearer 认证。
 
 <details>
 <summary>命令参数与 HTTP API</summary>
@@ -339,15 +330,14 @@ brew install lz-wang/tap/itb
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--addr` | `127.0.0.1:8080` | 监听地址 |
-| `--open` | `false` | 启动后自动打开浏览器 |
 
-WebUI 后端 API 统一前缀 `/api/v1`，例如健康检查：
+API 统一前缀 `/api/v1`，例如健康检查：
 
 ```bash
 curl http://127.0.0.1:8080/api/v1/health
 ```
 
-图片处理端点（`compress` / `resize` / `crop` / `convert` / `watermark` / `inspect`）使用 `multipart/form-data`：`file` + `options`（JSON 字符串），处理结果直接以图片二进制流返回。
+图片处理端点使用 `multipart/form-data`，处理结果直接以图片二进制流返回。完整 API 参数和 VPS 部署说明将在 `docs/api.md` 与 `docs/deployment.md` 中维护。
 
 </details>
 
@@ -355,13 +345,11 @@ curl http://127.0.0.1:8080/api/v1/health
 <summary>从源码构建</summary>
 
 ```bash
-make build    # 构建 WebUI（npm）后编译 itb
-make serve    # 构建并启动 WebUI
-make check    # go vet + 前端 type-check + lint
-make test     # go test + 前端测试
+make build    # 编译 itb
+make serve    # 构建并启动 HTTP API
+make check    # go vet
+make test     # go test
 ```
-
-本地开发前端时可用 `cd web && npm run dev`（Vite 开发服务器会把 `/api` 代理到 `127.0.0.1:8080`）。
 
 </details>
 
