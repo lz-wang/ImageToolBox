@@ -16,9 +16,10 @@ import (
 	"imagetoolbox/internal/compress"
 )
 
-// TestMain 注入仓库本地的 bins/ 目录，供涉及原生压缩工具的集成测试使用。
+// TestMain 注入仓库根目录（与 main.go 的 embed.FS 结构一致，内含 bins/），
+// 供涉及原生压缩工具的集成测试使用；平台二进制缺失时相关测试自行跳过。
 func TestMain(m *testing.M) {
-	compress.InitBinaries(os.DirFS("../../bins"))
+	compress.InitBinaries(os.DirFS("../.."))
 	os.Exit(m.Run())
 }
 

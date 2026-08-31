@@ -146,9 +146,16 @@ func health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// uploadedFile 区分服务端存储路径与客户端提供的原始文件名：
+// Path 是 CreateTemp 生成的随机路径，OriginalName 仅用于响应下载名等元数据。
+type uploadedFile struct {
+	Path         string
+	OriginalName string
+}
+
 type form struct {
 	values map[string]string
-	files  map[string]string
+	files  map[string]uploadedFile
 }
 type operation func(context.Context, form, string) (string, string, int64, error)
 
@@ -165,7 +172,7 @@ func imageHandler(cfg Config, operationName string, op operation) http.HandlerFu
 			writeError(w, multipartErrorStatus(err), err)
 			return
 		}
-		if err := admitImage(f.files["input"], cfg); err != nil {
+		if err := admitImage(f.files["input"].Path, cfg); err != nil {
 			writeError(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
@@ -213,7 +220,7 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 	if err != nil {
 		return form{}, err
 	}
-	f := form{values: map[string]string{}, files: map[string]string{}}
+	f := form{values: map[string]string{}, files: map[string]uploadedFile{}}
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -240,26 +247,43 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 		if _, ok := f.files[name]; ok {
 			return form{}, fmt.Errorf("duplicate file: %s", name)
 		}
-		filename := sanitizeFilename(part.FileName())
-		if filename == "" {
-			filename = name + ".bin"
+		// 客户端 filename 只作为 OriginalName 元数据，绝不参与服务端
+		// 存储路径：路径由 CreateTemp 生成，避免文件名碰撞与路径注入。
+		original := sanitizeFilename(part.FileName())
+		if original == "" {
+			original = name + ".bin"
 		}
-		path := filepath.Join(dir, filename)
-		out, err := os.Create(path)
+		tmp, err := os.CreateTemp(dir, tempPrefix(name)+"-*"+filepath.Ext(original))
 		if err != nil {
 			return form{}, err
 		}
-		_, copyErr := io.Copy(out, part)
-		closeErr := out.Close()
+		path := tmp.Name()
+		_, copyErr := io.Copy(tmp, part)
+		closeErr := tmp.Close()
 		if copyErr != nil {
 			return form{}, copyErr
 		}
 		if closeErr != nil {
 			return form{}, closeErr
 		}
-		f.files[name] = path
+		f.files[name] = uploadedFile{Path: path, OriginalName: original}
 	}
 	return f, nil
+}
+
+// tempPrefix 把任意 multipart 字段名收敛为 CreateTemp 可用的安全前缀。
+func tempPrefix(name string) string {
+	safe := make([]rune, 0, len(name))
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			safe = append(safe, r)
+		}
+	}
+	if len(safe) == 0 {
+		return "upload"
+	}
+	return string(safe)
 }
 
 func admitImage(path string, cfg Config) error {
@@ -276,15 +300,20 @@ func admitImage(path string, cfg Config) error {
 	return nil
 }
 
-func (f form) input(allowed ...string) (string, error) {
+func (f form) input(allowed ...string) (uploadedFile, error) {
 	if err := f.allowed(allowed...); err != nil {
-		return "", err
+		return uploadedFile{}, err
 	}
-	path := f.files["input"]
-	if path == "" {
-		return "", fmt.Errorf("missing input")
+	file := f.files["input"]
+	if file.Path == "" {
+		return uploadedFile{}, fmt.Errorf("missing input")
 	}
-	return path, nil
+	return file, nil
+}
+
+// file 返回指定字段的存储路径；字段未上传时返回空字符串。
+func (f form) file(name string) string {
+	return f.files[name].Path
 }
 func (f form) allowed(names ...string) error {
 	ok := map[string]bool{}
@@ -332,9 +361,9 @@ func compressImage(ctx context.Context, f form, dir string) (string, string, int
 	if err != nil {
 		return "", "", 0, err
 	}
-	output := filepath.Join(dir, "output"+filepath.Ext(input))
-	result, err := compress.CompressFile(ctx, input, output, compress.FileOptions{Quality: quality})
-	return output, filepath.Base(input), result.InputSize, err
+	output := resultPath(dir, input.Path)
+	result, err := compress.CompressFile(ctx, input.Path, output, compress.FileOptions{Quality: quality})
+	return output, input.OriginalName, result.InputSize, err
 }
 func resizeImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "width", "height", "percent", "mode", "anchor", "filter")
@@ -349,20 +378,20 @@ func resizeImage(_ context.Context, f form, dir string) (string, string, int64, 
 	if err != nil {
 		return "", "", 0, err
 	}
-	name := imageio.SuffixedName(input, "_resized", "")
-	output := filepath.Join(dir, name)
-	err = resize.ResizeFile(input, output, resize.Options{Width: width, Height: height, Percent: f.values["percent"], Mode: resize.Mode(f.values["mode"]), Anchor: f.values["anchor"], Filter: f.values["filter"]})
-	return output, name, fileSize(input), err
+	name := imageio.SuffixedName(input.OriginalName, "_resized", "")
+	output := resultPath(dir, input.Path)
+	err = resize.ResizeFile(input.Path, output, resize.Options{Width: width, Height: height, Percent: f.values["percent"], Mode: resize.Mode(f.values["mode"]), Anchor: f.values["anchor"], Filter: f.values["filter"]})
+	return output, name, fileSize(input.Path), err
 }
 func cropImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "anchor", "width", "height")
 	if err != nil {
 		return "", "", 0, err
 	}
-	name := imageio.SuffixedName(input, "_cropped", "")
-	output := filepath.Join(dir, name)
-	_, err = crop.CropFile(input, output, crop.Options{Anchor: crop.Anchor(f.values["anchor"]), Width: f.values["width"], Height: f.values["height"]})
-	return output, name, fileSize(input), err
+	name := imageio.SuffixedName(input.OriginalName, "_cropped", "")
+	output := resultPath(dir, input.Path)
+	_, err = crop.CropFile(input.Path, output, crop.Options{Anchor: crop.Anchor(f.values["anchor"]), Width: f.values["width"], Height: f.values["height"]})
+	return output, name, fileSize(input.Path), err
 }
 func convertImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "to", "quality", "lossless", "background")
@@ -377,12 +406,15 @@ func convertImage(_ context.Context, f form, dir string) (string, string, int64,
 	if err != nil {
 		return "", "", 0, err
 	}
-	output, err := convert.DefaultOutputPath(input, f.values["to"])
+	format, err := imageio.NormalizeFormat(f.values["to"])
 	if err != nil {
 		return "", "", 0, err
 	}
-	err = convert.ConvertFile(input, output, convert.Options{To: f.values["to"], Quality: quality, Lossless: lossless, Background: f.values["background"]})
-	return output, filepath.Base(output), fileSize(input), err
+	ext := "." + string(format)
+	name := imageio.SuffixedName(input.OriginalName, "_converted", ext)
+	output := filepath.Join(dir, "result"+ext)
+	err = convert.ConvertFile(input.Path, output, convert.Options{To: f.values["to"], Quality: quality, Lossless: lossless, Background: f.values["background"]})
+	return output, name, fileSize(input.Path), err
 }
 func watermarkImage(_ context.Context, f form, dir string) (string, string, int64, error) {
 	input, err := f.input("input", "text", "image", "mode", "color", "space", "angle", "opacity", "font", "font-size", "position", "margin", "scale")
@@ -413,10 +445,17 @@ func watermarkImage(_ context.Context, f form, dir string) (string, string, int6
 	if err != nil {
 		return "", "", 0, err
 	}
-	name := imageio.SuffixedName(input, "_watermarked", "")
-	output := filepath.Join(dir, name)
-	err = watermark.AddFile(input, output, watermark.Options{Text: f.values["text"], ImagePath: f.files["image"], Mode: watermark.Mode(f.values["mode"]), Position: watermark.Position(f.values["position"]), Color: f.values["color"], FontPath: f.files["font"], Opacity: opacity, FontSize: intPtr(f.values["font-size"], fontSize), Space: intPtr(f.values["space"], space), Angle: intPtr(f.values["angle"], angle), Margin: margin, Scale: scale})
-	return output, name, fileSize(input), err
+	name := imageio.SuffixedName(input.OriginalName, "_watermarked", "")
+	output := resultPath(dir, input.Path)
+	err = watermark.AddFile(input.Path, output, watermark.Options{Text: f.values["text"], ImagePath: f.file("image"), Mode: watermark.Mode(f.values["mode"]), Position: watermark.Position(f.values["position"]), Color: f.values["color"], FontPath: f.file("font"), Opacity: opacity, FontSize: intPtr(f.values["font-size"], fontSize), Space: intPtr(f.values["space"], space), Angle: intPtr(f.values["angle"], angle), Margin: margin, Scale: scale})
+	return output, name, fileSize(input.Path), err
+}
+
+// resultPath 生成操作输出路径：固定 result 前缀 + 输入扩展名。上传文件
+// 一律由 CreateTemp 生成带随机后缀的路径，因此 output 永远不会与任何
+// 上传路径相同，输入输出互不覆盖。
+func resultPath(dir, inputPath string) string {
+	return filepath.Join(dir, "result"+filepath.Ext(inputPath))
 }
 func intPtr(raw string, value int) *int {
 	if raw == "" {
@@ -443,7 +482,7 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, 400, err)
 			return
 		}
-		if err := admitImage(input, cfg); err != nil {
+		if err := admitImage(input.Path, cfg); err != nil {
 			writeError(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
@@ -477,7 +516,7 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 		if noDetail {
 			detail = false
 		}
-		result, err := inspect.File(input, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
+		result, err := inspect.File(input.Path, inspect.Options{Detail: detail, NoHash: noHash, Strict: strict})
 		if err != nil {
 			writeError(w, operationErrorStatus(err), err)
 			return
@@ -486,7 +525,9 @@ func inspectHandler(cfg Config) http.HandlerFunc {
 			writeError(w, http.StatusGatewayTimeout, err)
 			return
 		}
-		result.File.Path = filepath.Base(result.File.Path)
+		// 响应不暴露服务端存储路径，文件名使用客户端原始名。
+		result.File.Path = input.OriginalName
+		result.File.Name = input.OriginalName
 		result.File.AbsPath = ""
 		writeJSON(w, 200, result)
 	}
