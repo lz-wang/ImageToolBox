@@ -33,10 +33,10 @@ func newServeCommand() *cli.Command {
 				Usage: "监听地址",
 			},
 			&cli.StringFlag{Name: "max-upload", Value: "64MiB", Usage: "最大 multipart 请求大小"},
-			&cli.Int64Flag{Name: "max-pixels", Value: httpapi.DefaultMaxPixels, Usage: "最大图片像素数"},
-			&cli.IntFlag{Name: "max-dimension", Value: httpapi.DefaultMaxDimension, Usage: "最大图片单边尺寸"},
-			&cli.IntFlag{Name: "max-concurrent", Value: httpapi.DefaultMaxConcurrent, Usage: "最大并发图片操作数"},
-			&cli.DurationFlag{Name: "timeout", Value: httpapi.DefaultTimeout, Usage: "单个图片操作超时"},
+			&cli.Int64Flag{Name: "max-pixels", Value: httpapi.DefaultMaxPixels, Usage: "最大图片像素数", Validator: positiveInt64Validator("max-pixels")},
+			&cli.IntFlag{Name: "max-dimension", Value: httpapi.DefaultMaxDimension, Usage: "最大图片单边尺寸", Validator: positiveIntValidator("max-dimension")},
+			&cli.IntFlag{Name: "max-concurrent", Value: httpapi.DefaultMaxConcurrent, Usage: "最大并发图片操作数", Validator: positiveIntValidator("max-concurrent")},
+			&cli.DurationFlag{Name: "timeout", Value: httpapi.DefaultTimeout, Usage: "单个图片操作超时", Validator: positiveDurationValidator("timeout")},
 			&cli.BoolFlag{Name: "no-auth", Usage: "仅 loopback 本地开发时禁用认证"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -59,9 +59,13 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
+	handler, err := httpapi.New(httpapi.Config{Token: token, NoAuth: noAuth, MaxUpload: maxUpload, MaxPixels: cmd.Int64("max-pixels"), MaxDimension: cmd.Int("max-dimension"), MaxConcurrent: cmd.Int("max-concurrent"), Timeout: cmd.Duration("timeout")})
+	if err != nil {
+		return fmt.Errorf("invalid HTTP API configuration: %w", err)
+	}
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(httpapi.Config{Token: token, NoAuth: noAuth, MaxUpload: maxUpload, MaxPixels: cmd.Int64("max-pixels"), MaxDimension: cmd.Int("max-dimension"), MaxConcurrent: cmd.Int("max-concurrent"), Timeout: cmd.Duration("timeout")}),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,

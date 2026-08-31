@@ -1,6 +1,7 @@
 package imageio
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -14,6 +15,9 @@ import (
 
 	"github.com/deepteams/webp"
 )
+
+// ErrUnsupportedFormat 表示格式不在受支持的编码集合（JPEG/PNG/WEBP）内。
+var ErrUnsupportedFormat = errors.New("unsupported image format")
 
 type Format string
 
@@ -80,7 +84,7 @@ func NormalizeFormat(value string) (Format, error) {
 	case "webp":
 		return FormatWEBP, nil
 	default:
-		return "", fmt.Errorf("unsupported image format: %s", value)
+		return "", fmt.Errorf("%w: %s", ErrUnsupportedFormat, value)
 	}
 }
 
@@ -151,7 +155,7 @@ func Encode(w io.Writer, img image.Image, format Format, opts SaveOptions) error
 		}
 		return encodeWEBP(w, encodeImg, opts.Lossless, quality)
 	default:
-		return fmt.Errorf("unsupported image format: %s", format)
+		return fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
 	}
 }
 

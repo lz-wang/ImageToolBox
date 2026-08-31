@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"image"
+	"image/color"
+	"image/gif"
 	"image/png"
 	"mime/multipart"
 	"net/http"
@@ -34,6 +36,17 @@ func testPNG(t *testing.T, width, height int) []byte {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatalf("encode test png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// testGIF 生成真实可解码的 GIF；用于验证 Probe 对支持集合外格式的行为。
+func testGIF(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewPaletted(image.Rect(0, 0, width, height), color.Palette{color.Gray{0}, color.Gray{255}})
+	var buf bytes.Buffer
+	if err := gif.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode test gif: %v", err)
 	}
 	return buf.Bytes()
 }
@@ -73,6 +86,16 @@ func newMultipartRequest(t *testing.T, method, target string, fields map[string]
 	req := httptest.NewRequest(method, target, &buf)
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	return req
+}
+
+// mustNew 构造测试 handler；New 对非法配置返回 error 而不是 panic。
+func mustNew(t *testing.T, cfg Config) http.Handler {
+	t.Helper()
+	h, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New(%+v): %v", cfg, err)
+	}
+	return h
 }
 
 func decodeJSONError(t *testing.T, body []byte) string {

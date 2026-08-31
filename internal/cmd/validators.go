@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // CLI 层参数校验：尽早报出参数错误（先于文件 IO 与领域层处理），
@@ -54,6 +55,26 @@ func positiveIntValidator(flag string) func(int) error {
 	return func(v int) error {
 		if v <= 0 {
 			return fmt.Errorf("--%s 必须大于 0（当前: %d）", flag, v)
+		}
+		return nil
+	}
+}
+
+// positiveInt64Validator 生成 int64 正数校验器。
+func positiveInt64Validator(flag string) func(int64) error {
+	return func(v int64) error {
+		if v <= 0 {
+			return fmt.Errorf("--%s 必须大于 0（当前: %d）", flag, v)
+		}
+		return nil
+	}
+}
+
+// positiveDurationValidator 生成正时长校验器。
+func positiveDurationValidator(flag string) func(time.Duration) error {
+	return func(v time.Duration) error {
+		if v <= 0 {
+			return fmt.Errorf("--%s 必须大于 0（当前: %s）", flag, v)
 		}
 		return nil
 	}

@@ -47,9 +47,17 @@ type Config struct {
 	Timeout       time.Duration
 }
 
-// New creates the versioned Image Tool Box HTTP API.
-func New(cfg Config) http.Handler {
-	cfg.normalize()
+// New creates the versioned Image Tool Box HTTP API. It returns an error when
+// the configuration is unusable instead of panicking on invalid limits.
+func New(cfg Config) (http.Handler, error) {
+	cfg.Normalize()
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return newHandler(cfg), nil
+}
+
+func newHandler(cfg Config) http.Handler {
 	sem := make(chan struct{}, cfg.MaxConcurrent)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", health)
@@ -62,7 +70,8 @@ func New(cfg Config) http.Handler {
 	return accessLog(cfg, mux)
 }
 
-func (c *Config) normalize() {
+// Normalize fills zero-valued fields with service defaults.
+func (c *Config) Normalize() {
 	if c.MaxUpload == 0 {
 		c.MaxUpload = DefaultMaxUpload
 	}
@@ -81,6 +90,28 @@ func (c *Config) normalize() {
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
+}
+
+// Validate reports whether the configuration holds usable service limits.
+// It runs after Normalize, so zero values have already become defaults and
+// only genuinely invalid (negative or otherwise unusable) values remain.
+func (c Config) Validate() error {
+	if c.MaxUpload <= 0 {
+		return fmt.Errorf("max upload must be greater than 0")
+	}
+	if c.MaxPixels <= 0 {
+		return fmt.Errorf("max pixels must be greater than 0")
+	}
+	if c.MaxDimension <= 0 {
+		return fmt.Errorf("max dimension must be greater than 0")
+	}
+	if c.MaxConcurrent <= 0 {
+		return fmt.Errorf("max concurrent must be greater than 0")
+	}
+	if c.Timeout <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
+	}
+	return nil
 }
 
 func protected(cfg Config, sem chan struct{}, next http.Handler) http.HandlerFunc {
@@ -240,7 +271,7 @@ func admitImage(path string, cfg Config) error {
 		return err
 	}
 	if info.Width > cfg.MaxDimension || info.Height > cfg.MaxDimension || int64(info.Width)*int64(info.Height) > cfg.MaxPixels {
-		return fmt.Errorf("image exceeds configured limits")
+		return fmt.Errorf("%w: %dx%d exceeds configured limits", ErrImageTooLarge, info.Width, info.Height)
 	}
 	return nil
 }
