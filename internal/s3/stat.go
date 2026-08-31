@@ -13,8 +13,14 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// StatSchemaVersion 是 stat --format json 的机器可读契约版本。
+const StatSchemaVersion = "itb.s3.stat.v1"
+
 // StatInfo 单个对象的完整元数据（HeadObject），不包含对象 body。
 type StatInfo struct {
+	// SchemaVersion 机器可读契约版本（itb.s3.stat.v1），由 Stat 填充
+	SchemaVersion string `json:"schema_version"`
+
 	Key                string            `json:"key"`
 	Size               int64             `json:"size"`
 	LastModified       time.Time         `json:"last_modified"`
@@ -46,6 +52,7 @@ func Stat(ctx context.Context, client *Client, key string) (*StatInfo, error) {
 	}
 
 	info := &StatInfo{
+		SchemaVersion:      StatSchemaVersion,
 		Key:                key,
 		ETag:               aws.ToString(out.ETag),
 		ContentType:        aws.ToString(out.ContentType),

@@ -476,6 +476,8 @@ func TestS3Validators(t *testing.T) {
 		{"list 非法 format", []string{"s3", "list", "--format", "xml"}, "--format 仅支持"},
 		{"list max-keys 非正数", []string{"s3", "list", "--max-keys", "0"}, "--max-keys 必须大于 0"},
 		{"stat 非法 format", []string{"s3", "stat", "-k", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+		{"upload 非法 format", []string{"s3", "upload", "-i", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+		{"download 非法 format", []string{"s3", "download", "-k", "a.jpg", "--format", "plain"}, "--format 仅支持"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

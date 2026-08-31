@@ -220,6 +220,11 @@ the object's `itb-sha256` metadata; `--verify-sha256 HASH` compares against a
 known hash (both single-pass). Any failure — including checksum mismatch —
 leaves no partial file at the output path (temp file + rename).
 
+`upload`, `download`, and `stat` all accept `--format table|json`. JSON output
+carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,
+`itb.s3.stat.v1`); scripts should branch on it rather than parsing terminal
+text. stdout carries results only — progress and diagnostics go to stderr.
+
 ## Serve (WebUI)
 
 Starts the local-first WebUI. It calls the same Go domain packages as the CLI (no subprocesses) and embeds the built frontend, so a single binary is all you need.

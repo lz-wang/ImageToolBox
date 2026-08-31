@@ -75,13 +75,14 @@ func TestFormatStatOutputTable(t *testing.T) {
 
 func TestFormatStatOutputJSON(t *testing.T) {
 	info := &StatInfo{
-		Key:          "foo/bar.jpg",
-		Size:         2491820,
-		LastModified: time.Date(2026, 8, 28, 4, 35, 24, 0, time.UTC),
-		ETag:         "\"...\"",
-		ContentType:  "image/jpeg",
-		StorageClass: "STANDARD",
-		Metadata:     map[string]string{"origin": "itb"},
+		SchemaVersion: StatSchemaVersion,
+		Key:           "foo/bar.jpg",
+		Size:          2491820,
+		LastModified:  time.Date(2026, 8, 28, 4, 35, 24, 0, time.UTC),
+		ETag:          "\"...\"",
+		ContentType:   "image/jpeg",
+		StorageClass:  "STANDARD",
+		Metadata:      map[string]string{"origin": "itb"},
 	}
 
 	var decoded StatInfo
@@ -93,6 +94,13 @@ func TestFormatStatOutputJSON(t *testing.T) {
 	}
 	if decoded.Metadata["origin"] != "itb" {
 		t.Errorf("metadata lost in json output: %+v", decoded.Metadata)
+	}
+	// 机器可读契约：JSON 必须携带 schema_version 供脚本判别版本
+	if decoded.SchemaVersion != StatSchemaVersion {
+		t.Errorf("schema_version = %q, want %q", decoded.SchemaVersion, StatSchemaVersion)
+	}
+	if table := FormatStatOutput(info, "table"); strings.Contains(table, "schema_version") {
+		t.Errorf("table output should not leak schema_version:\n%s", table)
 	}
 }
 

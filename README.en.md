@@ -380,6 +380,11 @@ make test     # go test
 
 Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, Tencent Cloud COS, etc.
 
+Output convention: **stdout carries formal results only** (switch with
+`--format table|json`; upload/download/stat/list all emit machine-readable JSON
+with a `schema_version` contract), while progress hints and diagnostics go to
+**stderr** — scripts can safely pipe stdout JSON.
+
 ### Environment variables
 
 ```bash
@@ -474,6 +479,7 @@ uploads as `text/html`, not `image/jpeg`.
 | `--skip-existing` | `false` | Skip upload when the object key already exists |
 | `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
 | `--verify` | `false` | After PUT, issue one HEAD to verify remote size/Content-Type/HTTP headers/metadata match this upload |
+| `--format` | `table` | Output format: `table` / `json` (JSON contract `itb.s3.upload.v1`) |
 
 </details>
 
@@ -515,6 +521,7 @@ check (upload `--verify` only checks headers/metadata).
 | `-o, --output` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
 | `--verify` | Read the object's itb-sha256 metadata and compare the SHA-256 computed while streaming |
 | `--verify-sha256` | Expected hex SHA-256, independent of object metadata |
+| `--format` | Output format: `table` / `json` (JSON contract `itb.s3.download.v1`) |
 
 </details>
 
@@ -576,6 +583,21 @@ stat always queries by the exact object key and never falls back to list
 inference when the object does not exist. The returned metadata includes
 Size, ETag, Content-Type, Storage Class, Cache-Control, Version ID and
 user metadata.
+
+`--format json` carries the machine-readable contract version
+`schema_version: itb.s3.stat.v1`:
+
+```json
+{
+  "schema_version": "itb.s3.stat.v1",
+  "key": "...",
+  "size": 123,
+  "content_type": "...",
+  "metadata": {}
+}
+```
+
+Scripts should branch on `schema_version` instead of parsing terminal text.
 
 <details>
 <summary>stat options</summary>

@@ -20,6 +20,13 @@ import (
 // ETag 不是可靠的内容哈希）。
 const MetadataSHA256Key = "itb-sha256"
 
+// 机器可读输出契约（--format json）的 schema 版本。脚本消费方依赖
+// JSON 结构稳定时，应以 schema_version 判断契约版本，而不是解析
+// 终端文本。stat 与 upload/download 各自独立演进。
+const (
+	UploadSchemaVersion = "itb.s3.upload.v1"
+)
+
 // UploadOptions 上传选项
 type UploadOptions struct {
 	ContentType string
@@ -55,6 +62,9 @@ type UploadOptions struct {
 
 // UploadResult 上传结果
 type UploadResult struct {
+	// SchemaVersion 机器可读契约版本（itb.s3.upload.v1）
+	SchemaVersion string `json:"schema_version"`
+
 	// Key 实际写入的对象键
 	Key string `json:"key"`
 
@@ -127,7 +137,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}
 
 		if remote != nil && opts.SkipExisting {
-			return &UploadResult{Key: key, Skipped: true, Reason: "object already exists"}, nil
+			return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Skipped: true, Reason: "object already exists"}, nil
 		}
 	}
 
@@ -137,7 +147,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	}
 
 	if opts != nil && opts.SkipUnchanged && isUnchanged(remote, sha256Value) {
-		return &UploadResult{Key: key, Skipped: true, Reason: "content unchanged (itb-sha256 match)"}, nil
+		return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Skipped: true, Reason: "content unchanged (itb-sha256 match)"}, nil
 	}
 
 	// hash 已消费文件内容，回卷到起点后再交给 PutObject
@@ -209,7 +219,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}
 	}
 
-	return &UploadResult{Key: key, Size: fileSize, SHA256: sha256Value}, nil
+	return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Size: fileSize, SHA256: sha256Value}, nil
 }
 
 // uploadExpectations 记录本次 PUT 写入的对象属性，供 --verify 的

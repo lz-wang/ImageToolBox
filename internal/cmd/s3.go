@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -160,6 +161,12 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 				Name:  "verify",
 				Usage: "PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致（不校验 body 字节）",
 			},
+			&cli.StringFlag{
+				Name:      "format",
+				Value:     "table",
+				Usage:     "输出格式 `FORMAT`: table/json（stdout 只承载正式结果，进度提示走 stderr）",
+				Validator: enumValidator("format", "table", "json"),
+			},
 		},
 		// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
@@ -225,6 +232,12 @@ func newS3DownloadCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:  "verify-sha256",
 				Usage: "期望的十六进制 SHA-256 `HASH`（独立于对象 metadata 的完整性校验，可与 --verify 同用）",
+			},
+			&cli.StringFlag{
+				Name:      "format",
+				Value:     "table",
+				Usage:     "输出格式 `FORMAT`: table/json（stdout 只承载正式结果，进度提示走 stderr）",
+				Validator: enumValidator("format", "table", "json"),
 			},
 		},
 		Action: runS3Download,
@@ -385,8 +398,13 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	// 输出统一由 CLI 层负责：stdout 只承载正式结果，
+	// 输出统一由 CLI 层负责：stdout 只承载正式结果（table 或 json），
 	// 进度提示已由 domain 写入 opts.Progress（stderr）。
+	if cmd.String("format") == "json" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	}
 	if result.Skipped {
 		fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", input, cmd.String("bucket"), key, result.Reason)
 		return nil
@@ -415,6 +433,12 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if cmd.String("format") == "json" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
 	}
 	fmt.Printf("Download completed: %s -> %s (%d bytes)\n", result.Key, result.OutputPath, result.Size)
 	return nil

@@ -31,8 +31,14 @@ type DownloadOptions struct {
 	Progress io.Writer
 }
 
+// DownloadSchemaVersion 是 download --format json 的机器可读契约版本。
+const DownloadSchemaVersion = "itb.s3.download.v1"
+
 // DownloadResult 下载结果
 type DownloadResult struct {
+	// SchemaVersion 机器可读契约版本（itb.s3.download.v1）
+	SchemaVersion string `json:"schema_version"`
+
 	// Key 下载的对象键
 	Key string `json:"key"`
 
@@ -173,5 +179,5 @@ func Download(ctx context.Context, client *Client, key string, outputPath string
 	}
 	committed = true
 
-	return &DownloadResult{Key: key, OutputPath: outputPath, Size: written, SHA256: computed}, nil
+	return &DownloadResult{SchemaVersion: DownloadSchemaVersion, Key: key, OutputPath: outputPath, Size: written, SHA256: computed}, nil
 }

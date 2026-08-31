@@ -154,6 +154,9 @@ func TestUploadDefaultPutsWithoutHead(t *testing.T) {
 	if result.Key != "hello.txt" {
 		t.Errorf("result.Key = %q, want hello.txt", result.Key)
 	}
+	if result.SchemaVersion != UploadSchemaVersion {
+		t.Errorf("result.SchemaVersion = %q, want %q", result.SchemaVersion, UploadSchemaVersion)
+	}
 	if result.Size != int64(len(helloContent)) {
 		t.Errorf("result.Size = %d, want %d", result.Size, len(helloContent))
 	}

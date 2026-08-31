@@ -380,6 +380,10 @@ make test     # go test
 
 支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
 
+输出约定：**stdout 只承载正式结果**（`--format table|json` 切换，upload/download/stat/list
+均支持机器可读 JSON 与 `schema_version` 契约），进度提示与诊断信息走 **stderr**，
+脚本可以放心用管道消费 stdout 的 JSON。
+
 ### 环境变量
 
 ```bash
@@ -469,6 +473,7 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 | `--skip-existing` | `false` | 对象键已存在即跳过上传 |
 | `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
 | `--verify` | `false` | PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致 |
+| `--format` | `table` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.upload.v1`） |
 
 </details>
 
@@ -508,6 +513,7 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 | `-o, --output` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
 | `--verify` | 读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对 |
 | `--verify-sha256` | 期望的十六进制 SHA-256，独立于对象 metadata 的完整性校验 |
+| `--format` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.download.v1`） |
 
 </details>
 
@@ -567,6 +573,20 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 stat 始终按精确对象键查询，对象不存在时不回退到 list 推断。返回的元数据包括
 Size、ETag、Content-Type、Storage Class、Cache-Control、Version ID 与用户 Metadata。
+
+`--format json` 携带机器可读契约版本 `schema_version: itb.s3.stat.v1`：
+
+```json
+{
+  "schema_version": "itb.s3.stat.v1",
+  "key": "...",
+  "size": 123,
+  "content_type": "...",
+  "metadata": {}
+}
+```
+
+脚本应依赖 `schema_version` 判断契约版本，而不是解析终端文本。
 
 <details>
 <summary>stat 参数</summary>

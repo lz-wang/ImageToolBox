@@ -160,6 +160,7 @@ func TestS3UploadHelpContract(t *testing.T) {
 		"--content-disposition",
 		"--content-encoding",
 		"--verify",
+		"--format",
 		"itb-sha256",
 		"按文件内容检测",
 	} {
@@ -176,6 +177,7 @@ func TestS3DownloadHelpContract(t *testing.T) {
 	assertContains(t, out, "最后一段")
 	assertContains(t, out, "--verify")
 	assertContains(t, out, "--verify-sha256")
+	assertContains(t, out, "--format")
 	assertContains(t, out, "partial")
 	assertNotContains(t, out, "默认使用对象键名")
 }

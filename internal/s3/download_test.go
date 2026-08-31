@@ -109,6 +109,9 @@ func TestDownloadSingleGetNoHead(t *testing.T) {
 	if result.Key != "hello.txt" || result.OutputPath != output {
 		t.Errorf("result = %+v", result)
 	}
+	if result.SchemaVersion != DownloadSchemaVersion {
+		t.Errorf("result.SchemaVersion = %q, want %q", result.SchemaVersion, DownloadSchemaVersion)
+	}
 	if result.Size != int64(len(helloContent)) {
 		t.Errorf("result.Size = %d, want %d", result.Size, len(helloContent))
 	}
