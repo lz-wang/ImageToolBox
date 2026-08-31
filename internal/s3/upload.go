@@ -68,10 +68,13 @@ type UploadResult struct {
 	// Key 实际写入的对象键
 	Key string `json:"key"`
 
-	// Size 上传对象的字节数
+	// Size 上传对象的字节数；命中跳过规则时为本地输入文件的字节数
+	//（skip-existing 时 SHA256 未知但 Size 已由 file.Stat() 得知，
+	// 不输出误导性的 size: 0）
 	Size int64 `json:"size"`
 
-	// SHA256 本地文件内容 SHA-256，同时写入 itb-sha256 metadata
+	// SHA256 本地文件内容 SHA-256，同时写入 itb-sha256 metadata；
+	// skip-existing 命中时未计算、留空
 	SHA256 string `json:"sha256"`
 
 	// Skipped 表示命中跳过规则，未执行上传
@@ -137,7 +140,16 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}
 
 		if remote != nil && opts.SkipExisting {
-			return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Skipped: true, Reason: "object already exists"}, nil
+			// 同名即跳过，远端内容与本地无关；SHA256 未计算留空，
+			// 但 Size 已由 file.Stat() 得知，填充以免 JSON 消费方
+			// 看到误导性的 size: 0
+			return &UploadResult{
+				SchemaVersion: UploadSchemaVersion,
+				Key:           key,
+				Size:          fileInfo.Size(),
+				Skipped:       true,
+				Reason:        "object already exists",
+			}, nil
 		}
 	}
 
@@ -147,7 +159,15 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	}
 
 	if opts != nil && opts.SkipUnchanged && isUnchanged(remote, sha256Value) {
-		return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Skipped: true, Reason: "content unchanged (itb-sha256 match)"}, nil
+		// 命中即远端 itb-sha256 与本地一致，Size 与 SHA256 都是确切值
+		return &UploadResult{
+			SchemaVersion: UploadSchemaVersion,
+			Key:           key,
+			Size:          fileInfo.Size(),
+			SHA256:        sha256Value,
+			Skipped:       true,
+			Reason:        "content unchanged (itb-sha256 match)",
+		}, nil
 	}
 
 	// hash 已消费文件内容，回卷到起点后再交给 PutObject

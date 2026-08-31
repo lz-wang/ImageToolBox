@@ -50,7 +50,9 @@ func ResolveContentType(path string, explicit string) string {
 	if ct := sniffContentType(path); ct != "" {
 		return ct
 	}
-	if ct, ok := contentTypes[filepath.Ext(path)]; ok {
+	// 扩展名归一化为小写：foo.PNG / foo.JSON 这类大小写混合的
+	// 文件名同样能命中兜底表
+	if ct, ok := contentTypes[strings.ToLower(filepath.Ext(path))]; ok {
 		return ct
 	}
 	return "application/octet-stream"

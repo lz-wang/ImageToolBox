@@ -63,6 +63,8 @@ func TestResolveContentType(t *testing.T) {
 		{"SVG 裸 <svg> 根元素", "vector.bin", svgBare, "", "image/svg+xml"},
 		{"普通文本保持 text/plain", "notes.bin", plainText, "", "text/plain; charset=utf-8"},
 		{"未知二进制回退扩展名 .png", "blob.png", unknownBinary, "", "image/png"},
+		{"未知二进制回退大写扩展名 .PNG", "blob.PNG", unknownBinary, "", "image/png"},
+		{"未知二进制回退大写扩展名 .JSON", "data.JSON", unknownBinary, "", "application/json"},
 		{"未知二进制且未知扩展名", "blob.xyzunknown", unknownBinary, "", "application/octet-stream"},
 	}
 

@@ -510,6 +510,10 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA-256
 校验；body 完整性校验由 `download --verify` / `--verify-sha256` 承担。
 
+跳过命中的 JSON 结果字段语义：`--skip-existing` 命中时 `size` 为本地
+输入文件的字节数（`sha256` 未计算、留空）；`--skip-unchanged` 命中时
+`size` 与 `sha256` 均为本地文件的确切值。
+
 ### 下载文件
 
 ```bash

@@ -186,6 +186,15 @@ func TestUploadSkipExistingSkipsBeforeHash(t *testing.T) {
 	if result.Reason == "" {
 		t.Error("skipped result must carry a reason")
 	}
+	// skip-existing 在 hash 之前返回，SHA256 未知（远端内容可能与本地
+	// 无关），但 Size 已由 file.Stat() 得知，JSON 消费方不应看到误导性
+	// 的 size: 0
+	if result.Size != int64(len(helloContent)) {
+		t.Errorf("skipped result.Size = %d, want %d（本地文件大小已知）", result.Size, len(helloContent))
+	}
+	if result.SHA256 != "" {
+		t.Errorf("skipped result.SHA256 = %q, want 空（skip-existing 未计算哈希）", result.SHA256)
+	}
 	assertMethods(t, rec.snapshotMethods(), []string{http.MethodHead})
 }
 
@@ -223,6 +232,14 @@ func TestUploadSkipUnchangedSkipsWhenHashMatches(t *testing.T) {
 	}
 	if !result.Skipped {
 		t.Fatal("expected upload to be skipped")
+	}
+	// skip-unchanged 命中意味着远端 itb-sha256 与本地一致，
+	// Size 与 SHA256 都是确切值，必须填充
+	if result.Size != int64(len(helloContent)) {
+		t.Errorf("skipped result.Size = %d, want %d", result.Size, len(helloContent))
+	}
+	if result.SHA256 != helloSHA256 {
+		t.Errorf("skipped result.SHA256 = %q, want %q", result.SHA256, helloSHA256)
 	}
 	assertMethods(t, rec.snapshotMethods(), []string{http.MethodHead})
 }

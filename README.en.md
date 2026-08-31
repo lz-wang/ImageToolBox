@@ -518,6 +518,11 @@ Request contract of `--verify`: a plain upload is `PUT`; `--verify` makes it
 **not** a body SHA-256 check; body integrity is covered by
 `download --verify` / `--verify-sha256`.
 
+Field semantics of a skipped JSON result: on a `--skip-existing` hit, `size`
+carries the local input file's byte count (`sha256` was not computed and is
+empty); on a `--skip-unchanged` hit, both `size` and `sha256` carry the exact
+local file values.
+
 ### Download file
 
 ```bash
