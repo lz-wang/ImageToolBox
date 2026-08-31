@@ -103,6 +103,12 @@ func (o *Options) Normalize() {
 	}
 }
 
+// finite 拒绝 NaN/Inf：所有比较运算对 NaN 均为 false，仅靠范围判断
+// 无法拦截这类值。
+func finite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
 // Validate 校验 watermark 参数的完整业务规则，CLI 与 HTTP 共用，
 // 保证两个入口语义一致。
 func (o Options) Validate() error {
@@ -127,8 +133,8 @@ func (o Options) Validate() error {
 	default:
 		return fmt.Errorf("unsupported watermark position: %s", o.Position)
 	}
-	if o.Opacity != nil && (*o.Opacity < 0 || *o.Opacity > 1) {
-		return fmt.Errorf("opacity must be between 0 and 1: %v", *o.Opacity)
+	if o.Opacity != nil && (!finite(*o.Opacity) || *o.Opacity < 0 || *o.Opacity > 1) {
+		return fmt.Errorf("opacity must be a finite number between 0 and 1: %v", *o.Opacity)
 	}
 	if o.FontSize != nil && (*o.FontSize < 0 || *o.FontSize > MaxFontSize) {
 		return fmt.Errorf("font size must be between 0 and %d: %d", MaxFontSize, *o.FontSize)
@@ -139,11 +145,11 @@ func (o Options) Validate() error {
 	if o.Angle != nil && (*o.Angle < -360 || *o.Angle > 360) {
 		return fmt.Errorf("angle must be between -360 and 360: %d", *o.Angle)
 	}
-	if o.Margin != nil && *o.Margin < 0 {
-		return fmt.Errorf("margin must not be negative: %v", *o.Margin)
+	if o.Margin != nil && (!finite(*o.Margin) || *o.Margin < 0) {
+		return fmt.Errorf("margin must be a finite non-negative number: %v", *o.Margin)
 	}
-	if o.Scale != nil && *o.Scale <= 0 {
-		return fmt.Errorf("scale must be greater than 0: %v", *o.Scale)
+	if o.Scale != nil && (!finite(*o.Scale) || *o.Scale <= 0) {
+		return fmt.Errorf("scale must be a finite number greater than 0: %v", *o.Scale)
 	}
 	if strings.TrimSpace(o.Color) != "" {
 		if _, err := imageio.ParseHexColor(o.Color); err != nil {

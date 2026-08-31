@@ -181,6 +181,9 @@ func parsePercent(value string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("无法解析百分比: %s", value)
 	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, fmt.Errorf("百分比必须是有限数值: %s", value)
+	}
 	if parsed <= 0 || parsed > 100 {
 		return 0, fmt.Errorf("百分比必须在 (0,100] 范围内: %s", value)
 	}

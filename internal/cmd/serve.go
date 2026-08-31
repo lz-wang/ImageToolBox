@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -119,6 +120,9 @@ func parseByteSize(value string) (int64, error) {
 			n, err := strconv.ParseInt(strings.TrimSpace(strings.TrimSuffix(v, suffix)), 10, 64)
 			if err != nil || n <= 0 {
 				return 0, fmt.Errorf("invalid byte size: %s", value)
+			}
+			if n > math.MaxInt64/multiplier {
+				return 0, fmt.Errorf("byte size exceeds int64 range: %s", value)
 			}
 			return n * multiplier, nil
 		}

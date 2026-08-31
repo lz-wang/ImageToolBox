@@ -47,6 +47,8 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 		return form{}, err
 	}
 	f := form{values: map[string]string{}, files: map[string]uploadedFile{}}
+	// 同名字段不论标量还是文件都视为重复，统一在 parser 阶段拒绝。
+	seen := map[string]struct{}{}
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -59,10 +61,11 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 		if name == "" {
 			return form{}, fmt.Errorf("multipart field name is required")
 		}
+		if _, exists := seen[name]; exists {
+			return form{}, fmt.Errorf("duplicate parameter: %s", name)
+		}
+		seen[name] = struct{}{}
 		if part.FileName() == "" {
-			if _, ok := f.values[name]; ok {
-				return form{}, fmt.Errorf("duplicate parameter: %s", name)
-			}
 			limit := fieldLimit(name)
 			data, err := io.ReadAll(io.LimitReader(part, limit+1))
 			if err != nil {
@@ -73,9 +76,6 @@ func parseMultipart(w http.ResponseWriter, r *http.Request, dir string, cfg Conf
 			}
 			f.values[name] = string(data)
 			continue
-		}
-		if _, ok := f.files[name]; ok {
-			return form{}, fmt.Errorf("duplicate file: %s", name)
 		}
 		// 客户端 filename 只作为 OriginalName 元数据，绝不参与服务端
 		// 存储路径：路径由 CreateTemp 生成，避免文件名碰撞与路径注入。

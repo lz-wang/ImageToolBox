@@ -588,6 +588,57 @@ func TestUnknownFieldsRejected(t *testing.T) {
 	}
 }
 
+func TestValidationBoundaries(t *testing.T) {
+	post := func(t *testing.T, path string, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, path, fields, files...))
+		return w
+	}
+	input := formFile{field: "input", filename: "a.png", content: testPNG(t, 16, 16)}
+	t.Run("non-finite floats are rejected", func(t *testing.T) {
+		for name, fields := range map[string]map[string]string{
+			"opacity NaN":        {"text": "mark", "opacity": "NaN"},
+			"opacity Infinity":   {"text": "mark", "opacity": "Infinity"},
+			"margin NaN":         {"text": "mark", "margin": "NaN"},
+			"scale Inf with img": {"scale": "+Inf"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				files := []formFile{input}
+				if fields["scale"] != "" {
+					files = append(files, formFile{field: "image", filename: "logo.png", content: testPNG(t, 4, 4)})
+				}
+				w := post(t, "/api/v1/watermark", fields, files...)
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+				}
+			})
+		}
+	})
+	t.Run("non-finite percent is rejected", func(t *testing.T) {
+		for _, value := range []string{"NaN%", "Inf%", "-Infinity%"} {
+			t.Run(value, func(t *testing.T) {
+				w := post(t, "/api/v1/resize", map[string]string{"percent": value}, input)
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+				}
+			})
+		}
+	})
+	t.Run("scalar and file sharing one field name is a duplicate", func(t *testing.T) {
+		h := mustNew(t, Config{NoAuth: true})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newRawMultipartRequest(t, "/api/v1/resize",
+			rawPart{name: "input", value: "x"},
+			rawPart{name: "input", isFile: true, filename: "a.png", content: testPNG(t, 8, 8)},
+			rawPart{name: "width", value: "4"}))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+}
+
 func TestStreamingHeaders(t *testing.T) {
 	h := mustNew(t, Config{NoAuth: true})
 	w := httptest.NewRecorder()

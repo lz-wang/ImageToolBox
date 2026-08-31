@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -92,9 +93,21 @@ func nonNegativeIntValidator(flag string) func(int) error {
 	}
 }
 
+// finiteFloat 校验浮点值是有限数：NaN 与任何比较都为 false，
+// 仅靠范围判断无法拦截 NaN/Inf。
+func finiteFloat(flag string, v float64) error {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return fmt.Errorf("--%s 必须是有限数值（当前: %v）", flag, v)
+	}
+	return nil
+}
+
 // floatRangeValidator 生成浮点范围校验器（闭区间）。
 func floatRangeValidator(flag string, min, max float64) func(float64) error {
 	return func(v float64) error {
+		if err := finiteFloat(flag, v); err != nil {
+			return err
+		}
 		if v < min || v > max {
 			return fmt.Errorf("--%s 必须在 %v~%v 范围内（当前: %v）", flag, min, max, v)
 		}
@@ -105,6 +118,9 @@ func floatRangeValidator(flag string, min, max float64) func(float64) error {
 // nonNegativeFloatValidator 生成非负浮点校验器。
 func nonNegativeFloatValidator(flag string) func(float64) error {
 	return func(v float64) error {
+		if err := finiteFloat(flag, v); err != nil {
+			return err
+		}
 		if v < 0 {
 			return fmt.Errorf("--%s 不能为负数（当前: %v）", flag, v)
 		}
@@ -129,6 +145,9 @@ func colorValidator(flag string) func(string) error {
 // positiveFloatValidator 生成正数校验器。
 func positiveFloatValidator(flag string) func(float64) error {
 	return func(v float64) error {
+		if err := finiteFloat(flag, v); err != nil {
+			return err
+		}
 		if v <= 0 {
 			return fmt.Errorf("--%s 必须大于 0（当前: %v）", flag, v)
 		}
@@ -149,6 +168,9 @@ func percentRangeValidator(flag string, max float64) func(string) error {
 		parsed, err := strconv.ParseFloat(strings.TrimSuffix(v, "%"), 64)
 		if err != nil {
 			return fmt.Errorf("--%s 无法解析百分比: %s", flag, v)
+		}
+		if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+			return fmt.Errorf("--%s 百分比必须是有限数值（当前: %s）", flag, v)
 		}
 		if parsed <= 0 {
 			return fmt.Errorf("--%s 百分比必须大于 0（当前: %s）", flag, v)

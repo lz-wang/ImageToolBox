@@ -14,6 +14,9 @@ func TestParseByteSize(t *testing.T) {
 		{value: "64MB"},
 		{value: "0MiB"},
 		{value: "invalid"},
+		// n × multiplier 溢出 int64，必须在乘法前拒绝
+		{value: "9223372036854775807GiB"},
+		{value: "9999999999999999GiB"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.value, func(t *testing.T) {

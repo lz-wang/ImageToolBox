@@ -18,6 +18,7 @@ func TestAuthEdgeCases(t *testing.T) {
 	}{
 		{name: "exact bearer token", header: "Bearer secret", want: http.StatusOK},
 		{name: "lowercase scheme", header: "bearer secret", want: http.StatusUnauthorized},
+		{name: "raw token without scheme", header: "secret", want: http.StatusUnauthorized},
 		{name: "scheme only", header: "Bearer", want: http.StatusUnauthorized},
 		{name: "basic scheme", header: "Basic secret", want: http.StatusUnauthorized},
 		{name: "trailing extra word", header: "Bearer secret extra", want: http.StatusUnauthorized},

@@ -35,11 +35,17 @@ func protected(cfg Config, sem chan struct{}, next http.Handler) http.HandlerFun
 }
 
 // authorized 只接受 Authorization: Bearer <exact-token>，使用常数时间比较。
+// 必须带 "Bearer " 前缀：裸 token 不符合契约，即使值正确也拒绝。
 func authorized(r *http.Request, token string) bool {
 	if token == "" {
 		return false
 	}
-	value := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	const prefix = "Bearer "
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, prefix) {
+		return false
+	}
+	value := strings.TrimPrefix(header, prefix)
 	return len(value) == len(token) && subtle.ConstantTimeCompare([]byte(value), []byte(token)) == 1
 }
 

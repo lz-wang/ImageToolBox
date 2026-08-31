@@ -146,6 +146,8 @@ func TestResolve(t *testing.T) {
 		for _, opts := range []Options{
 			{},
 			{Percent: "50%", Width: 10},
+			{Percent: "NaN%"},
+			{Percent: "Inf%"},
 			{Mode: ModeFill, Width: 10},
 			{Mode: "bogus"},
 			{Width: 10, Anchor: "bogus"},

@@ -164,6 +164,9 @@ func parsePercent(value string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid percent: %s", value)
 	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, fmt.Errorf("percent must be a finite number: %s", value)
+	}
 	if parsed <= 0 {
 		return 0, fmt.Errorf("percent must be greater than 0: %s", value)
 	}

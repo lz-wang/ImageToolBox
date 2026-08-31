@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,6 +100,8 @@ func TestOptionsValidate(t *testing.T) {
 		{name: "opacity one", opts: Options{Text: "mark", Opacity: float64Ptr(1)}},
 		{name: "opacity negative", opts: Options{Text: "mark", Opacity: float64Ptr(-0.1)}, wantErr: true},
 		{name: "opacity above one", opts: Options{Text: "mark", Opacity: float64Ptr(1.1)}, wantErr: true},
+		{name: "opacity NaN", opts: Options{Text: "mark", Opacity: float64Ptr(math.NaN())}, wantErr: true},
+		{name: "opacity Inf", opts: Options{Text: "mark", Opacity: float64Ptr(math.Inf(1))}, wantErr: true},
 		{name: "invalid position", opts: Options{Text: "mark", Position: Position("middle")}, wantErr: true},
 		{name: "font size max", opts: Options{Text: "mark", FontSize: intPtr(MaxFontSize)}},
 		{name: "font size too large", opts: Options{Text: "mark", FontSize: intPtr(MaxFontSize + 1)}, wantErr: true},
@@ -107,7 +110,10 @@ func TestOptionsValidate(t *testing.T) {
 		{name: "angle boundary", opts: Options{Text: "mark", Mode: ModeRepeat, Angle: intPtr(-360)}},
 		{name: "angle out of range", opts: Options{Text: "mark", Mode: ModeRepeat, Angle: intPtr(361)}, wantErr: true},
 		{name: "margin negative", opts: Options{Text: "mark", Margin: float64Ptr(-0.1)}, wantErr: true},
+		{name: "margin NaN", opts: Options{Text: "mark", Margin: float64Ptr(math.NaN())}, wantErr: true},
 		{name: "scale zero", opts: Options{ImagePath: "logo.png", Scale: float64Ptr(0)}, wantErr: true},
+		{name: "scale NaN", opts: Options{ImagePath: "logo.png", Scale: float64Ptr(math.NaN())}, wantErr: true},
+		{name: "scale Inf", opts: Options{ImagePath: "logo.png", Scale: float64Ptr(math.Inf(-1))}, wantErr: true},
 		{name: "invalid color", opts: Options{Text: "mark", Color: "notacolor"}, wantErr: true},
 		{name: "valid color", opts: Options{Text: "mark", Color: "#FF8800CC"}},
 		{name: "text exceeds rune limit", opts: Options{Text: strings.Repeat("水", MaxTextRunes+1)}, wantErr: true},
