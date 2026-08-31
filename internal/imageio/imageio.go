@@ -85,13 +85,12 @@ func Probe(path string) (Info, error) {
 		Height:         config.Height,
 		Orientation:    1,
 	}
-	// imaging.AutoOrientation 只解析 JPEG EXIF，Probe 的 orientation
-	// 语义与之保持一致（WebP 携带的 orientation 元数据不处理）
+	// orientation 只解析 JPEG EXIF（WebP 携带的 orientation 元数据不
+	// 处理）；Probe 与 OpenStatic 共用 fileJPEGOrientation，保证两侧
+	// 读到的值一致
 	if format == "jpeg" {
-		if _, err := f.Seek(0, io.SeekStart); err == nil {
-			if o := jpegOrientation(f); o != 0 {
-				info.Orientation = o
-			}
+		if o := fileJPEGOrientation(path); o != 0 {
+			info.Orientation = o
 		}
 	}
 	if swapsDimensions(info.Orientation) {

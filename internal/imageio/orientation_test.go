@@ -150,7 +150,9 @@ func TestProbeLogicalDimensions(t *testing.T) {
 // Probe 的逻辑尺寸必须等于 OpenStatic 解码后的 image.Bounds()，
 // 否则资源准入（基于 Probe）与执行结果（基于 decode）会漂移。
 func TestProbeMatchesOpenStaticBounds(t *testing.T) {
-	for _, orientation := range []uint16{1, 3, 6, 8} {
+	// 覆盖全部 orientation 值：1-4 保持宽高，5-8 交换，
+	// 逐一锁定 applyOrientation 与 Probe 的宽高语义一致。
+	for _, orientation := range []uint16{1, 2, 3, 4, 5, 6, 7, 8} {
 		t.Run(string(rune('0'+orientation)), func(t *testing.T) {
 			path := writeOrientedJPEG(t, orientation, 4, 8)
 
@@ -166,6 +168,113 @@ func TestProbeMatchesOpenStaticBounds(t *testing.T) {
 			if info.Width != bounds.Dx() || info.Height != bounds.Dy() {
 				t.Errorf("probe logical %dx%d != decoded bounds %dx%d (orientation %d)",
 					info.Width, info.Height, bounds.Dx(), bounds.Dy(), orientation)
+			}
+		})
+	}
+}
+
+// TestExifOrientationRequiresExifHeader 锁定 parser 健壮性：APP1 payload
+// 必须以 "Exif\x00\x00" 开头才被当作 EXIF 解析，防止其他 APP1 数据
+// 在偏移 6 处巧合构成合法 TIFF 头而被误读出 orientation。
+func TestExifOrientationRequiresExifHeader(t *testing.T) {
+	var fakeTIFF bytes.Buffer
+	fakeTIFF.WriteString("II")
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(42))
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint32(8)) // IFD0 偏移
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(1)) // 条目数
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(0x0112))
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(3))
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint32(1))
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(6)) // orientation 6
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint16(0))
+	_ = binary.Write(&fakeTIFF, binary.LittleEndian, uint32(0))
+
+	payload := append([]byte("NOTEXI"), fakeTIFF.Bytes()...)
+
+	var buf bytes.Buffer
+	buf.Write([]byte{0xFF, 0xD8})
+	buf.Write(buildArbitraryAPP1(payload))
+	if got := jpegOrientation(bytes.NewReader(buf.Bytes())); got != 0 {
+		t.Errorf("jpegOrientation(非 Exif 头 APP1) = %d, want 0（不得把巧合的 TIFF 结构当 EXIF）", got)
+	}
+}
+
+// buildArbitraryAPP1 构造携带任意 payload 的 APP1 段（非 EXIF，如 XMP）。
+func buildArbitraryAPP1(payload []byte) []byte {
+	seg := bytes.NewBuffer(nil)
+	seg.WriteByte(0xFF)
+	seg.WriteByte(0xE1)
+	_ = binary.Write(seg, binary.BigEndian, uint16(2+len(payload)))
+	seg.Write(payload)
+	return seg.Bytes()
+}
+
+// writeJPEGWithPrefixAPP1 生成在 SOI 与 EXIF APP1 之间插入一个前置
+// APP1 段（如 XMP）的真实 JPEG，物理尺寸 width×height。
+func writeJPEGWithPrefixAPP1(t *testing.T, prefixPayload []byte, orientation uint16, width, height int) string {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	var body bytes.Buffer
+	if err := jpeg.Encode(&body, img, nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	encoded := body.Bytes()
+
+	var out bytes.Buffer
+	out.Write(encoded[:2]) // SOI
+	out.Write(buildArbitraryAPP1(prefixPayload))
+	out.Write(buildEXIFAPP1(orientation))
+	out.Write(encoded[2:])
+
+	path := filepath.Join(t.TempDir(), "prefixed.jpg")
+	if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	return path
+}
+
+// TestProbeMatchesOpenStaticBoundsAfterNonEXIFAPP1 锁定 multi-APP1 边界：
+// EXIF APP1 之前存在非 EXIF APP1（XMP 等）时，Probe 与 OpenStatic
+// 仍必须报告一致的 orientation 与逻辑尺寸。
+//
+// imaging.readOrientation 只检查第一个 APP1：不是 EXIF 就直接放弃，
+// 而 jpegOrientation 会继续扫描后续 APP1。若 OpenStatic 依赖
+// imaging.AutoOrientation，这类文件会让两侧读到的 orientation 不同，
+// invariant 失效——OpenStatic 必须与 Probe 使用同一个 parser。
+func TestProbeMatchesOpenStaticBoundsAfterNonEXIFAPP1(t *testing.T) {
+	xmpPayload := append(
+		[]byte("http://ns.adobe.com/xap/1.0/\x00"),
+		[]byte(`<x:xmpmeta xmlns:x="adobe:ns:meta/"></x:xmpmeta>`)...,
+	)
+
+	tests := []struct {
+		name   string
+		prefix []byte
+	}{
+		{"XMP APP1 后跟 EXIF APP1", xmpPayload},
+		{"非 EXIF APP1 后跟 EXIF APP1", []byte("arbitrary-extended-metadata")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeJPEGWithPrefixAPP1(t, tt.prefix, 6, 4, 8)
+
+			info, err := Probe(path)
+			if err != nil {
+				t.Fatalf("Probe: %v", err)
+			}
+			if info.Orientation != 6 {
+				t.Fatalf("Probe orientation = %d, want 6（parser 应跳过前置非 EXIF APP1 继续扫描）", info.Orientation)
+			}
+
+			img, err := OpenStatic(path)
+			if err != nil {
+				t.Fatalf("OpenStatic: %v", err)
+			}
+			bounds := img.Bounds()
+			if info.Width != bounds.Dx() || info.Height != bounds.Dy() {
+				t.Errorf("probe logical %dx%d != decoded bounds %dx%d：OpenStatic 与 Probe 必须使用同一 orientation parser",
+					info.Width, info.Height, bounds.Dx(), bounds.Dy())
 			}
 		})
 	}

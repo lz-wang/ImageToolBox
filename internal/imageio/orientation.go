@@ -3,12 +3,18 @@ package imageio
 import (
 	"encoding/binary"
 	"io"
+	"os"
 )
 
 // jpegOrientation 从 JPEG 流解析 EXIF Orientation（tag 0x0112），
 // 返回 1-8；无法解析（无 EXIF、非 JPEG、格式错误）返回 0，
-// 调用方按 1（不旋转）处理。与 imaging.AutoOrientation 的解析
-// 语义保持一致：仅 JPEG 携带 EXIF，WebP 的 orientation 元数据不处理。
+// 调用方按 1（不旋转）处理。仅 JPEG 携带 EXIF，WebP 的 orientation
+// 元数据不处理。
+//
+// 这是 orientation 的唯一 parser：Probe（报告逻辑尺寸）与 OpenStatic
+// （把 orientation 烘焙进像素）共用同一实现，"Probe 逻辑尺寸 ==
+// OpenStatic 解码 bounds" 的 invariant 由结构保证，而不是寄望两个
+// 独立实现恰好一致。
 func jpegOrientation(r io.Reader) int {
 	var head [2]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {
@@ -65,8 +71,10 @@ func jpegOrientation(r io.Reader) int {
 // 布局："Exif\0\0" + TIFF 头（字节序标记 + 42 + IFD0 偏移）+ IFD0 条目；
 // Orientation 是 SHORT 类型、count 为 1，值直接内联在条目的 value 字段。
 func exifOrientation(data []byte) (int, bool) {
-	// "Exif\x00\x00" 前缀（6 字节）后是 TIFF 流
-	if len(data) < 14 {
+	// 必须先验证 "Exif\x00\x00" 前缀（6 字节）再取 TIFF 流：
+	// APP1 也承载 XMP 等其他数据，直接从偏移 6 解析会把巧合构成
+	// 合法 TIFF 头的非 EXIF payload 误读出 orientation。
+	if len(data) < 14 || string(data[:6]) != "Exif\x00\x00" {
 		return 0, false
 	}
 	tiff := data[6:]
@@ -122,4 +130,16 @@ func swapsDimensions(orientation int) bool {
 	default:
 		return false
 	}
+}
+
+// fileJPEGOrientation 打开文件解析 JPEG EXIF Orientation，无法解析
+// （非 JPEG、无 EXIF、IO 失败）返回 0（调用方按 1 处理）。
+// Probe 与 OpenStatic 共用，保证两侧读到的 orientation 必然相同。
+func fileJPEGOrientation(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	return jpegOrientation(f)
 }
