@@ -486,7 +486,18 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 # 未指定 -o 时保存到当前目录，文件名取对象键最后一段（photo.jpg）
 ./itb s3 download -b my-bucket -k images/photo.jpg
+
+# 边下载边校验（读取对象 itb-sha256 metadata，单遍计算，不二次读取本地文件）
+./itb s3 download -b my-bucket -k photo.jpg --verify
+
+# 按已知哈希校验（provider-neutral 完整性验证，可与 --verify 同用）
+./itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
 ```
+
+下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败（网络中断、
+写盘错误、校验不通过）都会删除临时文件，目标路径不会留下 partial 文件。
+`--verify` / `--verify-sha256` 哈希不一致时返回校验错误（`ErrChecksumMismatch`），
+这才是对 body 字节的真正完整性校验（upload 的 `--verify` 只校验 header/metadata）。
 
 <details>
 <summary>download 参数</summary>
@@ -495,6 +506,8 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 |------|------|
 | `-k, --key` | 对象键名（必填） |
 | `-o, --output` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
+| `--verify` | 读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对 |
+| `--verify-sha256` | 期望的十六进制 SHA-256，独立于对象 metadata 的完整性校验 |
 
 </details>
 

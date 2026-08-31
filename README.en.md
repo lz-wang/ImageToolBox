@@ -492,7 +492,19 @@ Request contract of `--verify`: a plain upload is `PUT`; `--verify` makes it
 
 # Without -o, saves to the current directory using the last segment of the key (photo.jpg)
 ./itb s3 download -b my-bucket -k images/photo.jpg
+
+# Verify while downloading (reads the object's itb-sha256 metadata, single pass)
+./itb s3 download -b my-bucket -k photo.jpg --verify
+
+# Verify against a known hash (provider-neutral integrity check; combinable with --verify)
+./itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
 ```
+
+Downloads stream into a temp file in the output directory and rename into place
+on success; any failure (network interruption, write error, checksum mismatch)
+removes the temp file, so the target path never holds a partial file. A hash
+mismatch fails with `ErrChecksumMismatch` — this is the real body-integrity
+check (upload `--verify` only checks headers/metadata).
 
 <details>
 <summary>download options</summary>
@@ -501,6 +513,8 @@ Request contract of `--verify`: a plain upload is `PUT`; `--verify` makes it
 |------|------|
 | `-k, --key` | Object key (required) |
 | `-o, --output` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
+| `--verify` | Read the object's itb-sha256 metadata and compare the SHA-256 computed while streaming |
+| `--verify-sha256` | Expected hex SHA-256, independent of object metadata |
 
 </details>
 

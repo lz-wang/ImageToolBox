@@ -19,10 +19,21 @@ import (
 func newDownloadTestServer(t *testing.T, body []byte) (*requestRecorder, *Client) {
 	t.Helper()
 
+	return newDownloadObjectServer(t, body, nil)
+}
+
+// newDownloadObjectServer 在 newDownloadTestServer 基础上为 GET
+// 响应附带用户 metadata（x-amz-meta-*），用于 --verify 测试。
+func newDownloadObjectServer(t *testing.T, body []byte, metadata map[string]string) (*requestRecorder, *Client) {
+	t.Helper()
+
 	rec := &requestRecorder{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			for k, v := range metadata {
+				w.Header().Set("x-amz-meta-"+k, v)
+			}
 			w.Header().Set("Content-Length", strconv.FormatInt(int64(len(body)), 10))
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(body)

@@ -176,6 +176,7 @@ itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
 itb s3 upload -i photo.jpg -b my-bucket --verify
 itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
 itb s3 download -b my-bucket -k images/photo.jpg   # saves ./photo.jpg (last key segment)
+itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
 itb s3 list -b my-bucket -p images/ --format json
 itb s3 stat -b my-bucket -k images/photo.jpg
 itb s3 stat -b my-bucket -k images/photo.jpg --format json
@@ -213,6 +214,11 @@ size/Content-Type/HTTP headers/metadata match the upload (request contract:
 `PUT → HEAD`; with skip flags a hit stays a single `HEAD`, a miss becomes
 `HEAD → PUT → HEAD`). It proves header/metadata consistency only — body
 integrity is verified on download, not here.
+
+`s3 download --verify` compares the SHA-256 computed while streaming against
+the object's `itb-sha256` metadata; `--verify-sha256 HASH` compares against a
+known hash (both single-pass). Any failure — including checksum mismatch —
+leaves no partial file at the output path (temp file + rename).
 
 ## Serve (WebUI)
 

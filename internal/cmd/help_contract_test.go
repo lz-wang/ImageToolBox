@@ -167,11 +167,15 @@ func TestS3UploadHelpContract(t *testing.T) {
 	}
 }
 
-// s3 download：默认输出是对象键最后一段，不是完整键名。
+// s3 download：默认输出是对象键最后一段，不是完整键名；
+// 下载校验能力必须在 help 中可读。
 func TestS3DownloadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "download")
 
 	assertContains(t, out, "当前目录")
 	assertContains(t, out, "最后一段")
+	assertContains(t, out, "--verify")
+	assertContains(t, out, "--verify-sha256")
+	assertContains(t, out, "partial")
 	assertNotContains(t, out, "默认使用对象键名")
 }

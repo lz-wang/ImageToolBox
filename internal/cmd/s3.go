@@ -190,12 +190,22 @@ func newS3DownloadCommand() *cli.Command {
 		Usage: "从存储桶下载文件",
 		Description: `从 S3 兼容存储桶下载文件到本地。
 
+下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败
+（网络中断、写盘错误、校验不通过）都不会在目标路径留下 partial 文件。
+
 示例:
   # 下载文件
   itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
 
   # 使用默认文件名
-  itb s3 download -b my-bucket -k images/photo.jpg`,
+  itb s3 download -b my-bucket -k images/photo.jpg
+
+  # 边下载边校验（读取对象 itb-sha256 metadata，单遍计算）
+  itb s3 download -b my-bucket -k photo.jpg --verify
+
+  # 按已知哈希校验（provider-neutral 完整性验证）
+  itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png \
+    --verify-sha256 "$SOURCE_SHA256"`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "key",
@@ -207,6 +217,14 @@ func newS3DownloadCommand() *cli.Command {
 				Name:    "output",
 				Aliases: []string{"o"},
 				Usage:   "本地输出 `FILE`（默认保存到当前目录，文件名取对象键最后一段）",
+			},
+			&cli.BoolFlag{
+				Name:  "verify",
+				Usage: "读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对（不二次读取本地文件）",
+			},
+			&cli.StringFlag{
+				Name:  "verify-sha256",
+				Usage: "期望的十六进制 SHA-256 `HASH`（独立于对象 metadata 的完整性校验，可与 --verify 同用）",
 			},
 		},
 		Action: runS3Download,
@@ -390,7 +408,11 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 		output = filepath.Base(key)
 	}
 
-	result, err := s3.Download(ctx, client, key, output, &s3.DownloadOptions{Progress: os.Stderr})
+	result, err := s3.Download(ctx, client, key, output, &s3.DownloadOptions{
+		Verify:      cmd.Bool("verify"),
+		VerifySHA256: cmd.String("verify-sha256"),
+		Progress:    os.Stderr,
+	})
 	if err != nil {
 		return err
 	}

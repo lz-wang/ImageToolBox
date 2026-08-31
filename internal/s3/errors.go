@@ -51,6 +51,11 @@ var (
 	// 与本次 PUT 的预期不一致。HEAD 只能证明 metadata/header 一致，
 	// 不能证明 body 字节完整；body 校验由 download 校验承担。
 	ErrVerifyFailed = errors.New("upload verification failed")
+
+	// ErrChecksumMismatch 下载内容校验未通过：实际 SHA-256 与对象
+	// metadata（--verify）或期望值（--verify-sha256）不一致。
+	// 失败时本次下载的 partial 文件已被删除。
+	ErrChecksumMismatch = errors.New("checksum mismatch")
 )
 
 // WrapError 包装 S3 API 错误，提供更友好的错误信息。
