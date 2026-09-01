@@ -401,8 +401,8 @@ S3 的对象/文件 operand 使用位置参数：`upload <src> [key]`、`downloa
 
 支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
 
-输出约定：**stdout 只承载正式结果**（`--format table|json` 切换，upload/download/stat/list
-均支持机器可读 JSON 与 `schema_version` 契约），进度提示与诊断信息走 **stderr**，
+输出约定：**stdout 只承载正式结果**（`--format table|json` 切换；upload/download/stat 的 JSON
+携带 `schema_version` 契约，list 的 JSON 是对象数组且空结果为 `[]`），进度提示与诊断信息走 **stderr**，
 脚本可以放心用管道消费 stdout 的 JSON。
 
 MinIO 兼容性由 CI 持续验证：CI 在 step 内以 `docker run` 启动真实 MinIO

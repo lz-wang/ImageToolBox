@@ -144,8 +144,8 @@ func formatPlain(objects []ObjectInfo) string {
 }
 
 func formatJSON(objects []ObjectInfo) string {
-	if len(objects) == 0 {
-		return "No objects found"
+	if objects == nil {
+		objects = []ObjectInfo{}
 	}
 	data, err := json.MarshalIndent(objects, "", "  ")
 	if err != nil {

@@ -401,9 +401,9 @@ S3 object/file operands use positional arguments: `upload <src> [key]`, `downloa
 Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, Tencent Cloud COS, etc.
 
 Output convention: **stdout carries formal results only** (switch with
-`--format table|json`; upload/download/stat/list all emit machine-readable JSON
-with a `schema_version` contract), while progress hints and diagnostics go to
-**stderr** — scripts can safely pipe stdout JSON.
+`--format table|json`; upload/download/stat JSON carries a `schema_version`
+contract, while list JSON is an object array and an empty result is `[]`), while
+progress hints and diagnostics go to **stderr** — scripts can safely pipe stdout JSON.
 
 MinIO compatibility is continuously verified in CI: a real MinIO container
 started via `docker run` in a step (GitHub Actions service containers do
