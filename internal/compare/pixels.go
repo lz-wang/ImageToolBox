@@ -1,7 +1,3 @@
-// Package compare 提供只读图片质量指标（PSNR/SSIM/MS-SSIM）的纯 Go 实现。
-//
-// compare 是显式调用的只读分析命令的领域层：不修改任何输入文件，
-// 也绝不隐式 resize/crop/pad 尺寸不一致的图片，指标数学定义保持稳定。
 package compare
 
 import (
