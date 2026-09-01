@@ -29,7 +29,7 @@ func runContract(args ...string) error {
 func TestRootCommands(t *testing.T) {
 	app := testApp()
 
-	want := []string{"compress", "resize", "crop", "convert", "watermark", "inspect", "s3", "serve", "version"}
+	want := []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"}
 	for _, name := range want {
 		found := false
 		for _, sub := range app.Commands {
@@ -56,7 +56,7 @@ func TestRootHelpOutput(t *testing.T) {
 	}
 
 	out := buf.String()
-	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "inspect", "s3", "serve", "version"} {
+	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
 		if !strings.Contains(out, name) {
 			t.Errorf("help output missing command %q", name)
 		}

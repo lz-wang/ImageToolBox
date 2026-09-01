@@ -46,7 +46,7 @@ func assertNotContains(t *testing.T, out, want string) {
 func TestRootHelpContract(t *testing.T) {
 	out := helpOutput(t)
 
-	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "inspect", "s3", "serve", "version"} {
+	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
 		assertContains(t, out, name)
 	}
 	assertNotContains(t, out, "功能:")
@@ -145,6 +145,28 @@ func TestWatermarkHelpContract(t *testing.T) {
 	for _, banned := range []string{"当前版本暂不支持", "需要指定字体", "--tile"} {
 		assertNotContains(t, out, banned)
 	}
+}
+
+// compare：只读双输入语义、默认指标组合与最小尺寸约束必须在 help 中可读。
+func TestCompareHelpContract(t *testing.T) {
+	out := helpOutput(t, "compare")
+
+	for _, want := range []string{
+		"<src>",
+		"<dst>",
+		"--psnr",
+		"--ssim",
+		"--ms-ssim",
+		"默认计算 PSNR 和 MS-SSIM",
+		"只计算显式选择的指标",
+		"161",
+		"11",
+		"只读",
+	} {
+		assertContains(t, out, want)
+	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 }
 
 // inspect：--no-detail、plain 格式语义与 full-decode 能力。

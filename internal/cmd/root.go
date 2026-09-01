@@ -25,6 +25,7 @@ func New(version string) *cli.Command {
 			newCropCommand(),
 			newConvertCommand(),
 			newWatermarkCommand(),
+			newCompareCommand(),
 			newInspectCommand(),
 			newS3Command(),
 			newServeCommand(),
