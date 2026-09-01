@@ -14,7 +14,8 @@ import (
 func newCompressCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "compress",
-		Usage:     "压缩 PNG/JPEG 图片",
+		Usage:     "Compress a PNG or JPEG image",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
 		Description: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
 

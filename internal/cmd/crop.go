@@ -12,7 +12,8 @@ import (
 func newCropCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "crop",
-		Usage:     "按锚点和百分比裁剪图片",
+		Usage:     "Crop an image by anchor and percentage",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
 		Description: `按指定锚点和百分比裁剪图片。
 

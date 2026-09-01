@@ -12,7 +12,8 @@ import (
 func newRotateCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "rotate",
-		Usage:     "旋转图片",
+		Usage:     "Rotate an image",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
 		Description: `旋转图片。省略 [dst] 时输出到原文件名后加 _rotated 的新文件。
 

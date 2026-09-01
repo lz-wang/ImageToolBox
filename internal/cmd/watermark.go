@@ -12,7 +12,8 @@ import (
 func newWatermarkCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "watermark",
-		Usage:     "添加文字或图片水印",
+		Usage:     "Add a text or image watermark",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
 		Description: `为图片添加文字或图片水印。
 

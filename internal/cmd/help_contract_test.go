@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // Help Contract 测试：不做整页 snapshot（库升级噪声大），
@@ -41,8 +42,21 @@ func assertNotContains(t *testing.T, out, want string) {
 	}
 }
 
+// assertNoHan 断言输出不含 Han 字符：help 是人类用户与 LLM agent 共同
+// 依赖的英文契约面，任何中文回归都在此处失败。
+func assertNoHan(t *testing.T, out string) {
+	t.Helper()
+	for _, r := range out {
+		if unicode.Is(unicode.Han, r) {
+			t.Errorf("help output contains Han character %q; help must be English-only\n--- got ---\n%s", r, out)
+			return
+		}
+	}
+}
+
 // 根 help：命令目录只能来自 urfave 生成的 COMMANDS，
 // 禁止手写命令清单回归（"功能:" 是旧手写清单的标志）。
+// Help 契约面必须纯英文，并按 Category 分组展示。
 func TestRootHelpContract(t *testing.T) {
 	out := helpOutput(t)
 
@@ -51,6 +65,10 @@ func TestRootHelpContract(t *testing.T) {
 	}
 	assertNotContains(t, out, "功能:")
 	assertContains(t, out, "--version")
+	for _, category := range []string{"Image transforms", "Analysis", "Storage", "Service", "Utility"} {
+		assertContains(t, out, category)
+	}
+	assertNoHan(t, out)
 }
 
 // compress：默认非破坏式输出与 --in-place 契约。

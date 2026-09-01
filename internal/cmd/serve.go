@@ -18,28 +18,43 @@ import (
 
 func newServeCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "serve",
-		Usage: "启动 HTTP API 服务",
-		Description: `启动 Image Tool Box HTTP API 服务。
+		Name:     "serve",
+		Usage:    "Run the HTTP API server",
+		Category: categoryService,
+		Description: `Run the Image Tool Box HTTP API server.
 
-默认只监听 127.0.0.1，请勿绑定到不可信网络。
+The API exposes the domain image operations under /api/v1
+(compress, resize, crop, rotate, convert, watermark, inspect)
+plus /api/v1/health. It is a trusted remote service, not a
+remote shell: there is no WebUI, no workflow orchestration,
+and no S3 management.
 
-示例:
+DEFAULTS:
+  Binds to 127.0.0.1:8080 (loopback only).
+
+CONSTRAINTS:
+  Authentication uses the ITB_API_TOKEN bearer token and is
+  required unless --no-auth is set.
+  --no-auth is allowed only on loopback addresses.
+  Remote deployment requires ITB_API_TOKEN and a reverse
+  proxy in front of the server.
+
+EXAMPLES:
   itb serve
 	  itb serve --addr 127.0.0.1:9000`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "addr",
 				Value: "127.0.0.1:8080",
-				Usage: "监听地址",
+				Usage: "Listen `ADDRESS` (loopback only by default)",
 			},
-			&cli.StringFlag{Name: "max-upload", Value: "64MiB", Usage: "最大 multipart 请求大小"},
-			&cli.Int64Flag{Name: "max-pixels", Value: httpapi.DefaultMaxPixels, Usage: "最大图片像素数", Validator: positiveInt64Validator("max-pixels")},
-			&cli.IntFlag{Name: "max-dimension", Value: httpapi.DefaultMaxDimension, Usage: "最大图片单边尺寸", Validator: positiveIntValidator("max-dimension")},
-			&cli.IntFlag{Name: "max-concurrent", Value: httpapi.DefaultMaxConcurrent, Usage: "最大并发图片操作数", Validator: positiveIntValidator("max-concurrent")},
-			&cli.StringFlag{Name: "max-working-bytes", Value: "512MiB", Usage: "单个操作中间画布内存上限（watermark、任意角度 rotate 等）"},
-			&cli.DurationFlag{Name: "timeout", Value: httpapi.DefaultTimeout, Usage: "单个图片操作超时", Validator: positiveDurationValidator("timeout")},
-			&cli.BoolFlag{Name: "no-auth", Usage: "仅 loopback 本地开发时禁用认证"},
+			&cli.StringFlag{Name: "max-upload", Value: "64MiB", Usage: "Maximum multipart request `SIZE` (KiB/MiB/GiB)"},
+			&cli.Int64Flag{Name: "max-pixels", Value: httpapi.DefaultMaxPixels, Usage: "Maximum `PIXELS` per image", Validator: positiveInt64Validator("max-pixels")},
+			&cli.IntFlag{Name: "max-dimension", Value: httpapi.DefaultMaxDimension, Usage: "Maximum single-side dimension in `PIXELS`", Validator: positiveIntValidator("max-dimension")},
+			&cli.IntFlag{Name: "max-concurrent", Value: httpapi.DefaultMaxConcurrent, Usage: "Maximum concurrent image operations", Validator: positiveIntValidator("max-concurrent")},
+			&cli.StringFlag{Name: "max-working-bytes", Value: "512MiB", Usage: "Working-set memory limit `SIZE` per operation (watermark, arbitrary-angle rotate, etc.)"},
+			&cli.DurationFlag{Name: "timeout", Value: httpapi.DefaultTimeout, Usage: "Timeout per image operation", Validator: positiveDurationValidator("timeout")},
+			&cli.BoolFlag{Name: "no-auth", Usage: "Disable authentication; loopback development only"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runServe(ctx, cmd)

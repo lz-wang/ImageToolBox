@@ -12,7 +12,8 @@ import (
 func newResizeCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "resize",
-		Usage:     "调整图片尺寸",
+		Usage:     "Resize an image",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
 		Description: `调整图片尺寸。
 

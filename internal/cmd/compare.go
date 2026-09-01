@@ -12,7 +12,8 @@ import (
 func newCompareCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "compare",
-		Usage:     "比较两张图片的客观质量指标",
+		Usage:     "Compare objective quality metrics of two images",
+		Category:  categoryAnalysis,
 		ArgsUsage: "<src> <dst>",
 		Description: `只读比较两张图片的客观质量指标（PSNR / SSIM / MS-SSIM）。
 

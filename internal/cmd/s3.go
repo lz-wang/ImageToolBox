@@ -15,9 +15,10 @@ import (
 
 func newS3Command() *cli.Command {
 	return &cli.Command{
-		Name:    "s3",
-		Usage:   "操作 S3 兼容对象存储",
-		Suggest: true,
+		Name:     "s3",
+		Usage:    "Operate S3-compatible object storage",
+		Category: categoryStorage,
+		Suggest:  true,
 		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
 
 配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值；
@@ -94,7 +95,7 @@ func newS3Command() *cli.Command {
 func newS3UploadCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "upload",
-		Usage:     "上传文件到存储桶",
+		Usage:     "Upload a file to a bucket",
 		ArgsUsage: "<src> [key]",
 		Description: `上传本地文件到 S3 兼容存储桶。
 
@@ -185,7 +186,7 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 func newS3DownloadCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "download",
-		Usage:     "从存储桶下载文件",
+		Usage:     "Download an object from a bucket",
 		ArgsUsage: "<key> [dst]",
 		Description: `从 S3 兼容存储桶下载文件到本地。
 
@@ -229,7 +230,7 @@ func newS3DownloadCommand() *cli.Command {
 func newS3DeleteCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "delete",
-		Usage:     "从存储桶删除对象",
+		Usage:     "Delete an object from a bucket",
 		ArgsUsage: "<key>",
 		Description: `从 S3 兼容存储桶删除指定对象。
 
@@ -253,7 +254,7 @@ func newS3DeleteCommand() *cli.Command {
 func newS3ListCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "list",
-		Usage:     "列出存储桶中的对象",
+		Usage:     "List objects in a bucket",
 		ArgsUsage: "[prefix]",
 		Description: `列出 S3 兼容存储桶中的对象。
 
@@ -287,7 +288,7 @@ func newS3ListCommand() *cli.Command {
 func newS3StatCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "stat",
-		Usage:     "查看对象元数据（不下载内容）",
+		Usage:     "Show object metadata without downloading the body",
 		ArgsUsage: "<key>",
 		Description: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
 

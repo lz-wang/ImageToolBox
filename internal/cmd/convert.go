@@ -11,7 +11,8 @@ import (
 func newConvertCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "convert",
-		Usage:     "转换图片格式",
+		Usage:     "Convert an image to another format",
+		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> <dst>",
 		Description: `转换图片格式。
 目标格式由 <dst> 文件扩展名决定。

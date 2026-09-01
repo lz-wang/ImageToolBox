@@ -14,7 +14,8 @@ import (
 func newInspectCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "inspect",
-		Usage:     "查看图片信息、元数据和文件哈希",
+		Usage:     "Inspect image info, metadata, and file hashes",
+		Category:  categoryAnalysis,
 		ArgsUsage: "<src>",
 		Description: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
 
