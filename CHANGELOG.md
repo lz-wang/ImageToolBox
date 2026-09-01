@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-09-01
+
 ### Fixed
 
 - Image transform commands reject destinations that resolve to the source file, including equivalent paths, hard links, and symbolic links, preventing destructive partial overwrites. `compress --in-place` continues to use its temporary-file + rename path.
