@@ -29,7 +29,7 @@ func runContract(args ...string) error {
 func TestRootCommands(t *testing.T) {
 	app := testApp()
 
-	want := []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"}
+	want := []string{"compress", "resize", "crop", "rotate", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"}
 	for _, name := range want {
 		found := false
 		for _, sub := range app.Commands {
@@ -56,7 +56,7 @@ func TestRootHelpOutput(t *testing.T) {
 	}
 
 	out := buf.String()
-	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
+	for _, name := range []string{"compress", "resize", "crop", "rotate", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
 		if !strings.Contains(out, name) {
 			t.Errorf("help output missing command %q", name)
 		}
@@ -427,6 +427,8 @@ func TestPositionalPathContracts(t *testing.T) {
 		{"compress in-place with destination", []string{"compress", "--in-place", "a", "b"}, "--in-place 不能与 <dst> 同时使用"},
 		{"resize too many paths", []string{"resize", "--width", "1", "a", "b", "c"}, "需要提供 <src> [dst]"},
 		{"crop missing source", []string{"crop", "--anchor", "left", "--width", "40%"}, "需要提供 <src> [dst]"},
+		{"rotate missing source", []string{"rotate", "--angle", "90"}, "需要提供 <src> [dst]"},
+		{"rotate too many paths", []string{"rotate", "--angle", "90", "a", "b", "c"}, "需要提供 <src> [dst]"},
 		{"watermark too many paths", []string{"watermark", "-t", "x", "a", "b", "c"}, "需要提供 <src> [dst]"},
 		{"inspect missing source", []string{"inspect"}, "需要提供 <src>"},
 		{"inspect extra source", []string{"inspect", "a", "b"}, "需要提供 <src>"},
@@ -566,6 +568,11 @@ func TestFlagValidators(t *testing.T) {
 		{"resize percent 缺百分号", []string{"resize", "nope.jpg", "--percent", "50"}, "百分比格式"},
 		{"resize percent NaN", []string{"resize", "nope.jpg", "--percent", "NaN%"}, "有限数值"},
 		{"crop 非法 anchor", []string{"crop", "nope.jpg", "--anchor", "middle", "--width", "40%"}, "--anchor 仅支持"},
+		{"rotate angle 零度", []string{"rotate", "nope.jpg", "--angle", "0"}, "--angle 不能为 0"},
+		{"rotate angle 超上限", []string{"rotate", "nope.jpg", "--angle", "360"}, "必须在 (-360,360)"},
+		{"rotate angle 超下限", []string{"rotate", "nope.jpg", "--angle", "-400"}, "必须在 (-360,360)"},
+		{"rotate angle NaN", []string{"rotate", "nope.jpg", "--angle", "NaN"}, "有限数值"},
+		{"rotate angle Inf", []string{"rotate", "nope.jpg", "--angle", "Inf"}, "有限数值"},
 		{"crop width 超上限", []string{"crop", "nope.jpg", "--anchor", "left", "--width", "140%"}, "(0,100]"},
 		{"crop height 缺百分号", []string{"crop", "nope.jpg", "--anchor", "top", "--height", "40"}, "百分比格式"},
 		{"convert 非法格式", []string{"convert", "nope.png", "output.gif"}, "unsupported image format"},

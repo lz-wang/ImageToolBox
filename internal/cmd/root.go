@@ -23,6 +23,7 @@ func New(version string) *cli.Command {
 			newCompressCommand(),
 			newResizeCommand(),
 			newCropCommand(),
+			newRotateCommand(),
 			newConvertCommand(),
 			newWatermarkCommand(),
 			newCompareCommand(),

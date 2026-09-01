@@ -101,6 +101,24 @@ func floatRangeValidator(flag string, min, max float64) func(float64) error {
 	}
 }
 
+// nonZeroOpenRangeFloatValidator 生成"开区间且不能为 0"的浮点校验器
+// （rotate --angle 使用：0 与 ±360 都不改变像素，只会引入一次没有
+// 意义的有损重编码）。
+func nonZeroOpenRangeFloatValidator(flag string, min, max float64) func(float64) error {
+	return func(v float64) error {
+		if err := finiteFloat(flag, v); err != nil {
+			return err
+		}
+		if v == 0 {
+			return fmt.Errorf("--%s 不能为 0（当前: %v）", flag, v)
+		}
+		if v <= min || v >= max {
+			return fmt.Errorf("--%s 必须在 (%v,%v) 范围内且不能为 0（当前: %v）", flag, min, max, v)
+		}
+		return nil
+	}
+}
+
 // nonNegativeFloatValidator 生成非负浮点校验器。
 func nonNegativeFloatValidator(flag string) func(float64) error {
 	return func(v float64) error {

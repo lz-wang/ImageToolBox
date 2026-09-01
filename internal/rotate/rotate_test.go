@@ -22,8 +22,8 @@ import (
 func asymmetricImage() *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, 2, 3))
 	colors := [2][3]color.NRGBA{
-		{{R: 255}, {R: 255, G: 127}, {R: 255, G: 255}},
-		{{B: 255}, {G: 255}, {R: 255, B: 255}},
+		{{R: 255, A: 255}, {R: 255, G: 127, A: 255}, {R: 255, G: 255, A: 255}},
+		{{B: 255, A: 255}, {G: 255, A: 255}, {R: 255, B: 255, A: 255}},
 	}
 	for y := range 3 {
 		for x := range 2 {

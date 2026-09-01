@@ -46,7 +46,7 @@ func assertNotContains(t *testing.T, out, want string) {
 func TestRootHelpContract(t *testing.T) {
 	out := helpOutput(t)
 
-	for _, name := range []string{"compress", "resize", "crop", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
+	for _, name := range []string{"compress", "resize", "crop", "rotate", "convert", "watermark", "compare", "inspect", "s3", "serve", "version"} {
 		assertContains(t, out, name)
 	}
 	assertNotContains(t, out, "功能:")
@@ -145,6 +145,30 @@ func TestWatermarkHelpContract(t *testing.T) {
 	for _, banned := range []string{"当前版本暂不支持", "需要指定字体", "--tile"} {
 		assertNotContains(t, out, banned)
 	}
+}
+
+// rotate：角度方向语义、画布扩展与透明背景契约必须在 help 中可读。
+func TestRotateHelpContract(t *testing.T) {
+	out := helpOutput(t, "rotate")
+
+	for _, want := range []string{
+		"<src>", "[dst]",
+		"--angle",
+		"逆时针",
+		"顺时针",
+		"(-360, 360)",
+		"不能为 0",
+		"扩展画布",
+		"_rotated",
+		"PNG",
+		"WebP",
+		"JPEG",
+		"EXIF Orientation",
+	} {
+		assertContains(t, out, want)
+	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 }
 
 // compare：只读双输入语义、默认指标组合与最小尺寸约束必须在 help 中可读。
