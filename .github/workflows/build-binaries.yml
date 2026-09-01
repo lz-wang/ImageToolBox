@@ -323,6 +323,11 @@ jobs:
           mkdir -p dist/${{ matrix.target.name }}
           go build -trimpath -ldflags "-s -w" -o dist/${{ matrix.target.name }}/itb .
 
+      - name: Test filesystem contracts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: go test ./internal/imageio
+
       - name: Build itb (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -351,13 +356,16 @@ jobs:
           go run ./scripts/generate-compress-fixtures.go $workDir
           $itb = Join-Path "dist/${{ matrix.target.name }}" "itb.exe"
 
-          & $itb compress -i (Join-Path $workDir "sample.png") -o (Join-Path $workDir "output1.png") -q 80
+          $input = Join-Path $workDir "sample.png"
+          $output1 = Join-Path $workDir "output1.png"
+          $output2 = Join-Path $workDir "output2.png"
+          & $itb compress -q 80 $input $output1
           if ($LASTEXITCODE -ne 0) { throw "First PNG compression failed" }
           $before = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -File | Select-Object FullName, Length, LastWriteTimeUtc)
           $beforeDirectories = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -Directory | Select-Object FullName, LastWriteTimeUtc)
           if ($before.Count -ne 2) { throw "Expected two extracted PNG tools, got $($before.Count)" }
 
-          & $itb compress -i (Join-Path $workDir "sample.png") -o (Join-Path $workDir "output2.png") -q 80
+          & $itb compress -q 80 $input $output2
           if ($LASTEXITCODE -ne 0) { throw "Second PNG compression failed" }
           $after = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -File | Select-Object FullName, Length, LastWriteTimeUtc)
           $afterDirectories = @(Get-ChildItem (Join-Path $cacheDir "itb\bins") -Recurse -Directory | Select-Object FullName, LastWriteTimeUtc)

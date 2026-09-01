@@ -22,8 +22,8 @@ chmod 0755 "$work_dir/itb"
 go run ./scripts/generate-compress-fixtures.go "$work_dir"
 
 docker run --rm -v "$work_dir:/workspace" -w /workspace "$image" sh -ec '
-    ./itb compress -i sample.png -o output.png -q 80
+    ./itb compress -q 80 sample.png output.png
     test -s output.png
-    ./itb compress -i sample.jpg -o output.jpg -q 80
+    ./itb compress -q 80 sample.jpg output.jpg
     test -s output.jpg
 '
