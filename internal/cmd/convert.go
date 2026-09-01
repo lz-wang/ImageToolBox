@@ -10,32 +10,16 @@ import (
 
 func newConvertCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "convert",
-		Usage: "转换图片格式",
+		Name:      "convert",
+		Usage:     "转换图片格式",
+		ArgsUsage: "<src> <dst>",
 		Description: `转换图片格式。
 
 示例:
-  itb convert -i photo.png --to webp
-  itb convert -i photo.png --to jpg --background "#FFFFFF"
-  itb convert -i photo.jpg --to png -o converted.png`,
+	  itb convert photo.png photo.webp
+	  itb convert photo.png photo.jpg --background "#FFFFFF"
+	  itb convert -q 85 photo.jpg converted.png`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "输入图片 `FILE`",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "output",
-				Aliases: []string{"o"},
-				Usage:   "输出图片 `FILE`（默认在原文件名后加 _converted 并按目标格式换扩展名）",
-			},
-			&cli.StringFlag{
-				Name:      "to",
-				Usage:     "目标格式 `FORMAT`: jpg/jpeg/png/webp",
-				Required:  true,
-				Validator: formatValidator("to"),
-			},
 			&cli.IntFlag{
 				Name:      "quality",
 				Aliases:   []string{"q"},
@@ -58,20 +42,12 @@ func newConvertCommand() *cli.Command {
 }
 
 func runConvert(ctx context.Context, cmd *cli.Command) error {
-	inputFile := cmd.String("input")
-	to := cmd.String("to")
-
-	outputPath := cmd.String("output")
-	if outputPath == "" {
-		var err error
-		outputPath, err = convert.DefaultOutputPath(inputFile, to)
-		if err != nil {
-			return err
-		}
+	inputFile, outputPath, err := sourceDestinationArgs(cmd, true)
+	if err != nil {
+		return err
 	}
 
 	if err := convert.ConvertFile(inputFile, outputPath, convert.Options{
-		To:         to,
 		Quality:    cmd.Int("quality"),
 		Lossless:   cmd.Bool("lossless"),
 		Background: cmd.String("background"),

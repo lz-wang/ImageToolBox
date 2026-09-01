@@ -158,7 +158,7 @@ func convertImage(_ context.Context, f form, dir string, _ Config) (string, stri
 	ext := "." + string(format)
 	name := imageio.SuffixedName(input.OriginalName, "_converted", ext)
 	output := filepath.Join(dir, "result"+ext)
-	err = convert.ConvertFile(input.Path, output, convert.Options{To: f.values["to"], Quality: quality, Lossless: lossless, Background: f.values["background"]})
+	err = convert.ConvertFile(input.Path, output, convert.Options{Quality: quality, Lossless: lossless, Background: f.values["background"]})
 	return output, name, fileSize(input.Path), err
 }
 func watermarkImage(_ context.Context, f form, dir string, cfg Config) (string, string, int64, error) {

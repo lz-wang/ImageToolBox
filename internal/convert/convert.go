@@ -3,14 +3,12 @@ package convert
 import (
 	"fmt"
 	"image/color"
-	"path/filepath"
 	"strings"
 
 	"imagetoolbox/internal/imageio"
 )
 
 type Options struct {
-	To         string
 	Quality    int
 	Lossless   bool
 	Background string
@@ -29,7 +27,6 @@ func (o *Options) Normalize() {
 	if strings.TrimSpace(o.Background) == "" {
 		o.Background = DefaultBackground
 	}
-	o.To = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(o.To), "."))
 }
 
 // Validate verifies conversion options before decoding the input image.
@@ -39,13 +36,13 @@ func (o *Options) Normalize() {
 //   - lossless 仅 WebP 有实际意义；PNG 本身始终无损，作为兼容性 no-op 接受；
 //   - background 只在输出 JPEG（不支持 Alpha、必须铺底）时生效并被校验。
 func (o Options) Validate() error {
-	format, err := imageio.NormalizeFormat(o.To)
-	if err != nil {
-		return err
-	}
 	if o.Quality < 1 || o.Quality > 100 {
 		return fmt.Errorf("quality must be between 1 and 100")
 	}
+	return nil
+}
+
+func validateForFormat(o Options, format imageio.Format) error {
 	if o.Lossless && format != imageio.FormatPNG && format != imageio.FormatWEBP {
 		return fmt.Errorf("lossless is only supported for png and webp")
 	}
@@ -68,8 +65,11 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
-	format, err := imageio.NormalizeFormat(opts.To)
+	format, err := imageio.FormatFromPath(outputPath)
 	if err != nil {
+		return err
+	}
+	if err := validateForFormat(opts, format); err != nil {
 		return err
 	}
 
@@ -98,14 +98,4 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		Lossless:   opts.Lossless,
 		Background: background,
 	})
-}
-
-func DefaultOutputPath(inputPath string, to string) (string, error) {
-	format, err := imageio.NormalizeFormat(to)
-	if err != nil {
-		return "", err
-	}
-
-	ext := "." + string(format)
-	return filepath.Join(filepath.Dir(inputPath), imageio.SuffixedName(filepath.Base(inputPath), "_converted", ext)), nil
 }

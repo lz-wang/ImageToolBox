@@ -85,6 +85,8 @@ func TestConvertHelpContract(t *testing.T) {
 	out := helpOutput(t, "convert")
 
 	for _, want := range []string{
+		"<src>",
+		"<dst>",
 		"JPEG/WebP 输出质量",
 		"PNG 忽略该参数",
 		"使用 WebP 无损编码",
@@ -96,6 +98,9 @@ func TestConvertHelpContract(t *testing.T) {
 	}
 	assertNotContains(t, out, "透明图转不透明格式时的背景色")
 	assertNotContains(t, out, "无损编码（webp/png）")
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
+	assertNotContains(t, out, "--to")
 }
 
 // crop：锚点参数组合规则与百分比范围。

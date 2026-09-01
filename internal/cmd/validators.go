@@ -28,20 +28,6 @@ func enumValidator(flag string, allowed ...string) func(string) error {
 	}
 }
 
-// formatValidator 生成图片格式校验器，规则与 imageio.NormalizeFormat 一致
-// （大小写不敏感，允许省略前导点）。
-func formatValidator(flag string) func(string) error {
-	return func(v string) error {
-		normalized := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(v), "."))
-		switch normalized {
-		case "jpg", "jpeg", "png", "webp":
-			return nil
-		default:
-			return fmt.Errorf("--%s 仅支持: jpg/jpeg/png/webp（当前: %s）", flag, v)
-		}
-	}
-}
-
 // intRangeValidator 生成整数范围校验器（闭区间）。
 func intRangeValidator(flag string, min, max int) func(int) error {
 	return func(v int) error {

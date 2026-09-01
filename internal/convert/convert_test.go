@@ -34,7 +34,6 @@ func TestConvertPNGToJPEGBackground(t *testing.T) {
 	writePNG(t, input, img)
 
 	if err := ConvertFile(input, output, Options{
-		To:         "jpg",
 		Quality:    95,
 		Background: "#00FF00",
 	}); err != nil {
@@ -60,7 +59,7 @@ func TestConvertJPEGToWEBP(t *testing.T) {
 
 	writeJPEG(t, input, image.NewNRGBA(image.Rect(0, 0, 8, 8)))
 
-	if err := ConvertFile(input, output, Options{To: "webp", Quality: 90}); err != nil {
+	if err := ConvertFile(input, output, Options{Quality: 90}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -89,7 +88,7 @@ func TestConvertPNGToWEBPLossyPreservesAlpha(t *testing.T) {
 	}
 	writePNG(t, input, img)
 
-	if err := ConvertFile(input, output, Options{To: "webp", Quality: 90}); err != nil {
+	if err := ConvertFile(input, output, Options{Quality: 90}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -124,7 +123,7 @@ func TestConvertPNGToWEBPLossless(t *testing.T) {
 	}
 	writePNG(t, input, img)
 
-	if err := ConvertFile(input, output, Options{To: "webp", Lossless: true, Quality: 80}); err != nil {
+	if err := ConvertFile(input, output, Options{Lossless: true, Quality: 80}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -145,16 +144,6 @@ func TestConvertPNGToWEBPLossless(t *testing.T) {
 	}
 }
 
-func TestDefaultOutputPath(t *testing.T) {
-	got, err := DefaultOutputPath("/tmp/a.png", "jpg")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "/tmp/a_converted.jpeg" {
-		t.Fatalf("got %s", got)
-	}
-}
-
 func TestOptionsNormalizeAndValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -162,10 +151,10 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 		want    Options
 		wantErr bool
 	}{
-		{name: "defaults and jpg normalization", opts: Options{To: " .JPG "}, want: Options{To: "jpg", Quality: DefaultQuality, Background: DefaultBackground}},
-		{name: "invalid negative quality", opts: Options{To: "webp", Quality: -1}, wantErr: true},
-		{name: "invalid excessive quality", opts: Options{To: "webp", Quality: 101}, wantErr: true},
-		{name: "short background", opts: Options{To: "png", Background: "#fff"}, want: Options{To: "png", Quality: DefaultQuality, Background: "#fff"}},
+		{name: "defaults", opts: Options{}, want: Options{Quality: DefaultQuality, Background: DefaultBackground}},
+		{name: "invalid negative quality", opts: Options{Quality: -1}, wantErr: true},
+		{name: "invalid excessive quality", opts: Options{Quality: 101}, wantErr: true},
+		{name: "short background", opts: Options{Background: "#fff"}, want: Options{Quality: DefaultQuality, Background: "#fff"}},
 	}
 
 	for _, tt := range tests {
@@ -183,44 +172,47 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 
 // Validate 契约测试：参数语义按目标格式收口。
 
-func validate(t *testing.T, opts Options) error {
+func validate(t *testing.T, opts Options, format imageio.Format) error {
 	t.Helper()
 	opts.Normalize()
-	return opts.Validate()
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+	return validateForFormat(opts, format)
 }
 
 func TestValidateInvalidJPEGBackground(t *testing.T) {
-	if err := validate(t, Options{To: "jpg", Background: "invalid"}); err == nil {
+	if err := validate(t, Options{Background: "invalid"}, imageio.FormatJPEG); err == nil {
 		t.Fatal("Validate() = nil, want error for invalid background with jpeg target")
 	}
 }
 
 func TestValidateIgnoresBackgroundForPNG(t *testing.T) {
-	if err := validate(t, Options{To: "png", Background: "invalid"}); err != nil {
+	if err := validate(t, Options{Background: "invalid"}, imageio.FormatPNG); err != nil {
 		t.Fatalf("Validate() = %v, want nil (background is ignored for png)", err)
 	}
 }
 
 func TestValidateIgnoresBackgroundForWEBP(t *testing.T) {
-	if err := validate(t, Options{To: "webp", Background: "invalid"}); err != nil {
+	if err := validate(t, Options{Background: "invalid"}, imageio.FormatWEBP); err != nil {
 		t.Fatalf("Validate() = %v, want nil (background is ignored for webp)", err)
 	}
 }
 
 func TestValidateRejectsLosslessJPEG(t *testing.T) {
-	if err := validate(t, Options{To: "jpg", Lossless: true}); err == nil {
+	if err := validate(t, Options{Lossless: true}, imageio.FormatJPEG); err == nil {
 		t.Fatal("Validate() = nil, want error for lossless jpeg")
 	}
 }
 
 func TestValidateAllowsLosslessPNG(t *testing.T) {
-	if err := validate(t, Options{To: "png", Lossless: true}); err != nil {
+	if err := validate(t, Options{Lossless: true}, imageio.FormatPNG); err != nil {
 		t.Fatalf("Validate() = %v, want nil (accepted no-op for png)", err)
 	}
 }
 
 func TestValidateAllowsLosslessWEBP(t *testing.T) {
-	if err := validate(t, Options{To: "webp", Lossless: true}); err != nil {
+	if err := validate(t, Options{Lossless: true}, imageio.FormatWEBP); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
 	}
 }
@@ -230,18 +222,18 @@ func TestValidateAllowsLosslessWEBP(t *testing.T) {
 // Encode 当作"未设置"而静默变成默认白色。
 func TestValidateRejectsTransparentJPEGBackground(t *testing.T) {
 	for _, background := range []string{"#00000000", "#FF000000", "#FFFFFF00", "transparent"} {
-		if err := validate(t, Options{To: "jpg", Background: background}); err == nil {
+		if err := validate(t, Options{Background: background}, imageio.FormatJPEG); err == nil {
 			t.Errorf("Validate() with background %q = nil, want error", background)
 		}
 	}
 	// 8 位形式中 A=255 是合法的不透明颜色。
-	if err := validate(t, Options{To: "jpg", Background: "#00FF00FF"}); err != nil {
+	if err := validate(t, Options{Background: "#00FF00FF"}, imageio.FormatJPEG); err != nil {
 		t.Fatalf("Validate() with opaque #00FF00FF = %v, want nil", err)
 	}
 	// PNG/WebP 不使用 background，透明值与其他值一样被忽略。
-	for _, to := range []string{"png", "webp"} {
-		if err := validate(t, Options{To: to, Background: "#00000000"}); err != nil {
-			t.Fatalf("Validate() to=%s with transparent background = %v, want nil", to, err)
+	for _, format := range []imageio.Format{imageio.FormatPNG, imageio.FormatWEBP} {
+		if err := validate(t, Options{Background: "#00000000"}, format); err != nil {
+			t.Fatalf("Validate() format=%s with transparent background = %v, want nil", format, err)
 		}
 	}
 }
@@ -254,7 +246,7 @@ func TestConvertRejectsTransparentJPEGBackground(t *testing.T) {
 	output := filepath.Join(dir, "output.jpg")
 	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 4, 4)))
 
-	if err := ConvertFile(input, output, Options{To: "jpg", Background: "#00000000"}); err == nil {
+	if err := ConvertFile(input, output, Options{Background: "#00000000"}); err == nil {
 		t.Fatal("ConvertFile() = nil, want error for transparent background")
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
@@ -268,8 +260,45 @@ func TestConvertFileUsesDomainDefaults(t *testing.T) {
 	output := filepath.Join(dir, "output.webp")
 	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 10, 10)))
 
-	if err := ConvertFile(input, output, Options{To: "webp"}); err != nil {
+	if err := ConvertFile(input, output, Options{}); err != nil {
 		t.Fatalf("ConvertFile() error = %v", err)
+	}
+}
+
+func TestConvertDerivesFormatFromOutputPath(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.png")
+	writePNG(t, input, image.NewNRGBA(image.Rect(0, 0, 4, 4)))
+
+	for _, tt := range []struct {
+		path string
+		want imageio.Format
+	}{
+		{"output.jpg", imageio.FormatJPEG},
+		{"output.jpeg", imageio.FormatJPEG},
+		{"output.PNG", imageio.FormatPNG},
+		{"output.WEBP", imageio.FormatWEBP},
+	} {
+		t.Run(tt.path, func(t *testing.T) {
+			output := filepath.Join(dir, tt.path)
+			if err := ConvertFile(input, output, Options{}); err != nil {
+				t.Fatalf("ConvertFile() error = %v", err)
+			}
+			if got, err := imageio.DetectFormat(output); err != nil || got != tt.want {
+				t.Fatalf("DetectFormat() = %s, %v; want %s", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestConvertRejectsUnsupportedOutputBeforeInput(t *testing.T) {
+	for _, output := range []string{"output.gif", "output"} {
+		t.Run(output, func(t *testing.T) {
+			err := ConvertFile("not-exist.png", output, Options{})
+			if !errors.Is(err, imageio.ErrUnsupportedFormat) {
+				t.Fatalf("ConvertFile() error = %v, want unsupported output format", err)
+			}
+		})
 	}
 }
 
@@ -291,7 +320,7 @@ func TestConvertRejectsGIFInput(t *testing.T) {
 		t.Fatalf("encode gif: %v", err)
 	}
 
-	err = ConvertFile(input, output, Options{To: "webp", Quality: 80})
+	err = ConvertFile(input, output, Options{Quality: 80})
 	if !errors.Is(err, imageio.ErrUnsupportedFormat) {
 		t.Fatalf("ConvertFile(gif) error = %v, want imageio.ErrUnsupportedFormat", err)
 	}
@@ -325,7 +354,7 @@ func TestConvertJPEGAutoOrientation(t *testing.T) {
 	}
 	writeExifJPEG(t, input, img, 6)
 
-	if err := ConvertFile(input, output, Options{To: "png"}); err != nil {
+	if err := ConvertFile(input, output, Options{}); err != nil {
 		t.Fatalf("ConvertFile() error = %v", err)
 	}
 
@@ -370,7 +399,7 @@ func writeExifJPEG(t *testing.T, path string, img image.Image, orientation uint1
 		t.Fatalf("create jpeg: %v", err)
 	}
 	defer f.Close()
-	segment := []byte{0xFF, 0xE1, byte((len(exif)+2)>>8), byte(len(exif) + 2)}
+	segment := []byte{0xFF, 0xE1, byte((len(exif) + 2) >> 8), byte(len(exif) + 2)}
 	if _, err := f.Write(body.Bytes()[:2]); err != nil { // SOI
 		t.Fatalf("write SOI: %v", err)
 	}

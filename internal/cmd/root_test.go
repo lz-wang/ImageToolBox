@@ -105,17 +105,18 @@ func TestRequiredFlags(t *testing.T) {
 	setS3Env(t, nil)
 
 	tests := []struct {
-		name string
-		args []string
+		name    string
+		args    []string
+		wantErr string
 	}{
-		{"resize 缺 --input", []string{"resize"}},
-		{"convert 缺 --to", []string{"convert", "-i", "a.png"}},
-		{"crop 缺 --anchor", []string{"crop", "-i", "a.jpg"}},
-		{"s3 download 缺 --key", []string{"s3", "-b", "x", "download"}},
-		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}},
-		{"s3 upload 缺 --input", []string{"s3", "-b", "x", "upload"}},
-		{"s3 缺 --endpoint", []string{"s3", "-b", "x", "list"}},
-		{"s3 缺 --access-key", []string{"s3", "-b", "x", "-e", "http://localhost:9000", "list"}},
+		{"resize 缺 --input", []string{"resize"}, "Required flag"},
+		{"convert 缺 <dst>", []string{"convert", "a.png"}, "需要提供 <src> <dst>"},
+		{"crop 缺 --anchor", []string{"crop", "-i", "a.jpg"}, "Required flag"},
+		{"s3 download 缺 --key", []string{"s3", "-b", "x", "download"}, "Required flag"},
+		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}, "Required flag"},
+		{"s3 upload 缺 --input", []string{"s3", "-b", "x", "upload"}, "Required flag"},
+		{"s3 缺 --endpoint", []string{"s3", "-b", "x", "list"}, "Required flag"},
+		{"s3 缺 --access-key", []string{"s3", "-b", "x", "-e", "http://localhost:9000", "list"}, "Required flag"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,8 +124,8 @@ func TestRequiredFlags(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
-			if !strings.Contains(err.Error(), "Required flag") {
-				t.Fatalf("expected required flag error, got: %v", err)
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected %q in error, got: %v", tt.wantErr, err)
 			}
 		})
 	}
@@ -423,8 +424,8 @@ func TestFlagValidators(t *testing.T) {
 		{"crop 非法 anchor", []string{"crop", "-i", "nope.jpg", "--anchor", "middle", "--width", "40%"}, "--anchor 仅支持"},
 		{"crop width 超上限", []string{"crop", "-i", "nope.jpg", "--anchor", "left", "--width", "140%"}, "(0,100]"},
 		{"crop height 缺百分号", []string{"crop", "-i", "nope.jpg", "--anchor", "top", "--height", "40"}, "百分比格式"},
-		{"convert 非法格式", []string{"convert", "-i", "nope.png", "--to", "gif"}, "--to 仅支持"},
-		{"convert quality 超范围", []string{"convert", "-i", "nope.png", "--to", "png", "-q", "0"}, "--quality 必须在"},
+		{"convert 非法格式", []string{"convert", "nope.png", "output.gif"}, "unsupported image format"},
+		{"convert quality 超范围", []string{"convert", "nope.png", "output.png", "-q", "0"}, "--quality 必须在"},
 		{"compress quality 超范围", []string{"compress", "-i", "nope.png", "-q", "101"}, "--quality 必须在"},
 		{"watermark 非法 mode", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "tile"}, "--mode 仅支持"},
 		{"watermark opacity 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--opacity", "1.5"}, "--opacity 必须在"},
