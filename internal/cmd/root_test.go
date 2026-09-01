@@ -284,6 +284,35 @@ func TestS3EnvSources(t *testing.T) {
 	})
 }
 
+func TestS3RequiredConnectionFlags(t *testing.T) {
+	complete := map[string]string{
+		"ITB_S3_ENDPOINT":          "http://localhost:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	}
+	tests := []struct {
+		name    string
+		missing string
+		wantErr string
+	}{
+		{"endpoint", "ITB_S3_ENDPOINT", "endpoint"},
+		{"access key", "ITB_S3_ACCESS_KEY_ID", "access-key"},
+		{"secret key", "ITB_S3_SECRET_ACCESS_KEY", "secret-key"},
+		{"bucket", "ITB_S3_BUCKET", "bucket"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := maps.Clone(complete)
+			delete(env, tt.missing)
+			_, err := runS3ConfigCapture(t, env, "s3", "list")
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want missing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // withBaseEnv 在 base 配置上叠加额外环境变量，构造测试用 env。
 func withBaseEnv(base, extra map[string]string) map[string]string {
 	env := maps.Clone(base)
