@@ -97,7 +97,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 - uncovered pixels are transparent before encoding（未覆盖像素在编码前保持透明）
 - JPEG therefore flattens to white through `imageio.Save`（JPEG 最终由 imageio.Save 铺白色，rotate 自身不引入背景参数）
 - Resolve dimensions must equal Apply output bounds（`Resolve(bounds).size == Apply(img).Bounds().size`，测试锁定；`rotatedSize` 复刻 imaging v1.6.2 的推导语义，升级依赖后漂移会立即暴露）
-- HTTP performs output admission before allocation（HTTP 先 Probe 逻辑尺寸 → `rotate.Resolve` → `validateImageSize` 计划输出准入，再执行分配）
+- HTTP performs output admission before allocation（HTTP 先 Probe 逻辑尺寸 → `rotate.Resolve` → `validateImageSize` 计划输出准入 → `Plan.WorkingBytes` 不超过 `MaxWorkingBytes` 工作集准入，再执行分配）
 
 ## 测试约定
 

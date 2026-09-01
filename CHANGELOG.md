@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `itb serve --max-working-bytes` 将 rotate 纳入工作集准入：任意角度旋转会同时驻留输入 NRGBA 副本与输出画布（保守估算 4 字节/像素，正交旋转只计输出画布），超限在分配前返回 413 `image_too_large`，与 watermark 的服务资源模型一致。
 - `compare` 改为逐通道"提取-计算-复用"的流式处理：峰值工作集从物化全部 6/8 个 float32 平面降为一对可复用通道平面（4K 图约 199MiB → 66MiB，指标平面占用量降至 1/3），更稳妥地处理 24/48MP 摄影原图；YCbCr/Gray/Gray16/CMYK 天然不透明图不再为透明度检测做整图遍历。指标数值与命令行为不变。
 
 ## [v0.8.0] - 2026-09-01

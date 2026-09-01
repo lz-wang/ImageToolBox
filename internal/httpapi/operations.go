@@ -165,6 +165,11 @@ func rotateImage(_ context.Context, f form, dir string, cfg Config) (string, str
 	if err := validateImageSize(plan.Width, plan.Height, cfg); err != nil {
 		return "", "", 0, fmt.Errorf("rotate target: %w", err)
 	}
+	// working-set 准入：任意角度会同时驻留输入 NRGBA 副本与输出画布，
+	// 与 watermark 一致地在真实分配之前按保守上界拒绝。
+	if plan.WorkingBytes > cfg.MaxWorkingBytes {
+		return "", "", 0, fmt.Errorf("%w: rotate working set exceeds %d bytes", ErrImageTooLarge, cfg.MaxWorkingBytes)
+	}
 	name := imageio.SuffixedName(input.OriginalName, "_rotated", "")
 	output := resultPath(dir, input.Path)
 	err = rotate.RotateFile(input.Path, output, opts)

@@ -770,6 +770,24 @@ func TestRotateEndpointContracts(t *testing.T) {
 			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
 		}
 	})
+	t.Run("工作集超 MaxWorkingBytes 在分配前 413", func(t *testing.T) {
+		// 输入 32x16 与 45° 输出 34x34 均在默认尺寸限制内，但任意角度
+		// 工作集 = 4×(32×16) + 4×(34×34) = 6672 bytes 超过 6000。
+		cfg := Config{NoAuth: true, MaxWorkingBytes: 6000}
+		w := post(t, cfg, map[string]string{"angle": "45"}, input(32, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+		// 正交路径工作集只有输出画布 4×(16×32)=2048 bytes，同一限制下放行，
+		// 证明拦截的是任意角度的输入副本而非输出尺寸本身。
+		w = post(t, cfg, map[string]string{"angle": "90"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("orthogonal status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+	})
 	t.Run("非法 angle 返回 400", func(t *testing.T) {
 		for name, fields := range map[string]map[string]string{
 			"非数字": {"angle": "abc"},

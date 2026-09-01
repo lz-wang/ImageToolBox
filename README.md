@@ -444,7 +444,7 @@ JSON 契约版本为 `itb.inspect.v2`。默认（header 解码）只读取图片
 | `--max-pixels` | `50000000` | 最大图片像素数（含上传图片、水印图与计划输出尺寸） |
 | `--max-dimension` | `16384` | 最大图片单边尺寸（含上传图片、水印图与计划输出尺寸） |
 | `--max-concurrent` | `2` | 最大并发图片操作数 |
-| `--max-working-bytes` | `512MiB` | 单个操作中间画布内存上限（watermark 等） |
+| `--max-working-bytes` | `512MiB` | 单个操作中间画布内存上限（watermark、任意角度 rotate 等） |
 | `--timeout` | `2m` | 单个图片操作超时 |
 | `--no-auth` | `false` | 仅 loopback 本地开发时禁用认证 |
 

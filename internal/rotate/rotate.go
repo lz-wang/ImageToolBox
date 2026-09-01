@@ -26,11 +26,18 @@ type Options struct {
 	Angle float64
 }
 
-// Plan 描述一次旋转的执行参数：归一化到 [0, 360) 的角度与输出画布尺寸。
+// Plan 描述一次旋转的执行参数：归一化到 [0, 360) 的角度、输出画布尺寸，
+// 以及旋转工作集的保守内存上界。
 type Plan struct {
 	Angle  float64
 	Width  int
 	Height int
+	// WorkingBytes 是旋转期间同时驻留内存的 RGBA 画布保守上界：
+	// 正交路径只分配输出画布（4 × 输出像素数）；任意角度走 imaging.Rotate，
+	// 内部先 toNRGBA 复制输入、再分配输出 NRGBA，两份画布同时驻留
+	// （4 × 输入像素数 + 4 × 输出像素数）。允许保守高估：toNRGBA 遇到
+	// 现成 *image.NRGBA 不会复制 Pix，但 admission 阶段不知道解码结果类型。
+	WorkingBytes int64
 }
 
 // Validate 在角度归一化之前校验用户参数：拒绝 NaN、±Inf、0 与 (-360, 360)
@@ -63,6 +70,7 @@ func Resolve(bounds image.Rectangle, opts Options) (Plan, error) {
 
 	angle := normalizeAngle(opts.Angle)
 	var outWidth, outHeight int
+	orthogonal := angle == 90 || angle == 180 || angle == 270
 	switch angle {
 	case 90, 270:
 		outWidth, outHeight = height, width
@@ -71,7 +79,11 @@ func Resolve(bounds image.Rectangle, opts Options) (Plan, error) {
 	default:
 		outWidth, outHeight = rotatedSize(width, height, angle)
 	}
-	return Plan{Angle: angle, Width: outWidth, Height: outHeight}, nil
+	workingBytes := 4 * int64(outWidth) * int64(outHeight)
+	if !orthogonal {
+		workingBytes += 4 * int64(width) * int64(height)
+	}
+	return Plan{Angle: angle, Width: outWidth, Height: outHeight, WorkingBytes: workingBytes}, nil
 }
 
 // Apply 对已解码图片执行旋转。精确 90/180/270 显式分派无插值的离散路径，

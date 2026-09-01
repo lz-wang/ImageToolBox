@@ -37,7 +37,7 @@ func newServeCommand() *cli.Command {
 			&cli.Int64Flag{Name: "max-pixels", Value: httpapi.DefaultMaxPixels, Usage: "最大图片像素数", Validator: positiveInt64Validator("max-pixels")},
 			&cli.IntFlag{Name: "max-dimension", Value: httpapi.DefaultMaxDimension, Usage: "最大图片单边尺寸", Validator: positiveIntValidator("max-dimension")},
 			&cli.IntFlag{Name: "max-concurrent", Value: httpapi.DefaultMaxConcurrent, Usage: "最大并发图片操作数", Validator: positiveIntValidator("max-concurrent")},
-			&cli.StringFlag{Name: "max-working-bytes", Value: "512MiB", Usage: "单个操作中间画布内存上限（watermark 等）"},
+			&cli.StringFlag{Name: "max-working-bytes", Value: "512MiB", Usage: "单个操作中间画布内存上限（watermark、任意角度 rotate 等）"},
 			&cli.DurationFlag{Name: "timeout", Value: httpapi.DefaultTimeout, Usage: "单个图片操作超时", Validator: positiveDurationValidator("timeout")},
 			&cli.BoolFlag{Name: "no-auth", Usage: "仅 loopback 本地开发时禁用认证"},
 		},

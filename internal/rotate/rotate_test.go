@@ -110,6 +110,36 @@ func TestResolveNormalizesAngle(t *testing.T) {
 	}
 }
 
+// TestResolveWorkingBytes 锁定工作集内存的保守估算公式：正交旋转只分配
+// 输出画布（4 × 输出像素数）；任意角度走 imaging.Rotate，输入 NRGBA 源
+// 副本与输出画布同时驻留（4 × 输入像素数 + 4 × 输出像素数）。
+// HTTP 据此在分配画布之前执行 MaxWorkingBytes 准入。
+func TestResolveWorkingBytes(t *testing.T) {
+	tests := []struct {
+		name   string
+		bounds image.Rectangle
+		angle  float64
+		want   int64
+	}{
+		{name: "90 度只计输出画布", bounds: image.Rect(0, 0, 32, 16), angle: 90, want: 4 * 16 * 32},
+		{name: "180 度只计输出画布", bounds: image.Rect(0, 0, 32, 16), angle: 180, want: 4 * 32 * 16},
+		{name: "270 度只计输出画布", bounds: image.Rect(0, 0, 32, 16), angle: 270, want: 4 * 16 * 32},
+		{name: "45 度计入输入副本与输出画布", bounds: image.Rect(0, 0, 32, 16), angle: 45, want: 4*32*16 + 4*34*34},
+		{name: "负角度归一化后按正交分派", bounds: image.Rect(0, 0, 32, 16), angle: -90, want: 4 * 16 * 32},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := Resolve(tt.bounds, Options{Angle: tt.angle})
+			if err != nil {
+				t.Fatalf("Resolve(%v, %v): %v", tt.bounds, tt.angle, err)
+			}
+			if plan.WorkingBytes != tt.want {
+				t.Fatalf("WorkingBytes = %d, want %d (plan %+v)", plan.WorkingBytes, tt.want, plan)
+			}
+		})
+	}
+}
+
 // TestResolveMatchesApplyBounds 锁定核心 invariant：
 // Resolve(bounds).size == Apply(img).Bounds().size。
 // rotatedSize 的舍入规则一旦与 imaging 漂移，这里会立即失败。
