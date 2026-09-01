@@ -16,6 +16,7 @@ Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is re
 | `POST /api/v1/compress` | `input`, `quality` (default `80`) |
 | `POST /api/v1/resize` | `input`, `width`, `height`, `percent`, `mode`, `anchor`, `filter` |
 | `POST /api/v1/crop` | `input`, `anchor`, `width`, `height` |
+| `POST /api/v1/rotate` | `input`, `angle` |
 | `POST /api/v1/convert` | `input`, `to`, `quality`, `lossless`, `background` |
 | `POST /api/v1/watermark` | `input`, `text`, `image`, `mode`, `color`, `space`, `angle`, `opacity`, `font`, `font-size`, `position`, `margin`, `scale` |
 | `POST /api/v1/inspect` | `input`, `detail`, `no-detail`, `no-hash`, `strict`, `full-decode` |
@@ -24,9 +25,11 @@ Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is re
 
 `full-decode=true` fully decodes the image (frame-by-frame for GIF, validating the file tail) and extends the JSON (`itb.inspect.v2`) with `full_decode_ok` (omitted when not attempted), `frame_count` (GIF only), `animation_known`, and `animated`. With `strict=true` a full-decode failure returns `400`; otherwise the failure is reported in `warnings` and as `full_decode_ok: false`.
 
-`width`, `height`, `quality`, `space`, `angle`, and `font-size` are integers. `opacity`, `margin`, and `scale` are floating-point numbers. Boolean fields accept the standard Go boolean forms, including `true`, `false`, `1`, and `0`.
+`width`, `height`, `quality`, `space`, and `font-size` are integers. The watermark `angle` is an integer; the rotate `angle` is a floating-point number. `opacity`, `margin`, and `scale` are floating-point numbers. Boolean fields accept the standard Go boolean forms, including `true`, `false`, `1`, and `0`.
 
-`convert` only accepts JPEG/PNG/WebP inputs; other decodable formats (GIF/BMP/TIFF) return `415 unsupported_format`. HTTP `to` is transport-only: the adapter constructs a temporary output path with that extension, and the convert domain layer derives its target format solely from that output path. The same input-format limit applies to every transform endpoint (`resize`/`crop`/`watermark` reject GIF/BMP/TIFF the same way), and the EXIF orientation of JPEG inputs is applied to the pixels for all of them (orientation metadata embedded in WebP files is not processed). Size admission and plan derivation run on the post-rotation logical dimensions, matching the decoded image bounds. Alpha is preserved for PNG/WebP output in both lossy and lossless modes. `background` applies to JPEG output only: an invalid or non-opaque value (e.g. `#00000000`) is rejected with `400 invalid_argument` when converting to JPEG, and background values are ignored for other targets.
+`convert` only accepts JPEG/PNG/WebP inputs; other decodable formats (GIF/BMP/TIFF) return `415 unsupported_format`. HTTP `to` is transport-only: the adapter constructs a temporary output path with that extension, and the convert domain layer derives its target format solely from that output path. The same input-format limit applies to every transform endpoint (`resize`/`crop`/`rotate`/`watermark` reject GIF/BMP/TIFF the same way), and the EXIF orientation of JPEG inputs is applied to the pixels for all of them (orientation metadata embedded in WebP files is not processed). Size admission and plan derivation run on the post-rotation logical dimensions, matching the decoded image bounds. Alpha is preserved for PNG/WebP output in both lossy and lossless modes. `background` applies to JPEG output only: an invalid or non-opaque value (e.g. `#00000000`) is rejected with `400 invalid_argument` when converting to JPEG, and background values are ignored for other targets.
+
+`rotate` rotates by a floating-point `angle` in degrees: positive = counter-clockwise, negative = clockwise, range `(-360, 360)`, never `0`. Exact `90/180/270` are interpolation-free; arbitrary angles expand the canvas (uncovered areas stay transparent for PNG/WebP and flatten onto white for JPEG). The planned output dimensions are admitted before allocation, so an angle that would expand a valid input beyond the limits returns `413 image_too_large`.
 
 Unknown fields, duplicate fields, and legacy `file`, `watermark`, or `options` fields return `400`; they are not silently ignored.
 
@@ -59,6 +62,11 @@ curl -H "Authorization: Bearer $ITB_API_TOKEN" \
   "$API/watermark" -o watermarked.jpg
 
 curl -H "Authorization: Bearer $ITB_API_TOKEN" \
+  -F 'input=@photo.png' \
+  -F 'angle=45' \
+  "$API/rotate" -o rotated.png
+
+curl -H "Authorization: Bearer $ITB_API_TOKEN" \
   -F 'input=@photo.jpg' \
   -F 'detail=true' \
   "$API/inspect"
@@ -81,7 +89,7 @@ Codes are `invalid_argument`, `missing_input`, `unsupported_format`, `payload_to
 
 The default limits are a 64 MiB multipart request, 50,000,000 pixels, a 16,384 px maximum dimension, a 512 MiB intermediate-canvas working set, two concurrent image operations, and a two-minute operation timeout. `413` indicates request or image limits, `429` indicates all operation slots are busy, and `504` indicates a timeout.
 
-Limits apply to uploaded images and planned output dimensions where applicable: `--max-pixels` / `--max-dimension` gate the input image, the resolved resize target (including `percent` upscales and single-side `fit` outputs), and the final output. Uploaded watermark images (`image` on `watermark`) are also subject to the image limits, including the scaled watermark target derived from `scale`.
+Limits apply to uploaded images and planned output dimensions where applicable: `--max-pixels` / `--max-dimension` gate the input image, the resolved resize target (including `percent` upscales and single-side `fit` outputs), the planned rotate output (arbitrary angles expand the canvas), and the final output. Uploaded watermark images (`image` on `watermark`) are also subject to the image limits, including the scaled watermark target derived from `scale`.
 
 `--max-working-bytes` bounds the intermediate canvases a single operation may allocate (watermark text mark canvas, repeat tiling/rotation canvases, scaled watermark logos) as a conservative RGBA upper estimate before any allocation happens.
 

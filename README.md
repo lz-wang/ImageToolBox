@@ -46,7 +46,7 @@ brew install lz-wang/tap/itb
 > xattr -d com.apple.quarantine your_binary
 > ```
 
-> **文件安全**：显式提供 `<dst>` 时，输出不得与任何输入资源指向同一实际文件（包括等价路径、hard link 和 symlink）。`resize`、`crop`、`watermark` 等命令可省略 `[dst]` 以使用默认派生输出路径；`convert` 必须显式提供 `<dst>`。原地压缩请使用 `compress --in-place`。
+> **文件安全**：显式提供 `<dst>` 时，输出不得与任何输入资源指向同一实际文件（包括等价路径、hard link 和 symlink）。`resize`、`crop`、`rotate`、`watermark` 等命令可省略 `[dst]` 以使用默认派生输出路径；`convert` 必须显式提供 `<dst>`。原地压缩请使用 `compress --in-place`。
 
 ## 压缩图片
 
@@ -166,12 +166,47 @@ brew install lz-wang/tap/itb
 
 </details>
 
+## 图片旋转
+
+按任意角度旋转图片：正角度逆时针、负角度顺时针；精确 `90/180/270` 不做插值，任意角度使用双线性插值并自动扩展画布以完整保留图片内容。
+
+```bash
+# 逆时针 90 度（输出 photo_rotated.jpg）
+./itb rotate --angle 90 photo.jpg
+
+# 顺时针 90 度
+./itb rotate --angle -90 photo.jpg clockwise.jpg
+
+# 任意角度（画布自动扩大，PNG 保留透明）
+./itb rotate --angle 45 transparent.png result.png
+
+# 小数角度
+./itb rotate --angle 22.5 photo.webp rotated.webp
+```
+
+<details>
+<summary>命令参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `<src>` | (必填) | 输入图片路径（仅 `jpg` / `jpeg` / `png` / `webp`） |
+| `[dst]` | `*_rotated.*` | 输出路径，省略时在原文件名后加 `_rotated` |
+| `--angle` | (必填) | 旋转角度（度）：正数逆时针、负数顺时针；支持小数，范围 `(-360, 360)` 且不能为 `0` |
+
+</details>
+
+旋转语义：
+
+- 输入遵循统一的 transform 契约：仅 JPEG/PNG/WebP，JPEG 的 EXIF Orientation 先归一化，再执行本次旋转
+- 任意角度会扩展画布以完整容纳旋转后的图像；未覆盖区域 PNG/WebP 保持透明，JPEG 铺白色背景
+- `<dst>` 不得与 `<src>` 指向同一实际文件（等价路径、hard link、symlink 均拒绝）；HTTP API 同样暴露 `rotate`
+
 ## 图像格式转换
 
 支持 `jpg/jpeg/png/webp` 互转，输出格式完全由必填 `<dst>` 的扩展名指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 **JPEG** 的 EXIF Orientation 会应用到实际像素（WebP 携带的 orientation 元数据当前不处理），输出不保留 EXIF/GPS/XMP 等 metadata。
 
-**输入格式与 Orientation 统一契约**（适用于 `convert` / `resize` / `crop` / `watermark`）：
-所有变换命令的输入都严格限定 `JPEG/PNG/WebP`（GIF/BMP/TIFF 一律拒绝，杜绝 animated GIF 被静默处理首帧），并且 **JPEG EXIF Orientation 一律烘焙进像素**——`resize`/`crop`/`watermark` 的计划推导与资源准入基于应用旋转后的逻辑尺寸，与最终输出一致。
+**输入格式与 Orientation 统一契约**（适用于 `convert` / `resize` / `crop` / `rotate` / `watermark`）：
+所有变换命令的输入都严格限定 `JPEG/PNG/WebP`（GIF/BMP/TIFF 一律拒绝，杜绝 animated GIF 被静默处理首帧），并且 **JPEG EXIF Orientation 一律烘焙进像素**——`resize`/`crop`/`rotate`/`watermark` 的计划推导与资源准入基于应用旋转后的逻辑尺寸，与最终输出一致。
 
 ```bash
 # 转为 WebP
@@ -392,7 +427,7 @@ JSON 契约版本为 `itb.inspect.v2`。默认（header 解码）只读取图片
 
 ### 功能范围
 
-- **图片操作**：`compress`、`resize`、`crop`、`convert`、`watermark`、`inspect`
+- **图片操作**：`compress`、`resize`、`crop`、`rotate`、`convert`、`watermark`、`inspect`
 - **不提供**：S3 管理、WebUI、工作流、用户系统、数据库或任务队列
 
 ### 安全边界

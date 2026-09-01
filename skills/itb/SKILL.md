@@ -1,6 +1,6 @@
 ---
 name: itb
-description: Use the `itb` CLI for image compression, crop, resize, conversion, watermarking, inspection, S3-compatible storage operations, or running the trusted `itb serve` HTTP API.
+description: Use the `itb` CLI for image compression, crop, resize, rotation, conversion, watermarking, inspection, S3-compatible storage operations, or running the trusted `itb serve` HTTP API.
 ---
 
 # ITB
@@ -15,6 +15,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `compress` for PNG/JPEG size reduction.
    - `crop` for percentage-based anchored cuts.
    - `resize` for dimensions, aspect-ratio fitting, filling, stretching, or percentage scaling.
+   - `rotate` for clockwise/counter-clockwise image rotation by any angle (positive = counter-clockwise).
    - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion (inputs limited to these formats).
    - `watermark` for text or image watermarking.
    - `compare` for objective image-quality comparison using PSNR / SSIM / MS-SSIM.
@@ -42,7 +43,8 @@ itb watermark -t "Draft" --mode repeat --opacity 0.25 output.webp marked.webp
 ## Safety Rules
 
 - `convert <src> <dst>` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; its target format is determined only by the `dst` extension. It preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
-- All transforms (`convert`/`resize`/`crop`/`watermark`) share the same input contract: only `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF rejected — animated GIFs are never silently reduced to their first frame), and JPEG EXIF orientation is baked into the pixels, so percent-based crops and resize plans always operate on the rotated (logical) dimensions.
+- All transforms (`convert`/`resize`/`crop`/`rotate`/`watermark`) share the same input contract: only `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF rejected — animated GIFs are never silently reduced to their first frame), and JPEG EXIF orientation is baked into the pixels, so percent-based crops and resize plans always operate on the rotated (logical) dimensions.
+- `rotate --angle <degrees>` takes a signed angle in `(-360, 360)`, never `0`: positive rotates counter-clockwise, negative clockwise. Exact `90/180/270` are lossless; arbitrary angles expand the canvas, keeping uncovered areas transparent for PNG/WebP and flattening them onto white for JPEG.
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` cannot be combined with a `[dst]` operand).
 - Never choose an output path that aliases any input resource. `itb` rejects equivalent paths, hard links, and symlinks that resolve to the same file. For image watermarks this also applies to `--image`.
 - `compare` never modifies either operand; same-file comparison is valid (`itb compare a.jpg a.jpg` prints `PSNR: +Inf dB`). Both images must share identical logical dimensions — there is no implicit resize.

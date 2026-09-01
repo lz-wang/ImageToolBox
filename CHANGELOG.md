@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- 新增 `itb rotate --angle <degrees> <src> [dst]` 图像旋转命令：正角度逆时针、负角度顺时针，支持小数，范围 `(-360, 360)` 且不能为 0；精确 90/180/270 不做插值，任意角度双线性插值并自动扩展画布完整保留内容，未覆盖区域 PNG/WebP 保持透明、JPEG 铺白色背景；省略 `[dst]` 时输出 `<name>_rotated.<ext>`。输入统一走 transform 契约（仅 JPEG/PNG/WebP，JPEG EXIF Orientation 先归一化再旋转）。
+- HTTP API 新增 `POST /api/v1/rotate`（multipart：`input` + 浮点 `angle`）：先按 Probe 逻辑尺寸经领域 `Resolve` 推导旋转后画布并完成输出资源准入，再执行旋转——任意角度扩大画布导致的超限在分配之前返回 413 `image_too_large`。
 - 新增 `itb compare <src> <dst>` 只读图片质量比较命令，纯 Go 实现 PSNR、SSIM 与五尺度 MS-SSIM；默认计算 PSNR + MS-SSIM，显式指标 flag 时仅计算所选指标。两图逻辑尺寸必须一致（不隐式缩放），JPEG EXIF Orientation 已归一化，含 Alpha 图片采用 premultiplied RGB + A 的 alpha-aware 变体；SSIM 最小 11×11，MS-SSIM 短边最小 161。仅 CLI 暴露，不进入 HTTP API。
 
 ### Fixed

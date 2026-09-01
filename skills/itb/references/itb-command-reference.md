@@ -76,11 +76,34 @@ Flags:
 - `--anchor`: fill-mode anchor; default `center`.
 - `--filter`: `nearest`, `linear`, `catmullrom`, `lanczos`; default `lanczos`.
 
+## Rotate
+
+Rotate by any angle. Positive angles rotate counter-clockwise, negative clockwise; exact `90/180/270` are interpolation-free, arbitrary angles use bilinear interpolation and expand the canvas to keep the whole image (uncovered areas stay transparent for PNG/WebP, flatten onto white for JPEG).
+
+```bash
+itb rotate --angle 90 photo.jpg                       # CCW 90° (writes photo_rotated.jpg)
+itb rotate --angle -90 photo.jpg clockwise.jpg        # CW 90°
+itb rotate --angle 45 transparent.png angle45.png     # arbitrary angle, transparent corners
+itb rotate --angle 22.5 photo.webp angle.webp         # fractional angle
+```
+
+Flags:
+
+- `<src>`: required input image path (`jpg`/`jpeg`/`png`/`webp` only).
+- `[dst]`: optional output path; default adds `_rotated`.
+- `--angle`: required signed angle in degrees; range `(-360, 360)`, never `0`; fractional values allowed.
+
+Semantics:
+
+- JPEG EXIF orientation is normalized before the user rotation, so the angle applies to the visual (logical) pixels.
+- `<dst>` must not resolve to the same file as `<src>` (equivalent paths, hard links, symlinks rejected).
+- Also exposed over HTTP as `POST /api/v1/rotate` (`input` + floating-point `angle`).
+
 ## Convert
 
 Convert between `jpg`, `jpeg`, `png`, and `webp`. Inputs are limited to `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF are rejected); the EXIF orientation of JPEG inputs is applied to the pixels during conversion.
 
-This input-format and orientation contract is shared by every transform (`convert`/`resize`/`crop`/`watermark`): they all open inputs through the same static-image entry point, so GIFs never get silently reduced to their first frame and percent-based crop/resize plans always operate on the rotated (logical) dimensions.
+This input-format and orientation contract is shared by every transform (`convert`/`resize`/`crop`/`rotate`/`watermark`): they all open inputs through the same static-image entry point, so GIFs never get silently reduced to their first frame and percent-based crop/resize plans always operate on the rotated (logical) dimensions.
 
 ```bash
 itb convert -q 85 photo.png photo.webp
@@ -315,7 +338,7 @@ Authentication:
 - Image-processing requests use `Authorization: Bearer $ITB_API_TOKEN`.
 - `/api/v1/health` remains unauthenticated.
 
-Feature scope: `compress`, `resize`, `crop`, `convert`, `watermark`, and `inspect`. The HTTP API intentionally does not expose S3 management, a WebUI, workflows, user management, databases, or task queues.
+Feature scope: `compress`, `resize`, `crop`, `rotate`, `convert`, `watermark`, and `inspect`. The HTTP API intentionally does not expose S3 management, a WebUI, workflows, user management, databases, or task queues.
 
 Security notes:
 

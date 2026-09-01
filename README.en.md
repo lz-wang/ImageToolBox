@@ -46,7 +46,7 @@ After installing, verify with `itb --version` (or `itb version`).
 > xattr -d com.apple.quarantine your_binary
 > ```
 
-> **File safety:** when an explicit `<dst>` is provided, the output must not resolve to the same file as any input resource, including equivalent paths, hard links, and symbolic links. `resize`, `crop`, and `watermark` may derive a default destination when `[dst]` is omitted; `convert` requires `<dst>`. Use `compress --in-place` for in-place compression.
+> **File safety:** when an explicit `<dst>` is provided, the output must not resolve to the same file as any input resource, including equivalent paths, hard links, and symbolic links. `resize`, `crop`, `rotate`, and `watermark` may derive a default destination when `[dst]` is omitted; `convert` requires `<dst>`. Use `compress --in-place` for in-place compression.
 
 ## Compress images
 
@@ -166,11 +166,46 @@ Resize by width/height, by percentage, or using different modes.
 
 </details>
 
+## Rotate images
+
+Rotate by any angle: positive angles rotate counter-clockwise, negative angles clockwise; exact `90/180/270` are interpolation-free, while arbitrary angles use bilinear interpolation and expand the canvas to keep the whole image.
+
+```bash
+# 90 degrees counter-clockwise (writes photo_rotated.jpg)
+./itb rotate --angle 90 photo.jpg
+
+# 90 degrees clockwise
+./itb rotate --angle -90 photo.jpg clockwise.jpg
+
+# Arbitrary angle (canvas expands; PNG keeps transparency)
+./itb rotate --angle 45 transparent.png result.png
+
+# Fractional angle
+./itb rotate --angle 22.5 photo.webp rotated.webp
+```
+
+<details>
+<summary>Options</summary>
+
+| Option | Default | Description |
+|------|--------|------|
+| `<src>` | (required) | Input image file path (`jpg` / `jpeg` / `png` / `webp` only) |
+| `[dst]` | `*_rotated.*` | Output path; appends `_rotated` to the original name when omitted |
+| `--angle` | (required) | Rotation angle (degrees): positive = counter-clockwise, negative = clockwise; fractional values allowed, range `(-360, 360)` and must not be `0` |
+
+</details>
+
+Rotation semantics:
+
+- Inputs follow the unified transform contract: JPEG/PNG/WebP only, and the JPEG EXIF orientation is normalized before the user rotation is applied
+- Arbitrary angles expand the canvas to fully contain the rotated image; uncovered areas stay transparent for PNG/WebP and are flattened onto white for JPEG
+- `<dst>` must not resolve to the same file as `<src>` (equivalent paths, hard links, and symlinks are rejected); the HTTP API exposes `rotate` as well
+
 ## Format conversion
 
 Convert between `jpg/jpeg/png/webp`; the output format is determined only by the required `<dst>` extension. Inputs are limited to `jpg/jpeg/png/webp`; the EXIF orientation of **JPEG** inputs is applied to the actual pixels during conversion (orientation metadata embedded in WebP files is not processed), and EXIF/GPS/XMP metadata is not carried over to the output.
 
-**Unified input format and orientation contract** (applies to `convert` / `resize` / `crop` / `watermark`): every transform command strictly accepts `JPEG/PNG/WebP` only (GIF/BMP/TIFF are rejected, so animated GIFs are never silently reduced to their first frame), and the **JPEG EXIF orientation is always baked into the pixels** — planning and resource admission for `resize`/`crop`/`watermark` use the post-rotation logical dimensions, matching the actual output.
+**Unified input format and orientation contract** (applies to `convert` / `resize` / `crop` / `rotate` / `watermark`): every transform command strictly accepts `JPEG/PNG/WebP` only (GIF/BMP/TIFF are rejected, so animated GIFs are never silently reduced to their first frame), and the **JPEG EXIF orientation is always baked into the pixels** — planning and resource admission for `resize`/`crop`/`rotate`/`watermark` use the post-rotation logical dimensions, matching the actual output.
 
 ```bash
 # Convert to WebP
@@ -391,7 +426,7 @@ Alongside the local CLI, `itb serve` provides a `/api/v1` HTTP API that calls do
 
 ### Feature scope
 
-- **Image operations**: `compress`, `resize`, `crop`, `convert`, `watermark`, and `inspect`
+- **Image operations**: `compress`, `resize`, `crop`, `rotate`, `convert`, `watermark`, and `inspect`
 - **Not exposed**: S3 management, WebUI, workflows, user management, databases, or job queues
 
 ### Security boundary
