@@ -48,22 +48,12 @@ const (
 	momentCount
 )
 
-// ssim 计算全部活动通道的平均 SSIM：每个通道独立计算后取平均。
-// 不做自动 downsample，直接针对原始逻辑分辨率计算（不复刻早期
-// Matlab ssim.m 根据尺度缩图的 suggested usage）。
-func ssim(ctx context.Context, p *pixelPlanes) (float64, error) {
-	var sum float64
-	for c := 0; c < p.channels; c++ {
-		v, _, err := ssimPlane(ctx, p.src[c], p.dst[c], p.width, p.height)
-		if err != nil {
-			return 0, err
-		}
-		sum += v
-	}
-	return sum / float64(p.channels), nil
-}
-
 // ssimPlane 对单通道平面计算窗口平均 SSIM 与 CS（contrast-structure 项）。
+//
+// 指标是全部活动通道的平均：每个通道独立计算后取平均（聚合在
+// CompareImages 的通道循环里完成）。不做自动 downsample，直接针对
+// 原始逻辑分辨率计算（不复刻早期 Matlab ssim.m 根据尺度缩图的
+// suggested usage）。
 //
 // 实现为 separable 高斯（1×11 水平 + 11×1 垂直）加 11 行 ring buffer 的
 // streaming statistics：μx、μy、E[x²]、E[y²]、E[xy] 只以

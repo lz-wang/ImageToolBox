@@ -71,38 +71,72 @@ type Result struct {
 // CompareImages 比较两张已解码图片。逻辑尺寸必须完全一致，否则报错；
 // 两张图都是只读输入，同一张图与自身比较是合法的 sanity check
 // （PSNR 为 +Inf、SSIM/MS-SSIM 为 1）。ctx 用于取消耗时的指标计算。
+//
+// 内存策略是逐通道"提取-计算-复用"：xs/ys 一对通道平面在全部通道间
+// 复用，峰值工作集只有 2×N float32 加上解码图，而不是物化全部 6/8 个
+// 平面——24/48MP 摄影原图的指标工作集因此降到约三分之一。
 func CompareImages(ctx context.Context, src, dst image.Image, opts Options) (Result, error) {
 	opts.Normalize()
 	if err := opts.Validate(); err != nil {
 		return Result{}, err
 	}
-
-	planes, err := newPixelPlanes(ctx, src, dst)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 
-	result := Result{Width: planes.width, Height: planes.height, Metrics: opts.Metrics}
-	if opts.Metrics&MetricPSNR != 0 {
-		v, err := psnr(ctx, planes)
-		if err != nil {
+	sb, db := src.Bounds(), dst.Bounds()
+	if sb.Dx() != db.Dx() || sb.Dy() != db.Dy() {
+		return Result{}, fmt.Errorf("图片尺寸不一致: src=%dx%d, dst=%dx%d", sb.Dx(), sb.Dy(), db.Dx(), db.Dy())
+	}
+	width, height := sb.Dx(), sb.Dy()
+
+	channels := activeChannelCount(src, dst)
+	premultiply := channels == alphaChannelCount
+
+	xs := make([]float32, width*height)
+	ys := make([]float32, width*height)
+
+	var psnrSumSq float64
+	var ssimSum, msSum float64
+	for c := 0; c < channels; c++ {
+		if err := extractChannel(ctx, src, xs, c, premultiply); err != nil {
 			return Result{}, err
 		}
-		result.PSNR = v
+		if err := extractChannel(ctx, dst, ys, c, premultiply); err != nil {
+			return Result{}, err
+		}
+		if opts.Metrics&MetricPSNR != 0 {
+			sq, err := psnrChannel(ctx, xs, ys, width, height)
+			if err != nil {
+				return Result{}, err
+			}
+			psnrSumSq += sq
+		}
+		if opts.Metrics&MetricSSIM != 0 {
+			v, _, err := ssimPlane(ctx, xs, ys, width, height)
+			if err != nil {
+				return Result{}, err
+			}
+			ssimSum += v
+		}
+		if opts.Metrics&MetricMSSSIM != 0 {
+			v, err := msSSIMChannel(ctx, xs, ys, width, height)
+			if err != nil {
+				return Result{}, err
+			}
+			msSum += v
+		}
+	}
+
+	result := Result{Width: width, Height: height, Metrics: opts.Metrics}
+	if opts.Metrics&MetricPSNR != 0 {
+		result.PSNR = psnrFromSumSq(psnrSumSq, width*height*channels)
 	}
 	if opts.Metrics&MetricSSIM != 0 {
-		v, err := ssim(ctx, planes)
-		if err != nil {
-			return Result{}, err
-		}
-		result.SSIM = v
+		result.SSIM = ssimSum / float64(channels)
 	}
 	if opts.Metrics&MetricMSSSIM != 0 {
-		v, err := msSSIM(ctx, planes)
-		if err != nil {
-			return Result{}, err
-		}
-		result.MSSSIM = v
+		result.MSSSIM = msSum / float64(channels)
 	}
 	return result, nil
 }

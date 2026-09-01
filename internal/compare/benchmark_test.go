@@ -5,73 +5,100 @@ import (
 	"testing"
 )
 
-// benchmarkPlanes 预构造 w×h 的梯度比较平面，指标循环内不再计平面提取。
-func benchmarkPlanes(b *testing.B, w, h int) *pixelPlanes {
+// benchmarkPlanes 预构造 w×h 的梯度比较平面，kernel 循环内不再计平面提取。
+func benchmarkPlanes(b *testing.B, w, h int) *testPlanes {
 	b.Helper()
 	src := gradientImage(w, h)
 	dst := distortImage(src)
-	p, err := newPixelPlanes(context.Background(), src, dst)
-	if err != nil {
-		b.Fatalf("unexpected error: %v", err)
-	}
-	return p
+	return materializePlanes(b, src, dst)
 }
 
+// kernel 基准只测单通道指标核（输入平面已提前物化）；完整 compare
+// 路径（含逐通道提取与全部指标）见 BenchmarkCompareImages*。
+//
 // 基准不做 CI 时间门禁（GitHub Runner CPU 波动太大）；真正锁定的
-// 是分配契约，见 TestMetricAllocationsDoNotScaleWithPixels。
-func BenchmarkPSNR1080p(b *testing.B) {
+// 是分配契约，见 TestMetricKernelAllocationCountDoesNotScaleWithPixels。
+func BenchmarkPSNRKernel1080p(b *testing.B) {
 	p := benchmarkPlanes(b, 1920, 1080)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := psnr(context.Background(), p); err != nil {
+		if _, err := psnrChannel(context.Background(), p.src[0], p.dst[0], p.width, p.height); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkSSIM1080p(b *testing.B) {
+func BenchmarkSSIMKernel1080p(b *testing.B) {
 	p := benchmarkPlanes(b, 1920, 1080)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := ssim(context.Background(), p); err != nil {
+		if _, _, err := ssimPlane(context.Background(), p.src[0], p.dst[0], p.width, p.height); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkMSSSIM1080p(b *testing.B) {
+func BenchmarkMSSSIMKernel1080p(b *testing.B) {
 	p := benchmarkPlanes(b, 1920, 1080)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := msSSIM(context.Background(), p); err != nil {
+		if _, err := msSSIMChannel(context.Background(), p.src[0], p.dst[0], p.width, p.height); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkMSSSIM4K(b *testing.B) {
+func BenchmarkMSSSIMKernel4K(b *testing.B) {
 	p := benchmarkPlanes(b, 3840, 2160)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := msSSIM(context.Background(), p); err != nil {
+		if _, err := msSSIMChannel(context.Background(), p.src[0], p.dst[0], p.width, p.height); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-// TestMetricAllocationsDoNotScaleWithPixels 锁定分配契约：
+// BenchmarkCompareImages* 测完整 compare 路径：逐通道提取 + 全部指标
+// （allMetrics），反映真实 `itb compare <src> <dst>` 命令的耗时与分配
+// （decode 除外），而不是提前物化平面后的纯指标核。
+func BenchmarkCompareImages1080p(b *testing.B) {
+	src := gradientImage(1920, 1080)
+	dst := distortImage(src)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := CompareImages(context.Background(), src, dst, Options{Metrics: allMetrics}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCompareImages4K(b *testing.B) {
+	src := gradientImage(3840, 2160)
+	dst := distortImage(src)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := CompareImages(context.Background(), src, dst, Options{Metrics: allMetrics}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// TestMetricKernelAllocationCountDoesNotScaleWithPixels 锁定指标核的
+// 分配契约：
 //
-//   - psnr 全程零分配；
+//   - psnrChannel 全程零分配；
 //   - ssimPlane 的分配只与 ring buffer 行数有关，与像素数无关；
 //   - msSSIMChannel 每尺度只分配下一层平面，分配次数不随像素数增长。
 //
-// 平面提取本身按 float32 平面物化输入是设计允许的（pixelPlanes），
-// 不在本测试范围。
-func TestMetricAllocationsDoNotScaleWithPixels(t *testing.T) {
+// 平面提取本身按 float32 平面物化输入是设计允许的，完整
+// CompareImages 的分配当然随像素数增长，不在本测试范围。
+func TestMetricKernelAllocationCountDoesNotScaleWithPixels(t *testing.T) {
 	gs := gradientImage(64, 64)
 	small := mustSSIMPair(t, gs, distortImage(gs))
 	gl := gradientImage(256, 256)
@@ -80,9 +107,9 @@ func TestMetricAllocationsDoNotScaleWithPixels(t *testing.T) {
 	mid := mustSSIMPair(t, gm, distortImage(gm))
 
 	if n := testing.AllocsPerRun(10, func() {
-		_, _ = psnr(context.Background(), small)
+		_, _ = psnrChannel(context.Background(), small.src[0], small.dst[0], small.width, small.height)
 	}); n != 0 {
-		t.Fatalf("psnr allocs = %v per run, want 0", n)
+		t.Fatalf("psnrChannel allocs = %v per run, want 0", n)
 	}
 
 	smallSSIM := testing.AllocsPerRun(10, func() {

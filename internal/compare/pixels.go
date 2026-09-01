@@ -2,7 +2,6 @@ package compare
 
 import (
 	"context"
-	"fmt"
 	"image"
 )
 
@@ -15,7 +14,7 @@ const (
 	alphaChannelCount = 4
 )
 
-// pixelPlanes 是一对图片归一化后的比较平面。
+// activeChannelCount 决定两张图片比较时使用的活动通道数。
 //
 // 两张图片的样本统一为 0..255 动态范围的行优先 float32 平面：
 //
@@ -24,53 +23,11 @@ const (
 //     完全透明区域隐藏的 RGB 不再影响结果，而 alpha 丢失仍然会被检测。
 //     注意这是 itb 定义的 alpha-aware RGBA 变体，数值不应要求与只比较
 //     RGB 的第三方工具逐位一致。
-type pixelPlanes struct {
-	width    int
-	height   int
-	channels int
-
-	// src/dst[c] 是第 c 个活动通道的样本，长度均为 width*height。
-	src [][]float32
-	dst [][]float32
-}
-
-// newPixelPlanes 校验两张图片的逻辑尺寸一致并提取活动通道平面。
-// 输入应已完成解码（含 JPEG EXIF Orientation 烘焙），这里比较的是
-// 应用 Orientation 后的实际视觉像素，而不是文件字节或编码参数。
-func newPixelPlanes(ctx context.Context, src, dst image.Image) (*pixelPlanes, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	sb, db := src.Bounds(), dst.Bounds()
-	if sb.Dx() != db.Dx() || sb.Dy() != db.Dy() {
-		return nil, fmt.Errorf("图片尺寸不一致: src=%dx%d, dst=%dx%d", sb.Dx(), sb.Dy(), db.Dx(), db.Dy())
-	}
-
-	channels := opaqueChannelCount
+func activeChannelCount(src, dst image.Image) int {
 	if hasTransparency(src) || hasTransparency(dst) {
-		channels = alphaChannelCount
+		return alphaChannelCount
 	}
-
-	p := &pixelPlanes{
-		width:    sb.Dx(),
-		height:   sb.Dy(),
-		channels: channels,
-		src:      make([][]float32, channels),
-		dst:      make([][]float32, channels),
-	}
-	for c := 0; c < channels; c++ {
-		p.src[c] = make([]float32, p.width*p.height)
-		p.dst[c] = make([]float32, p.width*p.height)
-	}
-
-	if err := extractChannels(ctx, src, p.src, channels == alphaChannelCount); err != nil {
-		return nil, err
-	}
-	if err := extractChannels(ctx, dst, p.dst, channels == alphaChannelCount); err != nil {
-		return nil, err
-	}
-	return p, nil
+	return opaqueChannelCount
 }
 
 // hasTransparency 报告图片是否存在 alpha != 255 的像素。
@@ -90,6 +47,11 @@ func hasTransparency(img image.Image) bool {
 			}
 		}
 		return false
+	case *image.YCbCr, *image.Gray, *image.Gray16, *image.CMYK:
+		// 这些类型没有 alpha 通道，天然不透明；直接返回避免对大图做
+		// 一次完整的 At() 遍历（JPEG 解码结果就是 *image.YCbCr）。
+		_ = im
+		return false
 	}
 
 	b := img.Bounds()
@@ -103,10 +65,13 @@ func hasTransparency(img image.Image) bool {
 	return false
 }
 
-// extractChannels 把图片的活动通道写入平面（行优先，0..255 动态范围）。
-// premultiply 为 true 时 R/G/B 写入 alpha 预乘值，且 A 本身作为第四个
-// 通道参与比较。
-func extractChannels(ctx context.Context, img image.Image, planes [][]float32, premultiply bool) error {
+// extractChannel 把图片第 c 个活动通道写入 plane（行优先，0..255 动态
+// 范围）。premultiply 为 true 时 R/G/B（c < 3）写入 alpha 预乘值，且 A
+// 本身作为第四个通道（c == 3）参与比较。
+//
+// 调用方逐通道调用并复用同一 plane，比较的峰值工作集只是一对通道
+// 平面，而不是全部 6/8 个平面的物化。
+func extractChannel(ctx context.Context, img image.Image, plane []float32, c int, premultiply bool) error {
 	b := img.Bounds()
 	width, height := b.Dx(), b.Dy()
 
@@ -119,17 +84,17 @@ func extractChannels(ctx context.Context, img image.Image, planes [][]float32, p
 			off := im.PixOffset(b.Min.X, b.Min.Y+y)
 			for x := 0; x < width; x++ {
 				i := off + x*4
-				idx := y*width + x
-				if premultiply {
-					planes[0][idx] = float32(premultiply8(im.Pix[i], im.Pix[i+3]))
-					planes[1][idx] = float32(premultiply8(im.Pix[i+1], im.Pix[i+3]))
-					planes[2][idx] = float32(premultiply8(im.Pix[i+2], im.Pix[i+3]))
-					planes[3][idx] = float32(im.Pix[i+3])
-					continue
+				var v uint8
+				if c < 3 {
+					if premultiply {
+						v = premultiply8(im.Pix[i+c], im.Pix[i+3])
+					} else {
+						v = im.Pix[i+c]
+					}
+				} else {
+					v = im.Pix[i+3]
 				}
-				planes[0][idx] = float32(im.Pix[i])
-				planes[1][idx] = float32(im.Pix[i+1])
-				planes[2][idx] = float32(im.Pix[i+2])
+				plane[y*width+x] = float32(v)
 			}
 		}
 		return nil
@@ -144,13 +109,13 @@ func extractChannels(ctx context.Context, img image.Image, planes [][]float32, p
 			off := im.PixOffset(b.Min.X, b.Min.Y+y)
 			for x := 0; x < width; x++ {
 				i := off + x*4
-				idx := y*width + x
-				planes[0][idx] = float32(im.Pix[i])
-				planes[1][idx] = float32(im.Pix[i+1])
-				planes[2][idx] = float32(im.Pix[i+2])
-				if premultiply {
-					planes[3][idx] = float32(im.Pix[i+3])
+				var v uint8
+				if c < 3 {
+					v = im.Pix[i+c]
+				} else {
+					v = im.Pix[i+3]
 				}
+				plane[y*width+x] = float32(v)
 			}
 		}
 		return nil
@@ -164,13 +129,18 @@ func extractChannels(ctx context.Context, img image.Image, planes [][]float32, p
 		}
 		for x := 0; x < width; x++ {
 			r, g, bl, a := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
-			idx := y*width + x
-			planes[0][idx] = float32(r >> 8)
-			planes[1][idx] = float32(g >> 8)
-			planes[2][idx] = float32(bl >> 8)
-			if premultiply {
-				planes[3][idx] = float32(a >> 8)
+			var v uint32
+			switch c {
+			case 0:
+				v = r
+			case 1:
+				v = g
+			case 2:
+				v = bl
+			default:
+				v = a
 			}
+			plane[y*width+x] = float32(v >> 8)
 		}
 	}
 	return nil

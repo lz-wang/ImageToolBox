@@ -107,7 +107,7 @@ func TestMSSSIMMatchesNaiveOddDimensions(t *testing.T) {
 	dst := distortImage(src)
 	p := mustSSIMPair(t, src, dst)
 
-	got, err := msSSIM(context.Background(), p)
+	res, err := CompareImages(context.Background(), src, dst, Options{Metrics: MetricMSSSIM})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,8 +115,8 @@ func TestMSSSIMMatchesNaiveOddDimensions(t *testing.T) {
 	for c := 0; c < p.channels; c++ {
 		naiveSum += naiveMSSSIMChannel(p.src[c], p.dst[c], p.width, p.height)
 	}
-	if want := naiveSum / float64(p.channels); math.Abs(got-want) > 1e-9 {
-		t.Fatalf("MS-SSIM = %v, want naive %v", got, want)
+	if want := naiveSum / float64(p.channels); math.Abs(res.MSSSIM-want) > 1e-9 {
+		t.Fatalf("MS-SSIM = %v, want naive %v", res.MSSSIM, want)
 	}
 }
 

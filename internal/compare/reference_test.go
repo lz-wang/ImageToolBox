@@ -93,30 +93,27 @@ func TestReferenceVectorMatchesNaive(t *testing.T) {
 	src, dst := caseBImages(t)
 	p := mustSSIMPair(t, src, dst)
 
-	gotSSIM, err := ssim(context.Background(), p)
+	res, err := CompareImages(context.Background(), src, dst, Options{Metrics: MetricSSIM | MetricMSSSIM})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	var naiveSum float64
 	for c := 0; c < p.channels; c++ {
 		v, _ := naiveSSIMPlane(p.src[c], p.dst[c], p.width, p.height)
 		naiveSum += v
 	}
-	if want := naiveSum / float64(p.channels); math.Abs(gotSSIM-want) > 1e-9 {
-		t.Fatalf("SSIM = %v, want naive %v", gotSSIM, want)
+	if want := naiveSum / float64(p.channels); math.Abs(res.SSIM-want) > 1e-9 {
+		t.Fatalf("SSIM = %v, want naive %v", res.SSIM, want)
 	}
 
-	gotMS, err := msSSIM(context.Background(), p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 	var naiveMSSum float64
 	for c := 0; c < p.channels; c++ {
 		v := naiveMSSSIMChannel(p.src[c], p.dst[c], p.width, p.height)
 		naiveMSSum += v
 	}
-	if want := naiveMSSum / float64(p.channels); math.Abs(gotMS-want) > 1e-9 {
-		t.Fatalf("MS-SSIM = %v, want naive %v", gotMS, want)
+	if want := naiveMSSum / float64(p.channels); math.Abs(res.MSSSIM-want) > 1e-9 {
+		t.Fatalf("MS-SSIM = %v, want naive %v", res.MSSSIM, want)
 	}
 }
 

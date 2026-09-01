@@ -17,20 +17,9 @@ var msSSIMWeights = [msSSIMScales]float64{0.0448, 0.2856, 0.3001, 0.2363, 0.1333
 // 完整 11×11 窗口，即短边 >= (11-1)·2⁴+1 = 161。
 const msSSIMMinDim = (ssimWindow-1)<<4 + 1
 
-// msSSIM 计算全部活动通道的平均 MS-SSIM（每通道独立计算后取平均）。
-func msSSIM(ctx context.Context, p *pixelPlanes) (float64, error) {
-	var sum float64
-	for c := 0; c < p.channels; c++ {
-		v, err := msSSIMChannel(ctx, p.src[c], p.dst[c], p.width, p.height)
-		if err != nil {
-			return 0, err
-		}
-		sum += v
-	}
-	return sum / float64(p.channels), nil
-}
-
-// msSSIMChannel 对单通道平面计算五尺度 MS-SSIM：
+// msSSIMChannel 对单通道平面计算五尺度 MS-SSIM（指标是全部活动通道
+// 的平均：每通道独立计算后取平均，聚合在 CompareImages 的通道循环里
+// 完成）：
 //
 //	MS-SSIM = SSIM_5^w5 · Π_{j=1..4} CS_j^w_j
 //

@@ -83,25 +83,19 @@ func naiveSSIMPlane(x, y []float32, width, height int) (meanSSIM, meanCS float64
 	return sumSSIM / float64(count), sumCS / float64(count)
 }
 
-// mustSSIMPair 构造 src/dst 的比较平面。
-func mustSSIMPair(t *testing.T, src, dst *image.NRGBA) *pixelPlanes {
+// compareSSIM 走领域入口 CompareImages 验证多通道平均 SSIM。
+func compareSSIM(t *testing.T, src, dst image.Image) float64 {
 	t.Helper()
-	p, err := newPixelPlanes(context.Background(), src, dst)
+	res, err := CompareImages(context.Background(), src, dst, Options{Metrics: MetricSSIM})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	return p
+	return res.SSIM
 }
 
 func TestSSIMIdenticalIsOne(t *testing.T) {
 	src := gradientImage(64, 48)
-	p := mustSSIMPair(t, src, src)
-
-	got, err := ssim(context.Background(), p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if math.Abs(got-1) > 1e-12 {
+	if got := compareSSIM(t, src, src); math.Abs(got-1) > 1e-12 {
 		t.Fatalf("ssim = %v, want 1 for identical images", got)
 	}
 }
@@ -123,14 +117,8 @@ func TestSSIMSymmetry(t *testing.T) {
 	src := gradientImage(64, 48)
 	dst := distortImage(src)
 
-	ab, err := ssim(context.Background(), mustSSIMPair(t, src, dst))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	ba, err := ssim(context.Background(), mustSSIMPair(t, dst, src))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	ab := compareSSIM(t, src, dst)
+	ba := compareSSIM(t, dst, src)
 	if math.Abs(ab-ba) > 1e-12 {
 		t.Fatalf("ssim(A,B) = %v, ssim(B,A) = %v, want equal", ab, ba)
 	}
@@ -141,10 +129,7 @@ func TestSSIMRange(t *testing.T) {
 	src := gradientImage(64, 48)
 	dst := distortImage(src)
 
-	got, err := ssim(context.Background(), mustSSIMPair(t, src, dst))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := compareSSIM(t, src, dst)
 	if got < -1 || got > 1 {
 		t.Fatalf("ssim = %v, want within [-1, 1]", got)
 	}
@@ -168,14 +153,8 @@ func TestSSIMBrightnessShiftVersusNoise(t *testing.T) {
 		return color.NRGBA{R: clamp8(int(c.R) + n), G: clamp8(int(c.G) + n), B: clamp8(int(c.B) + n), A: 255}
 	})
 
-	shiftSSIM, err := ssim(context.Background(), mustSSIMPair(t, src, shifted))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	noiseSSIM, err := ssim(context.Background(), mustSSIMPair(t, src, noisy))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	shiftSSIM := compareSSIM(t, src, shifted)
+	noiseSSIM := compareSSIM(t, src, noisy)
 
 	if shiftSSIM <= 0.5 || shiftSSIM >= 1 {
 		t.Fatalf("brightness-shift ssim = %v, want in (0.5, 1)", shiftSSIM)
@@ -255,17 +234,13 @@ func TestSSIMMatchesNaiveReference(t *testing.T) {
 	}
 }
 
-// 参考值回归：固化 opaque RGB 梯度 + 确定性偏差的 SSIM/CS 常量。
+// 参考值回归：固化 opaque RGB 梯度 + 确定性偏差的 SSIM 常量。
 // 常量由 naive 参考实现离线计算得出，防止 streaming 实现漂移。
 func TestSSIMReferenceConstant(t *testing.T) {
 	src := gradientImage(64, 48)
 	dst := distortImage(src)
-	p := mustSSIMPair(t, src, dst)
 
-	got, err := ssim(context.Background(), p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := compareSSIM(t, src, dst)
 	// 参考值由 naive 参考实现离线计算固化（容差 1e-5，不要求 bit-identical）
 	const want = 0.972806
 	if math.Abs(got-want) > 1e-5 {
@@ -280,13 +255,10 @@ func TestSSIMMultiChannelAverage(t *testing.T) {
 		c := src.NRGBAAt(x, y)
 		return color.NRGBA{R: c.R, G: c.G, B: clamp8(int(c.B) + ((x + y) % 7) - 3), A: 255}
 	})
+
+	got := compareSSIM(t, src, dst)
+
 	p := mustSSIMPair(t, src, dst)
-
-	got, err := ssim(context.Background(), p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
 	var sum float64
 	for c := 0; c < p.channels; c++ {
 		v, _, err := ssimPlane(context.Background(), p.src[c], p.dst[c], p.width, p.height)

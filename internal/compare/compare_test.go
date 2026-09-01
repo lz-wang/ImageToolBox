@@ -107,6 +107,10 @@ func TestCompareImagesDimensionMismatch(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "图片尺寸不一致") {
 		t.Fatalf("error = %v, want dimension mismatch", err)
 	}
+	// 错误信息必须携带两侧实际尺寸，便于定位。
+	if !strings.Contains(err.Error(), "src=192x108, dst=128x72") {
+		t.Fatalf("error should include both sizes, got: %v", err)
+	}
 }
 
 // SSIM 窗口约束：10×10 直接拒绝，ErrImageTooSmall。
