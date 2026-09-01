@@ -29,47 +29,48 @@ func (o *Options) Normalize() {
 	}
 }
 
-// Validate verifies conversion options before decoding the input image.
-//
-// 参数语义按目标格式收口：
-//   - quality 对 JPEG/WebP 生效，PNG 忽略（无需区分用户显式传入与默认值）；
-//   - lossless 仅 WebP 有实际意义；PNG 本身始终无损，作为兼容性 no-op 接受；
-//   - background 只在输出 JPEG（不支持 Alpha、必须铺底）时生效并被校验。
-func (o Options) Validate() error {
-	if o.Quality < 1 || o.Quality > 100 {
-		return fmt.Errorf("quality must be between 1 and 100")
-	}
-	return nil
+type resolvedOptions struct {
+	format     imageio.Format
+	quality    int
+	lossless   bool
+	background color.NRGBA
 }
 
-func validateForFormat(o Options, format imageio.Format) error {
-	if o.Lossless && format != imageio.FormatPNG && format != imageio.FormatWEBP {
-		return fmt.Errorf("lossless is only supported for png and webp")
+func resolveOptions(outputPath string, opts Options) (resolvedOptions, error) {
+	opts.Normalize()
+	if opts.Quality < 1 || opts.Quality > 100 {
+		return resolvedOptions{}, fmt.Errorf("quality must be between 1 and 100")
 	}
-	if format == imageio.FormatJPEG {
-		background, err := imageio.ParseHexColor(o.Background)
-		if err != nil {
-			return fmt.Errorf("invalid background color: %w", err)
-		}
-		// JPEG 没有透明背景；零值颜色（如 #00000000）还会被 imageio
-		// Encode 当作"未设置"而静默变成默认白色，必须在领域层拒绝。
-		if background.A != 255 {
-			return fmt.Errorf("background color must be opaque for jpeg output")
-		}
+
+	format, err := imageio.FormatFromPath(outputPath)
+	if err != nil {
+		return resolvedOptions{}, err
 	}
-	return nil
+	if opts.Lossless && format != imageio.FormatPNG && format != imageio.FormatWEBP {
+		return resolvedOptions{}, fmt.Errorf("lossless is only supported for png and webp")
+	}
+
+	resolved := resolvedOptions{format: format, quality: opts.Quality, lossless: opts.Lossless}
+	if format != imageio.FormatJPEG {
+		return resolved, nil
+	}
+
+	background, err := imageio.ParseHexColor(opts.Background)
+	if err != nil {
+		return resolvedOptions{}, fmt.Errorf("invalid background color: %w", err)
+	}
+	// JPEG 没有透明背景；零值颜色（如 #00000000）还会被 imageio Encode
+	// 当作“未设置”而静默变成默认白色，必须在领域层拒绝。
+	if background.A != 255 {
+		return resolvedOptions{}, fmt.Errorf("background color must be opaque for jpeg output")
+	}
+	resolved.background = background
+	return resolved, nil
 }
 
 func ConvertFile(inputPath, outputPath string, opts Options) error {
-	opts.Normalize()
-	if err := opts.Validate(); err != nil {
-		return err
-	}
-	format, err := imageio.FormatFromPath(outputPath)
+	resolved, err := resolveOptions(outputPath, opts)
 	if err != nil {
-		return err
-	}
-	if err := validateForFormat(opts, format); err != nil {
 		return err
 	}
 
@@ -82,20 +83,9 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 		return err
 	}
 
-	var background color.NRGBA
-	if format == imageio.FormatJPEG {
-		background, err = imageio.ParseHexColor(opts.Background)
-		if err != nil {
-			return fmt.Errorf("invalid background color: %w", err)
-		}
-		if background.A != 255 {
-			return fmt.Errorf("background color must be opaque for jpeg output")
-		}
-	}
-
-	return imageio.SaveWithFormat(outputPath, img, format, imageio.SaveOptions{
-		Quality:    opts.Quality,
-		Lossless:   opts.Lossless,
-		Background: background,
+	return imageio.SaveWithFormat(outputPath, img, resolved.format, imageio.SaveOptions{
+		Quality:    resolved.quality,
+		Lossless:   resolved.lossless,
+		Background: resolved.background,
 	})
 }

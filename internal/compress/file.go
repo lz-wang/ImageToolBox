@@ -2,11 +2,15 @@ package compress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 const DefaultQuality = 80
+
+var ErrSameFile = errors.New("input and output must not refer to the same file")
 
 // FileOptions 文件级压缩选项
 type FileOptions struct {
@@ -36,7 +40,8 @@ type Result struct {
 }
 
 // CompressFile 检测输入图片格式（PNG/JPEG），执行对应的压缩管道并写入 outputPath。
-// 供 CLI 与 Web API 共用；原地覆盖（输出回输入路径）由调用方自行处理。
+// 供 CLI 与 Web API 共用。inputPath 与 outputPath 不得指向同一文件；原地
+// 覆盖必须由调用方先写入另一临时文件，再原子 rename 回输入路径。
 func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOptions) (Result, error) {
 	ctx = commandContext(ctx)
 	if err := ctx.Err(); err != nil {
@@ -53,6 +58,9 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 	stat, err := os.Stat(inputPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("无法读取输入文件信息: %w", err)
+	}
+	if err := rejectSameFile(inputPath, outputPath, stat); err != nil {
+		return Result{}, err
 	}
 
 	f, err := os.Open(inputPath)
@@ -93,6 +101,29 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 		InputSize:  stat.Size(),
 		OutputSize: outStat.Size(),
 	}, nil
+}
+
+func rejectSameFile(inputPath, outputPath string, inputInfo os.FileInfo) error {
+	inputAbs, err := filepath.Abs(inputPath)
+	if err != nil {
+		return fmt.Errorf("无法解析输入文件路径: %w", err)
+	}
+	outputAbs, err := filepath.Abs(outputPath)
+	if err != nil {
+		return fmt.Errorf("无法解析输出文件路径: %w", err)
+	}
+	if filepath.Clean(inputAbs) == filepath.Clean(outputAbs) {
+		return ErrSameFile
+	}
+
+	outputInfo, err := os.Stat(outputPath)
+	if err == nil && os.SameFile(inputInfo, outputInfo) {
+		return ErrSameFile
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("无法读取输出文件信息: %w", err)
+	}
+	return nil
 }
 
 func compressPNGTo(ctx context.Context, inputPath, outputPath string, quality int) error {

@@ -144,7 +144,7 @@ func TestConvertPNGToWEBPLossless(t *testing.T) {
 	}
 }
 
-func TestOptionsNormalizeAndValidate(t *testing.T) {
+func TestOptionsNormalize(t *testing.T) {
 	tests := []struct {
 		name    string
 		opts    Options
@@ -163,22 +163,22 @@ func TestOptionsNormalizeAndValidate(t *testing.T) {
 			if !tt.wantErr && tt.opts != tt.want {
 				t.Fatalf("Normalize() = %+v, want %+v", tt.opts, tt.want)
 			}
-			if err := tt.opts.Validate(); (err != nil) != tt.wantErr {
-				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			_, err := resolveOptions("output.webp", tt.opts)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("resolveOptions() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-// Validate 契约测试：参数语义按目标格式收口。
-
 func validate(t *testing.T, opts Options, format imageio.Format) error {
 	t.Helper()
-	opts.Normalize()
-	if err := opts.Validate(); err != nil {
-		return err
+	returnErrorPath := "output." + string(format)
+	if format == imageio.FormatJPEG {
+		returnErrorPath = "output.jpg"
 	}
-	return validateForFormat(opts, format)
+	_, err := resolveOptions(returnErrorPath, opts)
+	return err
 }
 
 func TestValidateInvalidJPEGBackground(t *testing.T) {

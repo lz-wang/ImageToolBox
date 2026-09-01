@@ -5,7 +5,7 @@ It is not a remote shell: S3 management, workflows, user management, queues, and
 
 All image operations require `Authorization: Bearer $ITB_API_TOKEN`. `GET /api/v1/health` does not require authentication and returns `{"status":"ok"}`.
 
-Every operation uses `multipart/form-data`. `input` is the required source image file; all other field names match the corresponding CLI long flag. Image-transforming endpoints stream binary downloads with `Content-Disposition`, `X-ITB-Input-Size`, `X-ITB-Output-Size`, and `X-ITB-Operation` headers. `inspect` always returns JSON.
+Every operation uses `multipart/form-data`. `input` is the required source image file. Except for the transport-only `convert` field `to`, operation option names match the corresponding CLI long flag. Image-transforming endpoints stream binary downloads with `Content-Disposition`, `X-ITB-Input-Size`, `X-ITB-Output-Size`, and `X-ITB-Operation` headers. `inspect` always returns JSON.
 
 Scalar fields are limited to 4 KiB (16 KiB for `text`); an oversized field is rejected with `413 payload_too_large`. Uploaded files are stored under server-generated temporary names — client filenames are only used for download names — so identical filenames for `input` and `image` never collide.
 

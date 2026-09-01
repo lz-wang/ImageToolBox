@@ -47,3 +47,27 @@ func TestSourceArg(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceDestinationArgsAcceptsFlagsAroundPaths(t *testing.T) {
+	for _, args := range [][]string{
+		{"--width", "100", "src.jpg", "dst.jpg"},
+		{"src.jpg", "--width", "100", "dst.jpg"},
+		{"src.jpg", "dst.jpg", "--width", "100"},
+	} {
+		var src, dst string
+		app := &cli.Command{
+			Flags: []cli.Flag{&cli.IntFlag{Name: "width"}},
+			Action: func(_ context.Context, cmd *cli.Command) error {
+				var err error
+				src, dst, err = sourceDestinationArgs(cmd, false)
+				return err
+			},
+		}
+		if err := app.Run(context.Background(), append([]string{"itb"}, args...)); err != nil {
+			t.Fatalf("Run(%v) error = %v", args, err)
+		}
+		if src != "src.jpg" || dst != "dst.jpg" {
+			t.Fatalf("Run(%v) paths = %q, %q", args, src, dst)
+		}
+	}
+}

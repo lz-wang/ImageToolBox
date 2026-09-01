@@ -14,6 +14,8 @@ func newConvertCommand() *cli.Command {
 		Usage:     "转换图片格式",
 		ArgsUsage: "<src> <dst>",
 		Description: `转换图片格式。
+目标格式由 <dst> 文件扩展名决定。
+支持: .jpg / .jpeg / .png / .webp
 
 示例:
 	  itb convert photo.png photo.webp

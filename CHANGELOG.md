@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`; S3 command flags are unchanged.
+
 ## [v0.7.0] - 2026-09-01
 
 ### Added
@@ -18,8 +22,6 @@ All notable changes to this project will be documented in this file.
 - MinIO 集成测试：CI 以 service 方式启动真实 MinIO 并强制执行（`ITB_REQUIRE_MINIO=1`），本地默认优雅跳过，可用 `ITB_TEST_MINIO_*` 指向自建实例。
 
 ### Changed
-
-- **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`; S3 command flags are unchanged.
 
 - S3 Content-Type 按文件内容检测：显式 `--content-type` > magic sniff（覆盖 JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG）> 扩展名兜底 > `application/octet-stream`；HTML 错误页改名 `.jpg` 后不再伪装 `image/jpeg` 上传。
 - convert/resize/crop/watermark 统一解码入口 `imageio.OpenStatic`：输入严格限定 JPEG/PNG/WebP，GIF/BMP/TIFF 一律拒绝，animated GIF 不再被静默处理首帧（水印 logo 输入同样受限）。

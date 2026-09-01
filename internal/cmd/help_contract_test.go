@@ -94,6 +94,8 @@ func TestConvertHelpContract(t *testing.T) {
 	for _, want := range []string{
 		"<src>",
 		"<dst>",
+		"目标格式由 <dst>",
+		".jpg / .jpeg / .png / .webp",
 		"JPEG/WebP 输出质量",
 		"PNG 忽略该参数",
 		"使用 WebP 无损编码",
