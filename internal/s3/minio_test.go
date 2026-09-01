@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net"
@@ -268,7 +269,7 @@ func TestMinIOIntegration(t *testing.T) {
 // TestMinIOCLIE2E 通过编译后的真实 itb 二进制验证 positional operand
 // 接线，而不是只验证领域 API。
 func TestMinIOCLIE2E(t *testing.T) {
-	_, prefix := newMinIOTestClient(t)
+	client, prefix := newMinIOTestClient(t)
 	cfg := minioTestConfig(t)
 
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
@@ -295,29 +296,37 @@ func TestMinIOCLIE2E(t *testing.T) {
 		"ITB_S3_BUCKET="+cfg.Bucket,
 		"ITB_S3_FORCE_PATH_STYLE=true",
 	)
-	run := func(dir string, args ...string) []byte {
+	type cliResult struct {
+		stdout string
+		stderr string
+	}
+	run := func(dir string, args ...string) cliResult {
 		t.Helper()
 		cmd := exec.Command(binary, args...)
 		cmd.Dir = dir
 		cmd.Env = baseEnv
-		output, err := cmd.CombinedOutput()
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
 		if err != nil {
-			t.Fatalf("itb %s: %v\n%s", strings.Join(args, " "), err, output)
+			t.Fatalf("itb %s: %v\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), err, stdout.String(), stderr.String())
 		}
-		return output
+		return cliResult{stdout: stdout.String(), stderr: stderr.String()}
 	}
 
 	key := prefix + "fixture.txt"
+	t.Cleanup(func() { _ = Delete(context.Background(), client, key, nil) })
 	var upload struct {
-		SchemaVersion int    `json:"schema_version"`
+		SchemaVersion string `json:"schema_version"`
 		Key           string `json:"key"`
 		Size          int64  `json:"size"`
 		SHA256        string `json:"sha256"`
 	}
-	if err := json.Unmarshal(run(tmp, "s3", "upload", "--format", "json", fixture, key), &upload); err != nil {
+	if err := json.Unmarshal([]byte(run(tmp, "s3", "upload", "--format", "json", fixture, key).stdout), &upload); err != nil {
 		t.Fatalf("decode upload JSON: %v", err)
 	}
-	if upload.SchemaVersion == 0 || upload.Key != key || upload.Size != int64(len(helloContent)) || upload.SHA256 != helloSHA256 {
+	if upload.SchemaVersion != UploadSchemaVersion || upload.Key != key || upload.Size != int64(len(helloContent)) || upload.SHA256 != helloSHA256 {
 		t.Fatalf("upload result = %+v", upload)
 	}
 
@@ -325,7 +334,7 @@ func TestMinIOCLIE2E(t *testing.T) {
 		Key  string `json:"key"`
 		Size int64  `json:"size"`
 	}
-	if err := json.Unmarshal(run(tmp, "s3", "stat", "--format", "json", key), &stat); err != nil {
+	if err := json.Unmarshal([]byte(run(tmp, "s3", "stat", "--format", "json", key).stdout), &stat); err != nil {
 		t.Fatalf("decode stat JSON: %v", err)
 	}
 	if stat.Key != key || stat.Size != int64(len(helloContent)) {
@@ -338,14 +347,14 @@ func TestMinIOCLIE2E(t *testing.T) {
 	if err != nil || string(got) != helloContent {
 		t.Fatalf("downloaded content = %q, read error = %v", got, err)
 	}
-	if output := string(run(tmp, "s3", "list", "--format", "plain", prefix)); !strings.Contains(output, key) {
+	if output := run(tmp, "s3", "list", "--format", "plain", prefix).stdout; !strings.Contains(output, key) {
 		t.Fatalf("list output missing %q: %s", key, output)
 	}
 
 	var skipped struct {
 		Skipped bool `json:"skipped"`
 	}
-	if err := json.Unmarshal(run(tmp, "s3", "upload", "--skip-existing", "--format", "json", fixture, key), &skipped); err != nil {
+	if err := json.Unmarshal([]byte(run(tmp, "s3", "upload", "--skip-existing", "--format", "json", fixture, key).stdout), &skipped); err != nil {
 		t.Fatalf("decode skipped upload JSON: %v", err)
 	}
 	if !skipped.Skipped {
@@ -361,13 +370,19 @@ func TestMinIOCLIE2E(t *testing.T) {
 	}
 
 	// 默认 operand：upload <src> 使用 basename，download <key> 写入当前目录。
-	run(tmp, "s3", "upload", "fixture.txt")
-	if err := os.Remove(fixture); err != nil {
+	// 文件名包含唯一后缀，避免覆盖自建 MinIO 测试桶中的固定对象。
+	defaultName := "itb-cli-default-" + strconv.FormatInt(time.Now().UnixNano(), 36) + ".txt"
+	defaultFixture := filepath.Join(tmp, defaultName)
+	if err := os.WriteFile(defaultFixture, []byte(helloContent), 0o644); err != nil {
+		t.Fatalf("write default fixture: %v", err)
+	}
+	run(tmp, "s3", "upload", defaultName)
+	if err := os.Remove(defaultFixture); err != nil {
 		t.Fatalf("remove fixture before default download: %v", err)
 	}
-	run(tmp, "s3", "download", "fixture.txt")
-	if got, err := os.ReadFile(fixture); err != nil || string(got) != helloContent {
+	run(tmp, "s3", "download", defaultName)
+	if got, err := os.ReadFile(defaultFixture); err != nil || string(got) != helloContent {
 		t.Fatalf("default downloaded content = %q, read error = %v", got, err)
 	}
-	run(tmp, "s3", "delete", "-f", "fixture.txt")
+	run(tmp, "s3", "delete", "-f", defaultName)
 }
