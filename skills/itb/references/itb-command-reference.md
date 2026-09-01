@@ -13,17 +13,17 @@ itb version
 Compress PNG/JPEG. By default the input is kept and the result is written next to it as `<name>_compressed.<ext>`; pass `--in-place` to overwrite the input.
 
 ```bash
-itb compress -i photo.png
-itb compress -i photo.png -o compressed.png
-itb compress -i photo.jpg -o compressed.jpg -q 90
-itb compress -i photo.jpg --in-place
+itb compress photo.png
+itb compress photo.png compressed.png
+itb compress -q 90 photo.jpg compressed.jpg
+itb compress --in-place photo.jpg
 ```
 
 Flags:
 
-- `-i, --input`: input image path.
-- `-o, --output`: output image path; default adds `_compressed`.
-- `--in-place`: overwrite the input file; mutually exclusive with `--output`.
+- `<src>`: required input image path.
+- `[dst]`: optional output image path; default adds `_compressed`.
+- `--in-place`: overwrite the input file; cannot be used with `[dst]`.
 - `-q, --quality`: quality `1-100`, default `80`.
 
 Pipeline:
@@ -36,14 +36,14 @@ Pipeline:
 Crop by anchor and percentage.
 
 ```bash
-itb crop -i a.jpg -o left.jpg --anchor left --width 40%
-itb crop -i a.jpg -o center.jpg --anchor center --width 40% --height 40%
+itb crop --anchor left --width 40% a.jpg left.jpg
+itb crop --anchor center --width 40% --height 40% a.jpg center.jpg
 ```
 
 Flags:
 
-- `-i, --input`: input image path.
-- `-o, --output`: output path; default adds `_cropped`.
+- `<src>`: required input image path.
+- `[dst]`: optional output path; default adds `_cropped`.
 - `--anchor`: `left`, `right`, `top`, `bottom`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`.
 - `--width`: crop width percentage, e.g. `40%`.
 - `--height`: crop height percentage, e.g. `40%`.
@@ -60,16 +60,16 @@ Rules:
 Resize by width, height, bounding box, fill crop, stretch, or percent.
 
 ```bash
-itb resize -i photo.jpg -o wide.jpg --width 1200
-itb resize -i photo.jpg -o social.jpg --width 1200 --height 630 --mode fit
-itb resize -i photo.jpg -o filled.jpg --width 1200 --height 630 --mode fill --anchor top
-itb resize -i photo.png -o half.png --percent 50%
+itb resize --width 1200 photo.jpg wide.jpg
+itb resize --width 1200 --height 630 --mode fit photo.jpg social.jpg
+itb resize --width 1200 --height 630 --mode fill --anchor top photo.jpg filled.jpg
+itb resize --percent 50% photo.png half.png
 ```
 
 Flags:
 
-- `-i, --input`: input image path.
-- `-o, --output`: output path; default adds `_resized`.
+- `<src>`: required input image path.
+- `[dst]`: optional output path; default adds `_resized`.
 - `--width`, `--height`: target dimensions.
 - `--percent`: exact scale percentage, e.g. `50%`; upscaling (`200%`) works.
 - `--mode`: `fit`, `fill`, `stretch`; default `fit`.
@@ -83,16 +83,15 @@ Convert between `jpg`, `jpeg`, `png`, and `webp`. Inputs are limited to `jpg`/`j
 This input-format and orientation contract is shared by every transform (`convert`/`resize`/`crop`/`watermark`): they all open inputs through the same static-image entry point, so GIFs never get silently reduced to their first frame and percent-based crop/resize plans always operate on the rotated (logical) dimensions.
 
 ```bash
-itb convert -i photo.png -o photo.webp --to webp -q 85
-itb convert -i transparent.png -o flat.jpg --to jpg --background "#FFFFFF"
-itb convert -i photo.jpg -o photo.png --to png
+itb convert -q 85 photo.png photo.webp
+itb convert transparent.png flat.jpg --background "#FFFFFF"
+itb convert photo.jpg photo.png
 ```
 
 Flags:
 
-- `-i, --input`: input image path (`jpg`/`jpeg`/`png`/`webp` only).
-- `-o, --output`: output path; default adds `_converted.<ext>`.
-- `--to`: required target format: `jpg`, `jpeg`, `png`, `webp`.
+- `<src>`: required input image path (`jpg`/`jpeg`/`png`/`webp` only).
+- `<dst>`: required output path; its `jpg`/`jpeg`/`png`/`webp` extension determines the target format.
 - `-q, --quality`: JPEG/WebP quality; default `80`. Compression effort in lossless WebP mode; ignored for PNG.
 - `--lossless`: lossless WebP encoding; PNG is always lossless, so this flag is a no-op for PNG.
 - `--background`: opaque background for transparent areas when converting to JPEG; default `#FFFFFF`. Ignored for PNG/WebP.
@@ -104,28 +103,28 @@ Add text or image watermarks.
 Position text watermark:
 
 ```bash
-itb watermark -i photo.jpg -o marked.jpg -t "Author"
-itb watermark -i photo.png -o center.png -t "Copyright" --position center --opacity 0.8
+itb watermark -t "Author" photo.jpg marked.jpg
+itb watermark -t "Copyright" --position center --opacity 0.8 photo.png center.png
 ```
 
 Repeated text watermark:
 
 ```bash
-itb watermark -i photo.png -o draft.png -t "DRAFT" --mode repeat --angle 45 --opacity 0.3
-itb watermark -i photo.png -o red.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000"
+itb watermark -t "DRAFT" --mode repeat --angle 45 --opacity 0.3 photo.png draft.png
+itb watermark -t "CONFIDENTIAL" --mode repeat --color "#FF0000" photo.png red.png
 ```
 
 Image watermark:
 
 ```bash
-itb watermark -i photo.jpg -o logo.jpg --image logo.png --scale 0.2 --position bottom-right
+itb watermark --image logo.png --scale 0.2 --position bottom-right photo.jpg logo.jpg
 ```
 
 Flags:
 
-- `-i, --input`: input image path.
+- `<src>`: required input image path.
 - `-t, --text`: watermark text. Required unless using `--image`.
-- `-o, --output`: output path; default adds `_watermarked`.
+- `[dst]`: optional output path; default adds `_watermarked`.
 - `-m, --mode`: `position` or `repeat`; default `position`.
 - `--color`: watermark hex color (`#RGB`/`#RRGGBB`/`#RRGGBBAA`); empty auto-selects black/white.
 - `--opacity`: `0` to `1`; default `0.5`.
@@ -143,15 +142,15 @@ Flags:
 Read-only file/image inspection with hashes; JSON contract `itb.inspect.v2`.
 
 ```bash
-itb inspect -i photo.jpg
-itb inspect -i photo.jpg --format json
-itb inspect -i photo.jpg --format plain   # sha256 only
-itb inspect -i image.png --strict --full-decode --format json   # upload preflight
+itb inspect photo.jpg
+itb inspect --format json photo.jpg
+itb inspect --format plain photo.jpg   # sha256 only
+itb inspect --strict --full-decode --format json image.png   # upload preflight
 ```
 
 Flags:
 
-- `-i, --input`: required input image path.
+- `<src>`: required input image path.
 - `--format`: `table` (default) / `json` / `plain`.
 - `--no-detail` / `--no-hash`: skip detail or hash computation.
 - `--strict`: return an error instead of an `error` object when parsing fails.

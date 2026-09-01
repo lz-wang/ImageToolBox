@@ -52,19 +52,19 @@ Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original
 
 ```bash
 # Compress a PNG (writes photo_compressed.png)
-./itb compress -i photo.png
+./itb compress photo.png
 
 # Compress a JPEG (writes photo_compressed.jpg)
-./itb compress -i photo.jpg
+./itb compress photo.jpg
 
 # Specify the output file
-./itb compress -i photo.png -o compressed.png
+./itb compress photo.png compressed.png
 
-# Overwrite the original (mutually exclusive with --output)
-./itb compress -i photo.jpg --in-place
+# Overwrite the original (cannot be used with a destination path)
+./itb compress --in-place photo.jpg
 
 # Specify compression quality (1-100, default 80)
-./itb compress -i photo.jpg -q 90
+./itb compress -q 90 photo.jpg
 ```
 
 <details>
@@ -72,9 +72,9 @@ Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image file path |
-| `-o, --output` | `*_compressed.*` | Output path; appends `_compressed` to the original name by default |
-| `--in-place` | `false` | Overwrite the input file (mutually exclusive with `--output`) |
+| `<src>` | (required) | Input image file path |
+| `[dst]` | `*_compressed.*` | Output path; appends `_compressed` to the original name when omitted |
+| `--in-place` | `false` | Overwrite the input file (cannot be used with `[dst]`) |
 | `-q, --quality` | `80` | Compression quality 1-100 |
 
 **Compression pipeline**
@@ -90,16 +90,16 @@ Keep a region of the image by anchor and percentage.
 
 ```bash
 # Keep the left 40% of the width
-./itb crop -i a.jpg --anchor left --width 40%
+./itb crop --anchor left --width 40% a.jpg
 
 # Keep the right 40% of the width
-./itb crop -i a.jpg --anchor right --width 40%
+./itb crop --anchor right --width 40% a.jpg
 
 # Keep the top-left 40% x 40% region
-./itb crop -i a.jpg --anchor top-left --width 40% --height 40%
+./itb crop --anchor top-left --width 40% --height 40% a.jpg
 
 # Keep the center 40% x 40% region
-./itb crop -i a.jpg --anchor center --width 40% --height 40%
+./itb crop --anchor center --width 40% --height 40% a.jpg
 ```
 
 <details>
@@ -107,8 +107,8 @@ Keep a region of the image by anchor and percentage.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path |
-| `-o, --output` | `*_cropped.*` | Output path; appends `_cropped` to the original name by default |
+| `<src>` | (required) | Input image path |
+| `[dst]` | `*_cropped.*` | Output path; appends `_cropped` to the original name when omitted |
 | `--anchor` | (required) | Crop anchor: `left` / `right` / `top` / `bottom` / `top-left` / `top-right` / `bottom-left` / `bottom-right` / `center` |
 | `--width` | | Crop width as a percentage, e.g. `40%` |
 | `--height` | | Crop height as a percentage, e.g. `40%` |
@@ -128,16 +128,16 @@ Resize by width/height, by percentage, or using different modes.
 
 ```bash
 # Specify the width, scale proportionally
-./itb resize -i photo.jpg --width 1200
+./itb resize --width 1200 photo.jpg
 
 # Specify a box, preserve aspect ratio (fit)
-./itb resize -i photo.jpg --width 1200 --height 630 --mode fit
+./itb resize --width 1200 --height 630 --mode fit photo.jpg
 
 # Specify a box and crop to fill
-./itb resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top
+./itb resize --width 1200 --height 630 --mode fill --anchor top photo.jpg
 
 # Scale by percentage
-./itb resize -i photo.png --percent 50%
+./itb resize --percent 50% photo.png
 ```
 
 <details>
@@ -145,8 +145,8 @@ Resize by width/height, by percentage, or using different modes.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path |
-| `-o, --output` | `*_resized.*` | Output path |
+| `<src>` | (required) | Input image path |
+| `[dst]` | `*_resized.*` | Output path |
 | `--width` | | Target width (pixels) |
 | `--height` | | Target height (pixels) |
 | `--percent` | | Scale exactly by percentage, e.g. `50%`; upscaling like `200%` works |
@@ -166,19 +166,19 @@ Resize by width/height, by percentage, or using different modes.
 
 ## Format conversion
 
-Convert between `jpg/jpeg/png/webp`; the output format is set by `--to`. Inputs are limited to `jpg/jpeg/png/webp`; the EXIF orientation of **JPEG** inputs is applied to the actual pixels during conversion (orientation metadata embedded in WebP files is not processed), and EXIF/GPS/XMP metadata is not carried over to the output.
+Convert between `jpg/jpeg/png/webp`; the output format is determined only by the required `<dst>` extension. Inputs are limited to `jpg/jpeg/png/webp`; the EXIF orientation of **JPEG** inputs is applied to the actual pixels during conversion (orientation metadata embedded in WebP files is not processed), and EXIF/GPS/XMP metadata is not carried over to the output.
 
 **Unified input format and orientation contract** (applies to `convert` / `resize` / `crop` / `watermark`): every transform command strictly accepts `JPEG/PNG/WebP` only (GIF/BMP/TIFF are rejected, so animated GIFs are never silently reduced to their first frame), and the **JPEG EXIF orientation is always baked into the pixels** — planning and resource admission for `resize`/`crop`/`watermark` use the post-rotation logical dimensions, matching the actual output.
 
 ```bash
 # Convert to WebP
-./itb convert -i photo.png --to webp
+./itb convert photo.png photo.webp
 
 # Transparent PNG → JPG with a custom background color
-./itb convert -i photo.png --to jpg --background "#FFFFFF"
+./itb convert photo.png photo.jpg --background "#FFFFFF"
 
 # Specify the output path
-./itb convert -i photo.jpg --to png -o output.png
+./itb convert photo.jpg output.png
 ```
 
 Conversion semantics are fixed per target format:
@@ -194,9 +194,8 @@ Conversion semantics are fixed per target format:
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path (`jpg` / `jpeg` / `png` / `webp` only) |
-| `-o, --output` | `*_converted.<ext>` | Output path |
-| `--to` | (required) | Target format: `jpg` / `jpeg` / `png` / `webp` |
+| `<src>` | (required) | Input image path (`jpg` / `jpeg` / `png` / `webp` only) |
+| `<dst>` | (required) | Output path; its `.jpg` / `.jpeg` / `.png` / `.webp` extension determines the target format |
 | `-q, --quality` | `80` | JPEG/WebP output quality; compression effort in lossless WebP mode; ignored for PNG |
 | `--lossless` | `false` | Use lossless WebP encoding; PNG is always lossless, so this has no extra effect on PNG |
 | `--background` | `#FFFFFF` | Background color for transparent areas when converting to JPEG (must be opaque) |
@@ -213,19 +212,19 @@ Adds a single watermark at the specified position. The text color (black/white) 
 
 ```bash
 # Default: bottom-right
-./itb watermark -i photo.jpg -t "© Author"
+./itb watermark -t "© Author" photo.jpg
 
 # Specify the position
-./itb watermark -i photo.png -t "Copyright" --position center
+./itb watermark -t "Copyright" --position center photo.png
 
 # Adjust opacity
-./itb watermark -i photo.png -t "Author" --opacity 0.8
+./itb watermark -t "Author" --opacity 0.8 photo.png
 
 # Specify the output path
-./itb watermark -i photo.jpg -t "Author" -o output.jpg
+./itb watermark -t "Author" photo.jpg output.jpg
 
 # Image watermark
-./itb watermark -i photo.jpg --image logo.png --scale 0.2 --position bottom-right
+./itb watermark --image logo.png --scale 0.2 --position bottom-right photo.jpg
 ```
 
 ### Repeated tile watermark (repeat)
@@ -234,13 +233,13 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 
 ```bash
 # Basic usage
-./itb watermark -i photo.png -t "WATERMARK" --mode repeat
+./itb watermark -t "WATERMARK" --mode repeat photo.png
 
 # Custom angle and opacity
-./itb watermark -i photo.png -t "DRAFT" --mode repeat --angle 45 --opacity 0.3
+./itb watermark -t "DRAFT" --mode repeat --angle 45 --opacity 0.3 photo.png
 
 # Custom color
-./itb watermark -i photo.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000"
+./itb watermark -t "CONFIDENTIAL" --mode repeat --color "#FF0000" photo.png
 ```
 
 <details>
@@ -250,9 +249,9 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path |
+| `<src>` | (required) | Input image path |
 | `-t, --text` | Required unless using `--image` | Watermark text |
-| `-o, --output` | `*_watermarked.*` | Output path; appends `_watermarked` to the original name by default |
+| `[dst]` | `*_watermarked.*` | Output path; appends `_watermarked` to the original name when omitted |
 | `-m, --mode` | `position` | Watermark mode: `position` / `repeat` |
 | `--color` | (auto) | Watermark color (`#RGB` / `#RRGGBB` / `#RRGGBBAA`); empty = auto black/white |
 | `--opacity` | `0.5` | Opacity, range 0–1 |
@@ -283,22 +282,22 @@ Read file info, basic image info, detailed metadata, and file hash.
 
 ```bash
 # Default table output; computes all hashes; prints detailed data
-./itb inspect -i photo.jpg
+./itb inspect photo.jpg
 
 # JSON output
-./itb inspect -i photo.jpg --format json
+./itb inspect --format json photo.jpg
 
 # Print only sha256
-./itb inspect -i photo.jpg --format plain
+./itb inspect --format plain photo.jpg
 
 # Disable detailed data
-./itb inspect -i photo.jpg --no-detail
+./itb inspect --no-detail photo.jpg
 
 # Skip hash computation
-./itb inspect -i photo.jpg --no-hash
+./itb inspect --no-hash photo.jpg
 
 # Full-decode validation (frame-by-frame for GIF); usable as an upload preflight
-./itb inspect -i image.png --strict --full-decode --format json
+./itb inspect --strict --full-decode --format json image.png
 ```
 
 <details>
@@ -306,7 +305,7 @@ Read file info, basic image info, detailed metadata, and file hash.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Input image path |
+| `<src>` | (required) | Input image path |
 | `--format` | `table` | Output format: `table` / `json` / `plain` (`plain` prints only the SHA-256) |
 | `--no-detail` | `false` | Skip detailed metadata (takes precedence over `--detail`) |
 | `--detail` | `true` | Kept for compatibility; equivalent to not passing `--no-detail` |

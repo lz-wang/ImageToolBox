@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`; S3 command flags are unchanged.
+
 - S3 Content-Type 按文件内容检测：显式 `--content-type` > magic sniff（覆盖 JPEG/PNG/GIF/WebP/PDF/ZIP/HTML/JSON/SVG）> 扩展名兜底 > `application/octet-stream`；HTML 错误页改名 `.jpg` 后不再伪装 `image/jpeg` 上传。
 - convert/resize/crop/watermark 统一解码入口 `imageio.OpenStatic`：输入严格限定 JPEG/PNG/WebP，GIF/BMP/TIFF 一律拒绝，animated GIF 不再被静默处理首帧（水印 logo 输入同样受限）。
 - EXIF Orientation 统一语义：`imageio.Info` 区分物理尺寸与逻辑尺寸，Probe 返回应用旋转后的逻辑尺寸并与解码后 bounds 恒等；所有静态 transform 在解码阶段烘焙方向，竖拍 JPEG 不再横躺。

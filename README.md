@@ -52,19 +52,19 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 压缩 PNG 图片（输出 photo_compressed.png）
-./itb compress -i photo.png
+./itb compress photo.png
 
 # 压缩 JPEG 图片（输出 photo_compressed.jpg）
-./itb compress -i photo.jpg
+./itb compress photo.jpg
 
 # 指定输出文件
-./itb compress -i photo.png -o compressed.png
+./itb compress photo.png compressed.png
 
-# 覆盖原文件（与 --output 互斥）
-./itb compress -i photo.jpg --in-place
+# 覆盖原文件（不能同时提供输出路径）
+./itb compress --in-place photo.jpg
 
 # 指定压缩质量（1-100，默认 80）
-./itb compress -i photo.jpg -q 90
+./itb compress -q 90 photo.jpg
 ```
 
 <details>
@@ -72,9 +72,9 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片文件路径 |
-| `-o, --output` | `*_compressed.*` | 输出路径，默认在原文件名后加 `_compressed` |
-| `--in-place` | `false` | 覆盖输入文件（与 `--output` 互斥） |
+| `<src>` | (必填) | 输入图片文件路径 |
+| `[dst]` | `*_compressed.*` | 输出路径，省略时在原文件名后加 `_compressed` |
+| `--in-place` | `false` | 覆盖输入文件（不能同时提供 `[dst]`） |
 | `-q, --quality` | `80` | 压缩质量 1-100 |
 
 **压缩管道**
@@ -90,16 +90,16 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 保留左侧 40% 宽度
-./itb crop -i a.jpg --anchor left --width 40%
+./itb crop --anchor left --width 40% a.jpg
 
 # 保留右侧 40% 宽度
-./itb crop -i a.jpg --anchor right --width 40%
+./itb crop --anchor right --width 40% a.jpg
 
 # 保留左上角 40% x 40% 区域
-./itb crop -i a.jpg --anchor top-left --width 40% --height 40%
+./itb crop --anchor top-left --width 40% --height 40% a.jpg
 
 # 保留中心 40% x 40% 区域
-./itb crop -i a.jpg --anchor center --width 40% --height 40%
+./itb crop --anchor center --width 40% --height 40% a.jpg
 ```
 
 <details>
@@ -107,8 +107,8 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径 |
-| `-o, --output` | `*_cropped.*` | 输出路径，默认在原文件名后加 `_cropped` |
+| `<src>` | (必填) | 输入图片路径 |
+| `[dst]` | `*_cropped.*` | 输出路径，省略时在原文件名后加 `_cropped` |
 | `--anchor` | (必填) | 裁剪锚点：`left` / `right` / `top` / `bottom` / `top-left` / `top-right` / `bottom-left` / `bottom-right` / `center` |
 | `--width` | | 裁剪宽度百分比，例如 `40%` |
 | `--height` | | 裁剪高度百分比，例如 `40%` |
@@ -128,16 +128,16 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 指定宽度，按比例缩放
-./itb resize -i photo.jpg --width 1200
+./itb resize --width 1200 photo.jpg
 
 # 指定宽高框，保持比例适配
-./itb resize -i photo.jpg --width 1200 --height 630 --mode fit
+./itb resize --width 1200 --height 630 --mode fit photo.jpg
 
 # 指定宽高框并裁切填满
-./itb resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top
+./itb resize --width 1200 --height 630 --mode fill --anchor top photo.jpg
 
 # 按百分比缩放
-./itb resize -i photo.png --percent 50%
+./itb resize --percent 50% photo.png
 ```
 
 <details>
@@ -145,8 +145,8 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径 |
-| `-o, --output` | `*_resized.*` | 输出路径 |
+| `<src>` | (必填) | 输入图片路径 |
+| `[dst]` | `*_resized.*` | 输出路径 |
 | `--width` | | 目标宽度（像素） |
 | `--height` | | 目标高度（像素） |
 | `--percent` | | 按百分比精确缩放，例如 `50%`；支持放大如 `200%` |
@@ -166,20 +166,20 @@ brew install lz-wang/tap/itb
 
 ## 图像格式转换
 
-支持 `jpg/jpeg/png/webp` 互转，输出格式由 `--to` 指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 **JPEG** 的 EXIF Orientation 会应用到实际像素（WebP 携带的 orientation 元数据当前不处理），输出不保留 EXIF/GPS/XMP 等 metadata。
+支持 `jpg/jpeg/png/webp` 互转，输出格式完全由必填 `<dst>` 的扩展名指定。输入仅接受 `jpg/jpeg/png/webp`；转换时 **JPEG** 的 EXIF Orientation 会应用到实际像素（WebP 携带的 orientation 元数据当前不处理），输出不保留 EXIF/GPS/XMP 等 metadata。
 
 **输入格式与 Orientation 统一契约**（适用于 `convert` / `resize` / `crop` / `watermark`）：
 所有变换命令的输入都严格限定 `JPEG/PNG/WebP`（GIF/BMP/TIFF 一律拒绝，杜绝 animated GIF 被静默处理首帧），并且 **JPEG EXIF Orientation 一律烘焙进像素**——`resize`/`crop`/`watermark` 的计划推导与资源准入基于应用旋转后的逻辑尺寸，与最终输出一致。
 
 ```bash
 # 转为 WebP
-./itb convert -i photo.png --to webp
+./itb convert photo.png photo.webp
 
 # 透明 PNG 转 JPG，指定铺底颜色
-./itb convert -i photo.png --to jpg --background "#FFFFFF"
+./itb convert photo.png photo.jpg --background "#FFFFFF"
 
 # 指定输出路径
-./itb convert -i photo.jpg --to png -o output.png
+./itb convert photo.jpg output.png
 ```
 
 转换语义按目标格式固定：
@@ -195,9 +195,8 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径（仅 `jpg` / `jpeg` / `png` / `webp`） |
-| `-o, --output` | `*_converted.<ext>` | 输出路径 |
-| `--to` | (必填) | 目标格式：`jpg` / `jpeg` / `png` / `webp` |
+| `<src>` | (必填) | 输入图片路径（仅 `jpg` / `jpeg` / `png` / `webp`） |
+| `<dst>` | (必填) | 输出路径；目标格式由 `.jpg` / `.jpeg` / `.png` / `.webp` 扩展名决定 |
 | `-q, --quality` | `80` | JPEG/WebP 输出质量；WebP 无损模式下表示压缩强度，PNG 忽略该参数 |
 | `--lossless` | `false` | 使用 WebP 无损编码；PNG 始终为无损格式，该参数对 PNG 无额外影响 |
 | `--background` | `#FFFFFF` | 输出 JPEG 时透明区域使用的背景色（必须为不透明颜色） |
@@ -214,19 +213,19 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 默认右下角
-./itb watermark -i photo.jpg -t "© Author"
+./itb watermark -t "© Author" photo.jpg
 
 # 指定位置
-./itb watermark -i photo.png -t "Copyright" --position center
+./itb watermark -t "Copyright" --position center photo.png
 
 # 调整透明度
-./itb watermark -i photo.png -t "Author" --opacity 0.8
+./itb watermark -t "Author" --opacity 0.8 photo.png
 
 # 指定输出路径
-./itb watermark -i photo.jpg -t "Author" -o output.jpg
+./itb watermark -t "Author" photo.jpg output.jpg
 
 # 添加图片水印
-./itb watermark -i photo.jpg --image logo.png --scale 0.2 --position bottom-right
+./itb watermark --image logo.png --scale 0.2 --position bottom-right photo.jpg
 ```
 
 ### 重复平铺水印（repeat）
@@ -235,13 +234,13 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 基本用法
-./itb watermark -i photo.png -t "WATERMARK" --mode repeat
+./itb watermark -t "WATERMARK" --mode repeat photo.png
 
 # 自定义旋转角度和透明度
-./itb watermark -i photo.png -t "DRAFT" --mode repeat --angle 45 --opacity 0.3
+./itb watermark -t "DRAFT" --mode repeat --angle 45 --opacity 0.3 photo.png
 
 # 自定义颜色
-./itb watermark -i photo.png -t "CONFIDENTIAL" --mode repeat --color "#FF0000"
+./itb watermark -t "CONFIDENTIAL" --mode repeat --color "#FF0000" photo.png
 ```
 
 <details>
@@ -251,9 +250,9 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径 |
+| `<src>` | (必填) | 输入图片路径 |
 | `-t, --text` | 与 `--image` 二选一 | 水印文字 |
-| `-o, --output` | `*_watermarked.*` | 输出路径，默认在原文件名后加 `_watermarked` |
+| `[dst]` | `*_watermarked.*` | 输出路径，省略时在原文件名后加 `_watermarked` |
 | `-m, --mode` | `position` | 水印模式：`position`（位置）/ `repeat`（平铺） |
 | `--color` | (自动) | 水印颜色（`#RGB` / `#RRGGBB` / `#RRGGBBAA`）；空则自动选择黑/白 |
 | `--opacity` | `0.5` | 透明度，范围 0~1 |
@@ -284,22 +283,22 @@ brew install lz-wang/tap/itb
 
 ```bash
 # 默认表格输出，默认计算所有 hash，默认输出详细数据
-./itb inspect -i photo.jpg
+./itb inspect photo.jpg
 
 # JSON 输出
-./itb inspect -i photo.jpg --format json
+./itb inspect --format json photo.jpg
 
 # 只输出 sha256
-./itb inspect -i photo.jpg --format plain
+./itb inspect --format plain photo.jpg
 
 # 关闭详细数据
-./itb inspect -i photo.jpg --no-detail
+./itb inspect --no-detail photo.jpg
 
 # 不计算 hash
-./itb inspect -i photo.jpg --no-hash
+./itb inspect --no-hash photo.jpg
 
 # 完整解码校验（GIF 逐帧），可作为上传前 preflight
-./itb inspect -i image.png --strict --full-decode --format json
+./itb inspect --strict --full-decode --format json image.png
 ```
 
 <details>
@@ -307,7 +306,7 @@ brew install lz-wang/tap/itb
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 输入图片路径 |
+| `<src>` | (必填) | 输入图片路径 |
 | `--format` | `table` | 输出格式：`table` / `json` / `plain`（`plain` 仅输出 SHA-256） |
 | `--no-detail` | `false` | 不输出详细元数据（优先于 `--detail`） |
 | `--detail` | `true` | 兼容保留，等价于不传 `--no-detail` |

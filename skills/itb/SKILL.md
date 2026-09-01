@@ -20,7 +20,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `inspect` for metadata and file hash checks; add `--strict --full-decode` as an upload preflight (catches corrupted tails and reports GIF frame/animation info).
    - `s3` for S3-compatible upload/download/list/stat/delete.
    - `serve` for the interactive local WebUI (browser-based, same processing core as the CLI).
-4. Prefer explicit `-o` / `--output` for single-file transformations so follow-up steps can use predictable paths.
+4. Use image command operands as `itb <command> [options] <src> [dst]`; provide `dst` when follow-up steps need a predictable path.
 5. For multi-step local image pipelines, write intermediate outputs to a temporary or task-specific output directory and run commands in sequence.
 6. Verify outputs with file existence, dimensions/format checks, or a visual preview when the result is user-facing.
 
@@ -33,16 +33,16 @@ Load `references/itb-command-reference.md` when exact flags, examples, defaults,
 Common patterns:
 
 ```bash
-itb resize -i input.jpg -o output.jpg --width 1200 --mode fit
-itb convert -i output.jpg -o output.webp --to webp -q 85
-itb watermark -i output.webp -o marked.webp -t "Draft" --mode repeat --opacity 0.25
+itb resize --width 1200 --mode fit input.jpg output.jpg
+itb convert -q 85 output.jpg output.webp
+itb watermark -t "Draft" --mode repeat --opacity 0.25 output.webp marked.webp
 ```
 
 ## Safety Rules
 
-- `convert` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; it preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
+- `convert <src> <dst>` accepts only `jpg`/`jpeg`/`png`/`webp` inputs; its target format is determined only by the `dst` extension. It preserves alpha for PNG/WebP output (lossy and lossless alike) and only flattens transparent areas onto `--background` when converting to JPEG.
 - All transforms (`convert`/`resize`/`crop`/`watermark`) share the same input contract: only `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF rejected — animated GIFs are never silently reduced to their first frame), and JPEG EXIF orientation is baked into the pixels, so percent-based crops and resize plans always operate on the rotated (logical) dimensions.
-- `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` is mutually exclusive with `-o`/`--output`).
+- `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` cannot be combined with a `[dst]` operand).
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).
 - Use `--force-path-style` (or `ITB_S3_FORCE_PATH_STYLE`) for MinIO-style endpoints; loopback and `:9000` endpoints enable path style automatically.

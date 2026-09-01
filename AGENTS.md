@@ -28,7 +28,7 @@ go vet ./...            # 静态检查
 
 - Domain 包是图片操作参数的唯一 Normalize/Validate 与业务规则来源。CLI 和 HTTP 只能将传输参数映射为领域 `Options`，不得通过调用 `cli.Command` 或复制业务分派来复用逻辑。
 - HTTP API 只暴露 `compress`、`resize`、`crop`、`convert`、`watermark` 和 `inspect`；S3 管理能力只由 CLI 暴露。
-- HTTP 操作参数使用对应 CLI long flag 名称；`input` 是 multipart 上传文件，`output` 和 `in-place` 不属于 HTTP 参数。
+- CLI 图像命令以 `<src>` / `[dst]` operand 传递本地路径；HTTP 的 `input` 是对应 `<src>` 的 multipart 上传文件，操作选项通常沿用 CLI long flag 名称，`output` 与 `in-place` 不属于 HTTP 参数。HTTP `convert` 保留 transport-only `to`，由 adapter 构造临时输出路径；`internal/convert` 始终只从 outputPath 扩展名确定目标格式。
 - HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
 - `serve` 负责 HTTP server 生命周期；`internal/httpapi` 只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
 
