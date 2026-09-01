@@ -19,27 +19,30 @@ func newS3Command() *cli.Command {
 		Usage:    "Operate S3-compatible object storage",
 		Category: categoryStorage,
 		Suggest:  true,
-		Description: `S3 兼容存储操作，支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等。
+		Description: `Operate S3-compatible object storage: AWS S3, MinIO,
+Alibaba Cloud OSS, Tencent Cloud COS, and similar services.
 
-配置优先级: CLI flag > ITB_S3_* 环境变量 > 默认值；
-环境变量可满足 endpoint / access-key / secret-key / bucket 的必填校验。
+Configuration precedence:
+  CLI flag > ITB_S3_* environment variable > built-in default
 
-环境变量支持:
-  ITB_S3_ENDPOINT           S3 端点 URL
+Environment variables can satisfy the required endpoint /
+access-key / secret-key / bucket flags:
+  ITB_S3_ENDPOINT           S3 endpoint URL
   ITB_S3_ACCESS_KEY_ID      Access Key ID
   ITB_S3_SECRET_ACCESS_KEY  Secret Access Key
-  ITB_S3_SESSION_TOKEN      临时凭证 Session Token
-  ITB_S3_REGION             区域
-  ITB_S3_BUCKET             存储桶名称（可省略 --bucket）
-  ITB_S3_FORCE_PATH_STYLE   强制路径样式 URL（true/false）
+  ITB_S3_SESSION_TOKEN      Session token for temporary credentials
+  ITB_S3_REGION             Region
+  ITB_S3_BUCKET             Bucket name (replaces --bucket)
+  ITB_S3_FORCE_PATH_STYLE   Force path-style URLs (true/false)
 
-临时凭证建议通过环境变量注入（AccessKey + SecretKey + SessionToken），
-避免 Session Token 进入 shell history。`,
+Prefer environment variables for temporary credentials
+(AccessKey + SecretKey + SessionToken) so session tokens
+never land in shell history.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "endpoint",
 				Aliases:  []string{"e"},
-				Usage:    "S3 端点 `URL`",
+				Usage:    "S3 endpoint `URL`",
 				Sources:  cli.EnvVars("ITB_S3_ENDPOINT"),
 				Required: true,
 			},
@@ -53,32 +56,32 @@ func newS3Command() *cli.Command {
 			&cli.StringFlag{
 				Name:     "secret-key",
 				Aliases:  []string{"s"},
-				Usage:    "Secret Access Key（建议使用 ITB_S3_SECRET_ACCESS_KEY 环境变量）",
+				Usage:    "Secret Access Key (prefer the ITB_S3_SECRET_ACCESS_KEY environment variable)",
 				Sources:  cli.EnvVars("ITB_S3_SECRET_ACCESS_KEY"),
 				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "session-token",
-				Usage:   "临时凭证 Session Token（建议使用 ITB_S3_SESSION_TOKEN 环境变量，避免进入 shell history）",
+				Usage:   "Session token for temporary credentials (prefer the ITB_S3_SESSION_TOKEN environment variable)",
 				Sources: cli.EnvVars("ITB_S3_SESSION_TOKEN"),
 			},
 			&cli.StringFlag{
 				Name:    "region",
 				Aliases: []string{"r"},
 				Value:   "us-east-1",
-				Usage:   "S3 区域 `REGION`",
+				Usage:   "S3 `REGION`",
 				Sources: cli.EnvVars("ITB_S3_REGION"),
 			},
 			&cli.StringFlag{
 				Name:     "bucket",
 				Aliases:  []string{"b"},
-				Usage:    "存储桶名称",
+				Usage:    "Bucket name",
 				Sources:  cli.EnvVars("ITB_S3_BUCKET"),
 				Required: true,
 			},
 			&cli.BoolFlag{
 				Name:    "force-path-style",
-				Usage:   "强制路径样式 URL（MinIO 需要）",
+				Usage:   "Force path-style URLs (needed by MinIO). Effective default: enabled automatically for loopback endpoints and endpoints on port 9000",
 				Sources: cli.EnvVars("ITB_S3_FORCE_PATH_STYLE"),
 			},
 		},
@@ -97,66 +100,66 @@ func newS3UploadCommand() *cli.Command {
 		Name:      "upload",
 		Usage:     "Upload a file to a bucket",
 		ArgsUsage: "<src> [key]",
-		Description: `上传本地文件到 S3 兼容存储桶。
+		Description: `Upload a local file to an S3-compatible bucket.
 
-默认无条件覆盖同名对象。上传时会把本地文件的 SHA-256 写入对象
-metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
---skip-existing 与 --skip-unchanged 互斥，同时使用会报参数错误。
+DEFAULTS:
+  If [key] is omitted, the object key is basename(<src>).
+  An existing object with the same key is overwritten
+  unconditionally.
+  The uploaded file's SHA-256 is stored in the object
+  metadata (x-amz-meta-itb-sha256) for --skip-unchanged.
 
-示例:
-  # 上传文件
-	  itb s3 upload -b my-bucket -e http://localhost:9000 photo.jpg
+CONSTRAINTS:
+  --skip-existing and --skip-unchanged are mutually
+  exclusive.
+  --skip-existing skips the upload when the object key
+  already exists (one HEAD instead of a full upload).
+  --skip-unchanged skips only when the stored itb-sha256
+  metadata matches (no ETag dependency).
+  --verify issues one HEAD after the PUT and checks that
+  the remote size / Content-Type / HTTP headers / metadata
+  match this upload (body bytes are not re-checked).
 
-  # 指定对象键名
-	  itb s3 upload -b my-bucket photo.jpg images/photo.jpg
-
-  # 指定 Content-Type
-	  itb s3 upload -b my-bucket --content-type application/json data.json
-
-  # 写入用户 metadata（key=value，可重复；itb-sha256 为保留键）
-	  itb s3 upload -b my-bucket image.webp image/xx.webp \
+EXAMPLES:
+  itb s3 upload -b my-bucket -e http://localhost:9000 photo.jpg
+  itb s3 upload -b my-bucket photo.jpg images/photo.jpg
+  itb s3 upload -b my-bucket --content-type application/json data.json
+  itb s3 upload -b my-bucket image.webp image/xx.webp \
     --metadata source-sha256=abc123 --metadata width=1920
-
-  # 设置标准 HTTP 响应头（稳定 URL 发布）
-	  itb s3 upload -b my-bucket --cache-control no-cache image.webp
-
-  # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
-	  itb s3 upload -b my-bucket --skip-existing photo.jpg
-
-  # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
-	  itb s3 upload -b my-bucket --skip-unchanged photo.jpg
-
-  # PUT 后追加 HEAD 校验远端 header/metadata 与本次上传一致
-	  itb s3 upload -b my-bucket --verify photo.jpg`,
+  itb s3 upload -b my-bucket --cache-control no-cache image.webp
+  itb s3 upload -b my-bucket --skip-existing photo.jpg
+  itb s3 upload -b my-bucket --skip-unchanged photo.jpg
+  itb s3 upload -b my-bucket --verify photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "content-type",
-				Usage: "内容类型 `MIME`（默认按文件内容检测，扩展名仅作兜底）",
+				Name:        "content-type",
+				Usage:       "Content-Type `MIME` (detected from file content; the extension is only a fallback)",
+				DefaultText: "auto-detect",
 			},
 			&cli.StringSliceFlag{
 				Name:  "metadata",
-				Usage: "对象用户 metadata `KEY=VALUE`（可重复；键转小写，itb-sha256 为保留键）",
+				Usage: "Object user metadata `KEY=VALUE` (repeatable; keys are lowercased; itb-sha256 is reserved)",
 			},
 			&cli.StringFlag{
 				Name:  "cache-control",
-				Usage: "Cache-Control 响应头 `VALUE`（如 no-cache、max-age=31536000）",
+				Usage: "Cache-Control response header `VALUE` (e.g. no-cache, max-age=31536000)",
 			},
 			&cli.StringFlag{
 				Name:  "content-disposition",
-				Usage: "Content-Disposition 响应头 `VALUE`（如 attachment）",
+				Usage: "Content-Disposition response header `VALUE` (e.g. attachment)",
 			},
 			&cli.StringFlag{
 				Name:  "content-encoding",
-				Usage: "Content-Encoding 响应头 `VALUE`（如 gzip）",
+				Usage: "Content-Encoding response header `VALUE` (e.g. gzip)",
 			},
 			&cli.BoolFlag{
 				Name:  "verify",
-				Usage: "PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致（不校验 body 字节）",
+				Usage: "Issue one HEAD after the PUT to check that the remote size / Content-Type / HTTP headers / metadata match this upload (body bytes are not re-checked)",
 			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "输出格式 `FORMAT`: table/json（stdout 只承载正式结果，进度提示走 stderr）",
+				Usage:     "Output `FORMAT`: table/json (stdout carries results only; progress goes to stderr)",
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},
@@ -167,13 +170,13 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 					{
 						&cli.BoolFlag{
 							Name:  "skip-existing",
-							Usage: "对象键已存在即跳过上传",
+							Usage: "Skip the upload when the object key already exists",
 						},
 					},
 					{
 						&cli.BoolFlag{
 							Name:  "skip-unchanged",
-							Usage: "内容一致才跳过上传（比对 itb-sha256 metadata）",
+							Usage: "Skip the upload only when content is unchanged (compares itb-sha256 metadata)",
 						},
 					},
 				},
@@ -188,38 +191,43 @@ func newS3DownloadCommand() *cli.Command {
 		Name:      "download",
 		Usage:     "Download an object from a bucket",
 		ArgsUsage: "<key> [dst]",
-		Description: `从 S3 兼容存储桶下载文件到本地。
+		Description: `Download an object from an S3-compatible bucket to a
+local file.
 
-	下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败
-	（网络中断、写盘错误、校验不通过）都不会在目标路径留下 partial 文件。
-	未提供 [dst] 时保存到当前目录，文件名取对象键最后一段。
+DEFAULTS:
+  If [dst] is omitted, the file is saved to the current
+  directory under the last segment of the object key.
 
-示例:
-  # 下载文件
-	  itb s3 download -b my-bucket photo.jpg ./photo.jpg
+CONSTRAINTS:
+  The download writes to a temporary file in the same
+  directory and renames it to the target path on success;
+  any failure (network interruption, disk error, failed
+  verification) leaves no partial file at the target path.
+  --verify reads the object's itb-sha256 metadata and
+  computes the SHA-256 in a single pass while downloading.
+  --verify-sha256 checks against a known hexadecimal hash
+  (provider-neutral integrity check) and can be combined
+  with --verify.
 
-  # 使用默认文件名
-	  itb s3 download -b my-bucket images/photo.jpg
-
-  # 边下载边校验（读取对象 itb-sha256 metadata，单遍计算）
-	  itb s3 download -b my-bucket --verify photo.jpg
-
-  # 按已知哈希校验（provider-neutral 完整性验证）
-	  itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
-	    sha256/xxx /tmp/original.png`,
+EXAMPLES:
+  itb s3 download -b my-bucket photo.jpg ./photo.jpg
+  itb s3 download -b my-bucket images/photo.jpg
+  itb s3 download -b my-bucket --verify photo.jpg
+  itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
+    sha256/xxx /tmp/original.png`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "verify",
-				Usage: "读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对（不二次读取本地文件）",
+				Usage: "Verify against the object's itb-sha256 metadata while downloading (single pass, no second local read)",
 			},
 			&cli.StringFlag{
 				Name:  "verify-sha256",
-				Usage: "期望的十六进制 SHA-256 `HASH`（独立于对象 metadata 的完整性校验，可与 --verify 同用）",
+				Usage: "Expected hexadecimal SHA-256 `HASH` (independent of object metadata; can be combined with --verify)",
 			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "输出格式 `FORMAT`: table/json（stdout 只承载正式结果，进度提示走 stderr）",
+				Usage:     "Output `FORMAT`: table/json (stdout carries results only; progress goes to stderr)",
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},
@@ -232,19 +240,19 @@ func newS3DeleteCommand() *cli.Command {
 		Name:      "delete",
 		Usage:     "Delete an object from a bucket",
 		ArgsUsage: "<key>",
-		Description: `从 S3 兼容存储桶删除指定对象。
+		Description: `Delete an object from an S3-compatible bucket.
 
-示例:
-  # 删除对象（需要确认）
-	  itb s3 delete -b my-bucket photo.jpg
+This command is destructive. It asks for confirmation by
+default; pass -f to skip the confirmation.
 
-  # 强制删除（不需要确认）
-	  itb s3 delete -b my-bucket -f photo.jpg`,
+EXAMPLES:
+  itb s3 delete -b my-bucket photo.jpg
+  itb s3 delete -b my-bucket -f photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "force",
 				Aliases: []string{"f"},
-				Usage:   "强制删除，不确认",
+				Usage:   "Delete without confirmation",
 			},
 		},
 		Action: runS3Delete,
@@ -256,28 +264,26 @@ func newS3ListCommand() *cli.Command {
 		Name:      "list",
 		Usage:     "List objects in a bucket",
 		ArgsUsage: "[prefix]",
-		Description: `列出 S3 兼容存储桶中的对象。
+		Description: `List objects in an S3-compatible bucket.
 
-示例:
-  # 列出所有对象
+DEFAULTS:
+  If [prefix] is omitted, all objects are listed.
+
+EXAMPLES:
   itb s3 list -b my-bucket
-
-  # 按前缀过滤
-	  itb s3 list -b my-bucket images/
-
-  # JSON 格式输出
+  itb s3 list -b my-bucket images/
   itb s3 list -b my-bucket --format json`,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:      "max-keys",
 				Value:     1000,
-				Usage:     "最大返回数量",
+				Usage:     "Maximum number of keys returned",
 				Validator: positiveIntValidator("max-keys"),
 			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "输出格式 `FORMAT`: table/json/plain",
+				Usage:     "Output `FORMAT`: table/json/plain",
 				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 		},
@@ -290,21 +296,21 @@ func newS3StatCommand() *cli.Command {
 		Name:      "stat",
 		Usage:     "Show object metadata without downloading the body",
 		ArgsUsage: "<key>",
-		Description: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
+		Description: `Show the complete metadata of a single object.
 
-对象不存在时不回退到 list 推断，始终按精确对象键查询。
+This command issues exactly one HEAD request and never
+transfers the object body. A missing object never falls
+back to a list-based inference; the exact object key is
+always queried.
 
-示例:
-  # 查看对象元数据
-	  itb s3 stat -b my-bucket images/photo.jpg
-
-  # JSON 格式输出
-	  itb s3 stat -b my-bucket --format json images/photo.jpg`,
+EXAMPLES:
+  itb s3 stat -b my-bucket images/photo.jpg
+  itb s3 stat -b my-bucket --format json images/photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "输出格式 `FORMAT`: table/json",
+				Usage:     "Output `FORMAT`: table/json",
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},

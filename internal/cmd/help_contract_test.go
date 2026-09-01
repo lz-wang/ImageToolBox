@@ -240,7 +240,7 @@ func TestInspectHelpContract(t *testing.T) {
 	assertNotContains(t, out, "--input")
 }
 
-// s3：环境变量契约与配置优先级必须在 help 中说明。
+// s3：环境变量契约、配置优先级与 path-style 有效默认值必须在 help 中说明。
 func TestS3HelpContract(t *testing.T) {
 	out := helpOutput(t, "s3")
 
@@ -251,18 +251,21 @@ func TestS3HelpContract(t *testing.T) {
 		"ITB_S3_SESSION_TOKEN",
 		"ITB_S3_BUCKET",
 		"ITB_S3_FORCE_PATH_STYLE",
-		"CLI flag > ITB_S3_*",
+		"CLI flag > ITB_S3_* environment variable > built-in default",
+		"enabled automatically for loopback endpoints and endpoints on port 9000",
 	} {
 		assertContains(t, out, want)
 	}
 }
 
-// s3 upload：metadata 与标准 HTTP 响应头能力必须在 help 中可读。
+// s3 upload：默认 key、Content-Type 自动检测、metadata 与标准 HTTP
+// 响应头能力必须在 help 中可读。
 func TestS3UploadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "upload")
 
 	for _, want := range []string{
 		"<src>", "[key]",
+		"the object key is basename(<src>)",
 		"--metadata",
 		"--cache-control",
 		"--content-disposition",
@@ -270,7 +273,8 @@ func TestS3UploadHelpContract(t *testing.T) {
 		"--verify",
 		"--format",
 		"itb-sha256",
-		"按文件内容检测",
+		"detected from file content",
+		"auto-detect",
 	} {
 		assertContains(t, out, want)
 	}
@@ -283,14 +287,18 @@ func TestS3UploadHelpContract(t *testing.T) {
 func TestS3DownloadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "download")
 
-	assertContains(t, out, "<key>")
-	assertContains(t, out, "[dst]")
-	assertContains(t, out, "当前目录")
-	assertContains(t, out, "最后一段")
-	assertContains(t, out, "--verify")
-	assertContains(t, out, "--verify-sha256")
-	assertContains(t, out, "--format")
-	assertContains(t, out, "partial")
+	for _, want := range []string{
+		"<key>",
+		"[dst]",
+		"current",
+		"last segment of the object key",
+		"--verify",
+		"--verify-sha256",
+		"--format",
+		"partial",
+	} {
+		assertContains(t, out, want)
+	}
 	assertNotContains(t, out, "默认使用对象键名")
 	assertNotContains(t, out, "--key")
 	assertNotContains(t, out, "--output")
