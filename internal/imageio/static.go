@@ -8,7 +8,7 @@ import (
 )
 
 // OpenStatic 打开受支持的静态图片输入（JPEG/PNG/WebP），是所有
-// transform（convert/resize/crop/watermark）的唯一解码入口：
+// transform（convert/resize/crop/rotate/watermark）的唯一解码入口：
 //
 //  1. 先用 DetectFormat 做格式契约检查——GIF/BMP/TIFF 等格式一律拒绝。
 //     imaging 本身能解码它们，但放行会造成 animated GIF → 静默处理
