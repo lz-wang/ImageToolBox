@@ -14,6 +14,7 @@ import (
 	"imagetoolbox/internal/imageio"
 	"imagetoolbox/internal/inspect"
 	"imagetoolbox/internal/resize"
+	"imagetoolbox/internal/rotate"
 	"imagetoolbox/internal/watermark"
 )
 
@@ -136,6 +137,37 @@ func cropImage(_ context.Context, f form, dir string, _ Config) (string, string,
 	name := imageio.SuffixedName(input.OriginalName, "_cropped", "")
 	output := resultPath(dir, input.Path)
 	_, err = crop.CropFile(input.Path, output, crop.Options{Anchor: crop.Anchor(f.values["anchor"]), Width: f.values["width"], Height: f.values["height"]})
+	return output, name, fileSize(input.Path), err
+}
+func rotateImage(_ context.Context, f form, dir string, cfg Config) (string, string, int64, error) {
+	input, err := f.input("input", "angle")
+	if err != nil {
+		return "", "", 0, err
+	}
+	angle, err := f.float("angle")
+	if err != nil {
+		return "", "", 0, err
+	}
+	if angle == nil {
+		return "", "", 0, fmt.Errorf("angle is required")
+	}
+	opts := rotate.Options{Angle: *angle}
+	// 先用领域 Resolve 推导旋转后的输出尺寸（任意角度会扩大画布），
+	// 再对计划输出做资源准入，杜绝先分配画布再发现超限。
+	info, err := imageio.Probe(input.Path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	plan, err := rotate.Resolve(image.Rect(0, 0, info.Width, info.Height), opts)
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := validateImageSize(plan.Width, plan.Height, cfg); err != nil {
+		return "", "", 0, fmt.Errorf("rotate target: %w", err)
+	}
+	name := imageio.SuffixedName(input.OriginalName, "_rotated", "")
+	output := resultPath(dir, input.Path)
+	err = rotate.RotateFile(input.Path, output, opts)
 	return output, name, fileSize(input.Path), err
 }
 func convertImage(_ context.Context, f form, dir string, _ Config) (string, string, int64, error) {

@@ -708,11 +708,121 @@ func TestConvertEndpointContracts(t *testing.T) {
 	})
 }
 
+// TestRotateEndpointContracts 验证 rotate 端点：输出计划准入必须先于
+// 画布分配（任意角度扩大画布）、angle 参数契约、EXIF 逻辑尺寸语义。
+func TestRotateEndpointContracts(t *testing.T) {
+	post := func(t *testing.T, cfg Config, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
+		t.Helper()
+		h := mustNew(t, cfg)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, newMultipartRequest(t, http.MethodPost, "/api/v1/rotate", fields, files...))
+		return w
+	}
+	input := func(width, height int) formFile {
+		return formFile{field: "input", filename: "a.png", content: testPNG(t, width, height)}
+	}
+
+	t.Run("90 度交换宽高并携带契约头", func(t *testing.T) {
+		w := post(t, Config{NoAuth: true}, map[string]string{"angle": "90"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 16, 32) {
+			t.Fatalf("bounds = %v, want 16x32", got)
+		}
+		if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "a_rotated.png") {
+			t.Fatalf("Content-Disposition = %q, want a_rotated.png", cd)
+		}
+		if got := w.Header().Get("X-ITB-Operation"); got != "rotate" {
+			t.Fatalf("X-ITB-Operation = %q, want rotate", got)
+		}
+		if got := w.Header().Get("X-ITB-Input-Size"); got == "" {
+			t.Fatal("X-ITB-Input-Size is empty")
+		}
+		if got := w.Header().Get("X-ITB-Output-Size"); got == "" {
+			t.Fatal("X-ITB-Output-Size is empty")
+		}
+	})
+	t.Run("45 度扩大画布", func(t *testing.T) {
+		w := post(t, Config{NoAuth: true}, map[string]string{"angle": "45"}, input(32, 16))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		// rotatedSize(32,16,45°) = 34x34，与领域 Resolve 恒等
+		if got := decodePNG(t, w.Body.Bytes()).Bounds(); got != image.Rect(0, 0, 34, 34) {
+			t.Fatalf("bounds = %v, want 34x34", got)
+		}
+	})
+	t.Run("输出尺寸超 MaxDimension 在分配前 413", func(t *testing.T) {
+		// 输入 32x16 合法，45° 输出 34x34 超过 MaxDimension=32
+		w := post(t, Config{NoAuth: true, MaxDimension: 32}, map[string]string{"angle": "45"}, input(32, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "image_too_large" {
+			t.Fatalf("error code = %q, want image_too_large", code)
+		}
+	})
+	t.Run("输出像素超 MaxPixels 在分配前 413", func(t *testing.T) {
+		// 输入 32x16=512px 合法，45° 输出 34x34=1156px 超过 MaxPixels=600
+		w := post(t, Config{NoAuth: true, MaxPixels: 600}, map[string]string{"angle": "45"}, input(32, 16))
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusRequestEntityTooLarge, w.Body.String())
+		}
+	})
+	t.Run("非法 angle 返回 400", func(t *testing.T) {
+		for name, fields := range map[string]map[string]string{
+			"非数字": {"angle": "abc"},
+			"NaN": {"angle": "NaN"},
+			"零度":  {"angle": "0"},
+			"超范围": {"angle": "360"},
+			"未提供": {},
+		} {
+			t.Run(name, func(t *testing.T) {
+				w := post(t, Config{NoAuth: true}, fields, input(8, 8))
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+				}
+				if code := decodeJSONError(t, w.Body.Bytes()); code != "invalid_argument" {
+					t.Fatalf("error code = %q, want invalid_argument", code)
+				}
+			})
+		}
+	})
+	t.Run("gif 输入 415", func(t *testing.T) {
+		gif := formFile{field: "input", filename: "a.gif", content: testGIF(t, 32, 16)}
+		w := post(t, Config{NoAuth: true}, map[string]string{"angle": "90"}, gif)
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusUnsupportedMediaType, w.Body.String())
+		}
+		if code := decodeJSONError(t, w.Body.Bytes()); code != "unsupported_format" {
+			t.Fatalf("error code = %q, want unsupported_format", code)
+		}
+	})
+	t.Run("JPEG EXIF 先归一化再按逻辑尺寸旋转", func(t *testing.T) {
+		// 物理 32x16 / Orientation 6 → 逻辑 16x32；rotate 90° → 32x16。
+		// 若未先应用 EXIF，物理 32x16 旋转 90° 会得到 16x32。
+		jpeg := formFile{field: "input", filename: "o.jpg", content: orientedJPEG(t, 6, 32, 16)}
+		w := post(t, Config{NoAuth: true}, map[string]string{"angle": "90"}, jpeg)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		decoded, _, err := image.Decode(bytes.NewReader(w.Body.Bytes()))
+		if err != nil {
+			t.Fatalf("decode jpeg response: %v", err)
+		}
+		if got := decoded.Bounds(); got != image.Rect(0, 0, 32, 16) {
+			t.Fatalf("bounds = %v, want 32x16 (orientation applied before rotation)", got)
+		}
+	})
+}
+
 func TestUnknownFieldsRejected(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/compress",
 		"/api/v1/resize",
 		"/api/v1/crop",
+		"/api/v1/rotate",
 		"/api/v1/convert",
 		"/api/v1/watermark",
 		"/api/v1/inspect",

@@ -49,6 +49,7 @@ func newHandler(cfg Config) http.Handler {
 	route(mux, http.MethodPost, "/api/v1/compress", protected(cfg, sem, imageHandler(cfg, "compress", compressImage)))
 	route(mux, http.MethodPost, "/api/v1/resize", protected(cfg, sem, imageHandler(cfg, "resize", resizeImage)))
 	route(mux, http.MethodPost, "/api/v1/crop", protected(cfg, sem, imageHandler(cfg, "crop", cropImage)))
+	route(mux, http.MethodPost, "/api/v1/rotate", protected(cfg, sem, imageHandler(cfg, "rotate", rotateImage)))
 	route(mux, http.MethodPost, "/api/v1/convert", protected(cfg, sem, imageHandler(cfg, "convert", convertImage)))
 	route(mux, http.MethodPost, "/api/v1/watermark", protected(cfg, sem, imageHandler(cfg, "watermark", watermarkImage)))
 	route(mux, http.MethodPost, "/api/v1/inspect", protected(cfg, sem, inspectHandler(cfg)))
