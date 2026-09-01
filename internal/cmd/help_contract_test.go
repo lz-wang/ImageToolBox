@@ -57,11 +57,15 @@ func TestRootHelpContract(t *testing.T) {
 func TestCompressHelpContract(t *testing.T) {
 	out := helpOutput(t, "compress")
 
+	assertContains(t, out, "<src>")
+	assertContains(t, out, "[dst]")
 	assertContains(t, out, "--in-place")
 	assertContains(t, out, "_compressed")
 	assertContains(t, out, "1-100")
 	assertContains(t, out, "PNG")
 	assertContains(t, out, "JPEG")
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 }
 
 // resize：三种模式与参数组合规则必须在 help 中可读。
@@ -69,6 +73,7 @@ func TestResizeHelpContract(t *testing.T) {
 	out := helpOutput(t, "resize")
 
 	for _, want := range []string{
+		"<src>", "[dst]",
 		"--percent", "--width", "--height",
 		"fit", "fill", "stretch",
 		"--percent 不能与 --width / --height 同时使用",
@@ -77,6 +82,8 @@ func TestResizeHelpContract(t *testing.T) {
 	} {
 		assertContains(t, out, want)
 	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 }
 
 // convert：格式特定参数语义（quality/lossless/background）必须在 help
@@ -108,6 +115,7 @@ func TestCropHelpContract(t *testing.T) {
 	out := helpOutput(t, "crop")
 
 	for _, want := range []string{
+		"<src>", "[dst]",
 		"(0,100]",
 		"left / right",
 		"top / bottom",
@@ -115,6 +123,8 @@ func TestCropHelpContract(t *testing.T) {
 	} {
 		assertContains(t, out, want)
 	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 }
 
 // watermark：文字/图片两种来源、两种模式；
@@ -125,6 +135,11 @@ func TestWatermarkHelpContract(t *testing.T) {
 	for _, want := range []string{"文字", "图片", "position", "repeat"} {
 		assertContains(t, out, want)
 	}
+	for _, want := range []string{"<src>", "[dst]", "--image"} {
+		assertContains(t, out, want)
+	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--output")
 	for _, banned := range []string{"当前版本暂不支持", "需要指定字体", "--tile"} {
 		assertNotContains(t, out, banned)
 	}
@@ -137,6 +152,8 @@ func TestInspectHelpContract(t *testing.T) {
 	assertContains(t, out, "--no-detail")
 	assertContains(t, out, "plain 仅输出 SHA-256")
 	assertContains(t, out, "--full-decode")
+	assertContains(t, out, "<src>")
+	assertNotContains(t, out, "--input")
 }
 
 // s3：环境变量契约与配置优先级必须在 help 中说明。

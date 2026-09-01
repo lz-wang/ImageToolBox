@@ -109,9 +109,9 @@ func TestRequiredFlags(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"resize 缺 --input", []string{"resize"}, "Required flag"},
+		{"resize 缺 <src>", []string{"resize"}, "需要提供 <src> [dst]"},
 		{"convert 缺 <dst>", []string{"convert", "a.png"}, "需要提供 <src> <dst>"},
-		{"crop 缺 --anchor", []string{"crop", "-i", "a.jpg"}, "Required flag"},
+		{"crop 缺 --anchor", []string{"crop", "a.jpg"}, "Required flag"},
 		{"s3 download 缺 --key", []string{"s3", "-b", "x", "download"}, "Required flag"},
 		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}, "Required flag"},
 		{"s3 upload 缺 --input", []string{"s3", "-b", "x", "upload"}, "Required flag"},
@@ -367,8 +367,8 @@ func TestWatermarkTextImageMutuallyExclusive(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"text 与 image 互斥", []string{"watermark", "-i", "a.jpg", "-t", "x", "--image", "y.png"}, "cannot be set along with"},
-		{"text 与 image 必须提供其一", []string{"watermark", "-i", "a.jpg"}, "needs to be provided"},
+		{"text 与 image 互斥", []string{"watermark", "a.jpg", "-t", "x", "--image", "y.png"}, "cannot be set along with"},
+		{"text 与 image 必须提供其一", []string{"watermark", "a.jpg"}, "needs to be provided"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -378,6 +378,33 @@ func TestWatermarkTextImageMutuallyExclusive(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("expected %q in error, got: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestPositionalPathContracts(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{"compress missing source", []string{"compress"}, "需要提供 <src> [dst]"},
+		{"compress too many paths", []string{"compress", "a", "b", "c"}, "需要提供 <src> [dst]"},
+		{"compress in-place with destination", []string{"compress", "--in-place", "a", "b"}, "--in-place 不能与 <dst> 同时使用"},
+		{"resize too many paths", []string{"resize", "--width", "1", "a", "b", "c"}, "需要提供 <src> [dst]"},
+		{"crop missing source", []string{"crop", "--anchor", "left", "--width", "40%"}, "需要提供 <src> [dst]"},
+		{"watermark too many paths", []string{"watermark", "-t", "x", "a", "b", "c"}, "需要提供 <src> [dst]"},
+		{"inspect missing source", []string{"inspect"}, "需要提供 <src>"},
+		{"inspect extra source", []string{"inspect", "a", "b"}, "需要提供 <src>"},
+		{"convert missing destination", []string{"convert", "a"}, "需要提供 <src> <dst>"},
+		{"convert extra path", []string{"convert", "a", "b", "c"}, "需要提供 <src> <dst>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runContract(tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want %q", err, tt.wantErr)
 			}
 		})
 	}
@@ -414,34 +441,34 @@ func TestFlagValidators(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"resize 非法 mode", []string{"resize", "-i", "nope.jpg", "--mode", "abc"}, "--mode 仅支持"},
-		{"resize 非法 filter", []string{"resize", "-i", "nope.jpg", "--filter", "bicubic"}, "--filter 仅支持"},
-		{"resize 非法 anchor", []string{"resize", "-i", "nope.jpg", "--anchor", "middle"}, "--anchor 仅支持"},
-		{"resize width 非正数", []string{"resize", "-i", "nope.jpg", "--width", "0"}, "--width 必须大于 0"},
-		{"resize height 非正数", []string{"resize", "-i", "nope.jpg", "--height", "-3"}, "--height 必须大于 0"},
-		{"resize percent 缺百分号", []string{"resize", "-i", "nope.jpg", "--percent", "50"}, "百分比格式"},
-		{"resize percent NaN", []string{"resize", "-i", "nope.jpg", "--percent", "NaN%"}, "有限数值"},
-		{"crop 非法 anchor", []string{"crop", "-i", "nope.jpg", "--anchor", "middle", "--width", "40%"}, "--anchor 仅支持"},
-		{"crop width 超上限", []string{"crop", "-i", "nope.jpg", "--anchor", "left", "--width", "140%"}, "(0,100]"},
-		{"crop height 缺百分号", []string{"crop", "-i", "nope.jpg", "--anchor", "top", "--height", "40"}, "百分比格式"},
+		{"resize 非法 mode", []string{"resize", "nope.jpg", "--mode", "abc"}, "--mode 仅支持"},
+		{"resize 非法 filter", []string{"resize", "nope.jpg", "--filter", "bicubic"}, "--filter 仅支持"},
+		{"resize 非法 anchor", []string{"resize", "nope.jpg", "--anchor", "middle"}, "--anchor 仅支持"},
+		{"resize width 非正数", []string{"resize", "nope.jpg", "--width", "0"}, "--width 必须大于 0"},
+		{"resize height 非正数", []string{"resize", "nope.jpg", "--height", "-3"}, "--height 必须大于 0"},
+		{"resize percent 缺百分号", []string{"resize", "nope.jpg", "--percent", "50"}, "百分比格式"},
+		{"resize percent NaN", []string{"resize", "nope.jpg", "--percent", "NaN%"}, "有限数值"},
+		{"crop 非法 anchor", []string{"crop", "nope.jpg", "--anchor", "middle", "--width", "40%"}, "--anchor 仅支持"},
+		{"crop width 超上限", []string{"crop", "nope.jpg", "--anchor", "left", "--width", "140%"}, "(0,100]"},
+		{"crop height 缺百分号", []string{"crop", "nope.jpg", "--anchor", "top", "--height", "40"}, "百分比格式"},
 		{"convert 非法格式", []string{"convert", "nope.png", "output.gif"}, "unsupported image format"},
 		{"convert quality 超范围", []string{"convert", "nope.png", "output.png", "-q", "0"}, "--quality 必须在"},
-		{"compress quality 超范围", []string{"compress", "-i", "nope.png", "-q", "101"}, "--quality 必须在"},
-		{"watermark 非法 mode", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "tile"}, "--mode 仅支持"},
-		{"watermark opacity 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--opacity", "1.5"}, "--opacity 必须在"},
-		{"watermark opacity NaN", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--opacity", "NaN"}, "有限数值"},
-		{"watermark scale Inf", []string{"watermark", "-i", "nope.jpg", "--image", "logo.png", "--scale", "Inf"}, "有限数值"},
-		{"watermark 非法 position", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--position", "middle"}, "--position 仅支持"},
-		{"watermark scale 非正数", []string{"watermark", "-i", "nope.jpg", "--image", "logo.png", "--scale", "0"}, "--scale 必须大于 0"},
-		{"watermark font-size 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "-1"}, "必须在 0-4096"},
-		{"watermark font-size 超上限", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--font-size", "5000"}, "必须在 0-4096"},
-		{"watermark angle 超范围", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "repeat", "--angle", "720"}, "必须在 -360-360"},
-		{"watermark margin 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--margin", "-0.1"}, "不能为负数"},
-		{"watermark 非法 color", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--color", "red"}, "十六进制颜色"},
-		{"watermark space 负数", []string{"watermark", "-i", "nope.jpg", "-t", "x", "--mode", "repeat", "--space", "-5"}, "不能为负数"},
+		{"compress quality 超范围", []string{"compress", "nope.png", "-q", "101"}, "--quality 必须在"},
+		{"watermark 非法 mode", []string{"watermark", "nope.jpg", "-t", "x", "--mode", "tile"}, "--mode 仅支持"},
+		{"watermark opacity 超范围", []string{"watermark", "nope.jpg", "-t", "x", "--opacity", "1.5"}, "--opacity 必须在"},
+		{"watermark opacity NaN", []string{"watermark", "nope.jpg", "-t", "x", "--opacity", "NaN"}, "有限数值"},
+		{"watermark scale Inf", []string{"watermark", "nope.jpg", "--image", "logo.png", "--scale", "Inf"}, "有限数值"},
+		{"watermark 非法 position", []string{"watermark", "nope.jpg", "-t", "x", "--position", "middle"}, "--position 仅支持"},
+		{"watermark scale 非正数", []string{"watermark", "nope.jpg", "--image", "logo.png", "--scale", "0"}, "--scale 必须大于 0"},
+		{"watermark font-size 负数", []string{"watermark", "nope.jpg", "-t", "x", "--font-size", "-1"}, "必须在 0-4096"},
+		{"watermark font-size 超上限", []string{"watermark", "nope.jpg", "-t", "x", "--font-size", "5000"}, "必须在 0-4096"},
+		{"watermark angle 超范围", []string{"watermark", "nope.jpg", "-t", "x", "--mode", "repeat", "--angle", "720"}, "必须在 -360-360"},
+		{"watermark margin 负数", []string{"watermark", "nope.jpg", "-t", "x", "--margin", "-0.1"}, "不能为负数"},
+		{"watermark 非法 color", []string{"watermark", "nope.jpg", "-t", "x", "--color", "red"}, "十六进制颜色"},
+		{"watermark space 负数", []string{"watermark", "nope.jpg", "-t", "x", "--mode", "repeat", "--space", "-5"}, "不能为负数"},
 		{"serve 非法 timeout", []string{"serve", "--timeout", "-1s"}, "--timeout 必须大于 0"},
 		{"serve 非法 max-concurrent", []string{"serve", "--max-concurrent", "0"}, "--max-concurrent 必须大于 0"},
-		{"inspect 非法 format", []string{"inspect", "-i", "nope.jpg", "--format", "xml"}, "--format 仅支持"},
+		{"inspect 非法 format", []string{"inspect", "nope.jpg", "--format", "xml"}, "--format 仅支持"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -534,16 +561,16 @@ func TestInspectNoDetailFlag(t *testing.T) {
 		return got
 	}
 
-	if got := run("inspect", "-i", "nope.jpg"); !got.Detail {
+	if got := run("inspect", "nope.jpg"); !got.Detail {
 		t.Fatal("detail should default to true")
 	}
-	if got := run("inspect", "-i", "nope.jpg", "--no-detail"); got.Detail {
+	if got := run("inspect", "nope.jpg", "--no-detail"); got.Detail {
 		t.Fatal("--no-detail should disable detail")
 	}
-	if got := run("inspect", "-i", "nope.jpg", "--detail", "--no-detail"); got.Detail {
+	if got := run("inspect", "nope.jpg", "--detail", "--no-detail"); got.Detail {
 		t.Fatal("--no-detail should take precedence over --detail")
 	}
-	if got := run("inspect", "-i", "nope.jpg", "--detail=false"); got.Detail {
+	if got := run("inspect", "nope.jpg", "--detail=false"); got.Detail {
 		t.Fatal("--detail=false should disable detail")
 	}
 }
