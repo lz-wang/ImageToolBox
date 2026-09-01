@@ -228,23 +228,18 @@ func newS3DownloadCommand() *cli.Command {
 
 func newS3DeleteCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "delete",
-		Usage: "从存储桶删除对象",
+		Name:      "delete",
+		Usage:     "从存储桶删除对象",
+		ArgsUsage: "<key>",
 		Description: `从 S3 兼容存储桶删除指定对象。
 
 示例:
   # 删除对象（需要确认）
-  itb s3 delete -b my-bucket -k photo.jpg
+	  itb s3 delete -b my-bucket photo.jpg
 
   # 强制删除（不需要确认）
-  itb s3 delete -b my-bucket -k photo.jpg -f`,
+	  itb s3 delete -b my-bucket -f photo.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "key",
-				Aliases:  []string{"k"},
-				Usage:    "对象键 `KEY`",
-				Required: true,
-			},
 			&cli.BoolFlag{
 				Name:    "force",
 				Aliases: []string{"f"},
@@ -257,8 +252,9 @@ func newS3DeleteCommand() *cli.Command {
 
 func newS3ListCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "list",
-		Usage: "列出存储桶中的对象",
+		Name:      "list",
+		Usage:     "列出存储桶中的对象",
+		ArgsUsage: "[prefix]",
 		Description: `列出 S3 兼容存储桶中的对象。
 
 示例:
@@ -266,16 +262,11 @@ func newS3ListCommand() *cli.Command {
   itb s3 list -b my-bucket
 
   # 按前缀过滤
-  itb s3 list -b my-bucket -p images/
+	  itb s3 list -b my-bucket images/
 
   # JSON 格式输出
   itb s3 list -b my-bucket --format json`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "prefix",
-				Aliases: []string{"p"},
-				Usage:   "对象键前缀 `PREFIX`",
-			},
 			&cli.IntFlag{
 				Name:      "max-keys",
 				Value:     1000,
@@ -295,25 +286,20 @@ func newS3ListCommand() *cli.Command {
 
 func newS3StatCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "stat",
-		Usage: "查看对象元数据（不下载内容）",
+		Name:      "stat",
+		Usage:     "查看对象元数据（不下载内容）",
+		ArgsUsage: "<key>",
 		Description: `查询单个对象的完整元数据，只执行一次 HEAD 请求，不传输对象内容。
 
 对象不存在时不回退到 list 推断，始终按精确对象键查询。
 
 示例:
   # 查看对象元数据
-  itb s3 stat -b my-bucket -k images/photo.jpg
+	  itb s3 stat -b my-bucket images/photo.jpg
 
   # JSON 格式输出
-  itb s3 stat -b my-bucket -k images/photo.jpg --format json`,
+	  itb s3 stat -b my-bucket --format json images/photo.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "key",
-				Aliases:  []string{"k"},
-				Usage:    "对象键 `KEY`",
-				Required: true,
-			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
@@ -431,7 +417,10 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Delete(ctx context.Context, cmd *cli.Command) error {
-	key := cmd.String("key")
+	key, err := s3KeyArg(cmd)
+	if err != nil {
+		return err
+	}
 
 	// 确认删除
 	if !cmd.Bool("force") {
@@ -457,13 +446,18 @@ func runS3Delete(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3List(ctx context.Context, cmd *cli.Command) error {
+	prefix, err := s3PrefixArg(cmd)
+	if err != nil {
+		return err
+	}
+
 	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
 	opts := &s3.ListOptions{
-		Prefix:  cmd.String("prefix"),
+		Prefix:  prefix,
 		MaxKeys: int32(cmd.Int("max-keys")),
 	}
 
@@ -477,12 +471,17 @@ func runS3List(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Stat(ctx context.Context, cmd *cli.Command) error {
+	key, err := s3KeyArg(cmd)
+	if err != nil {
+		return err
+	}
+
 	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
-	info, err := s3.Stat(ctx, client, cmd.String("key"))
+	info, err := s3.Stat(ctx, client, key)
 	if err != nil {
 		return err
 	}

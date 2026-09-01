@@ -119,7 +119,7 @@ func TestRequiredFlags(t *testing.T) {
 		{"convert 缺 <dst>", []string{"convert", "a.png"}, "需要提供 <src> <dst>"},
 		{"crop 缺 --anchor", []string{"crop", "a.jpg"}, "Required flag"},
 		{"s3 download 缺 <key>", []string{"s3", "-b", "x", "download"}, "需要提供 <key> [dst]"},
-		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}, "Required flag"},
+		{"s3 stat 缺 <key>", []string{"s3", "-b", "x", "stat"}, "需要提供 <key>"},
 		{"s3 upload 缺 <src>", []string{"s3", "-b", "x", "upload"}, "需要提供 <src> [key]"},
 	}
 	for _, tt := range tests {
