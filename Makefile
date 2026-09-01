@@ -1,4 +1,4 @@
-.PHONY: build bins verify-bins build-full check test serve clean
+.PHONY: build bins verify-bins build-full check test test-unit serve clean
 
 VERSION := $(shell date +%Y-%m-%d)-$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"

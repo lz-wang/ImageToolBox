@@ -13,6 +13,7 @@ make build              # 编译 itb（注入 version ldflags）
 make serve              # make build 后启动 HTTP API
 make check              # go vet
 make test               # go test
+make test-unit          # 跳过真实 MinIO integration/CLI E2E 的单元测试
 make clean              # 删除 itb 构建产物
 go build ./...          # 仅编译，不产出二进制
 go test ./...           # 运行全部测试
@@ -97,7 +98,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 ## Release and Homebrew publishing
 
-发布标签必须是 `vX.Y.Z`。`release.yml` 会先执行 `make check` 与 `make test`，再构建六个平台归档、创建 GitHub Release、上传归档及校验和到 `/Shares/github/<owner>/<repo>/<version>/`，最后从已发布资产读取四个 macOS/Linux 校验和，生成、审计、安装并测试 `lz-wang/homebrew-tap` 的 `Formula/itb.rb` 后才推送 Formula。
+发布标签必须是 `vX.Y.Z`。`release.yml` 会先执行 `make check` 与 `make test-unit`，再分别执行真实 MinIO 领域集成测试和 CLI E2E，然后构建六个平台归档、创建 GitHub Release、上传归档及校验和到 `/Shares/github/<owner>/<repo>/<version>/`，最后从已发布资产读取四个 macOS/Linux 校验和，生成、审计、安装并测试 `lz-wang/homebrew-tap` 的 `Formula/itb.rb` 后才推送 Formula。
 
 发布前运行 `make check`、`make test` 与 `git diff --check`；推送带注释标签后，确认 GitHub Release 的六个归档和六个 `.sha256` 文件，以及 Homebrew Formula 提交均已完成。`HOMEBREW_TAP_TOKEN` 必须对 `lz-wang/homebrew-tap` 具有 Contents 读写权限；WebDAV 凭据与可选 Pushover 通知均通过 GitHub Actions Secrets 配置，绝不写入仓库。
 

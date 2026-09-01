@@ -331,18 +331,27 @@ func TestMinIOCLIE2E(t *testing.T) {
 	}
 
 	var stat struct {
-		Key  string `json:"key"`
-		Size int64  `json:"size"`
+		SchemaVersion string `json:"schema_version"`
+		Key           string `json:"key"`
+		Size          int64  `json:"size"`
 	}
 	if err := json.Unmarshal([]byte(run(tmp, "s3", "stat", "--format", "json", key).stdout), &stat); err != nil {
 		t.Fatalf("decode stat JSON: %v", err)
 	}
-	if stat.Key != key || stat.Size != int64(len(helloContent)) {
+	if stat.SchemaVersion != StatSchemaVersion || stat.Key != key || stat.Size != int64(len(helloContent)) {
 		t.Fatalf("stat result = %+v", stat)
 	}
 
 	downloaded := filepath.Join(tmp, "downloaded.txt")
-	run(tmp, "s3", "download", "--verify", "--format", "json", key, downloaded)
+	var download struct {
+		SchemaVersion string `json:"schema_version"`
+	}
+	if err := json.Unmarshal([]byte(run(tmp, "s3", "download", "--verify", "--format", "json", key, downloaded).stdout), &download); err != nil {
+		t.Fatalf("decode download JSON: %v", err)
+	}
+	if download.SchemaVersion != DownloadSchemaVersion {
+		t.Fatalf("download schema_version = %q, want %q", download.SchemaVersion, DownloadSchemaVersion)
+	}
 	got, err := os.ReadFile(downloaded)
 	if err != nil || string(got) != helloContent {
 		t.Fatalf("downloaded content = %q, read error = %v", got, err)
@@ -381,6 +390,7 @@ func TestMinIOCLIE2E(t *testing.T) {
 	// 文件名包含唯一后缀，避免覆盖自建 MinIO 测试桶中的固定对象。
 	defaultName := "itb-cli-default-" + strconv.FormatInt(time.Now().UnixNano(), 36) + ".txt"
 	defaultFixture := filepath.Join(tmp, defaultName)
+	t.Cleanup(func() { _ = Delete(context.Background(), client, defaultName, nil) })
 	if err := os.WriteFile(defaultFixture, []byte(helloContent), 0o644); err != nil {
 		t.Fatalf("write default fixture: %v", err)
 	}
