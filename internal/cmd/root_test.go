@@ -101,8 +101,14 @@ func TestRemovedCommandsExitNonZero(t *testing.T) {
 }
 
 func TestRequiredFlags(t *testing.T) {
-	// 清空宿主环境的 ITB_S3_*，避免环境变量满足 required flag 导致误报
-	setS3Env(t, nil)
+	// S3 operand 校验应先于 Action 内的新客户端创建；为避免 urfave/cli 的
+	// 父级必填 flag 解析抢先失败，这里通过环境变量满足连接配置。
+	setS3Env(t, map[string]string{
+		"ITB_S3_ENDPOINT":          "http://localhost:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	})
 
 	tests := []struct {
 		name    string
@@ -112,11 +118,9 @@ func TestRequiredFlags(t *testing.T) {
 		{"resize 缺 <src>", []string{"resize"}, "需要提供 <src> [dst]"},
 		{"convert 缺 <dst>", []string{"convert", "a.png"}, "需要提供 <src> <dst>"},
 		{"crop 缺 --anchor", []string{"crop", "a.jpg"}, "Required flag"},
-		{"s3 download 缺 --key", []string{"s3", "-b", "x", "download"}, "Required flag"},
+		{"s3 download 缺 <key>", []string{"s3", "-b", "x", "download"}, "需要提供 <key> [dst]"},
 		{"s3 stat 缺 --key", []string{"s3", "-b", "x", "stat"}, "Required flag"},
-		{"s3 upload 缺 --input", []string{"s3", "-b", "x", "upload"}, "Required flag"},
-		{"s3 缺 --endpoint", []string{"s3", "-b", "x", "list"}, "Required flag"},
-		{"s3 缺 --access-key", []string{"s3", "-b", "x", "-e", "http://localhost:9000", "list"}, "Required flag"},
+		{"s3 upload 缺 <src>", []string{"s3", "-b", "x", "upload"}, "需要提供 <src> [key]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -352,7 +356,7 @@ func TestForcePathStyleEnv(t *testing.T) {
 }
 
 func TestS3SkipFlagsMutuallyExclusive(t *testing.T) {
-	err := runContract("s3", "upload", "-i", "a.jpg", "-b", "test", "--skip-existing", "--skip-unchanged")
+	err := runContract("s3", "upload", "a.jpg", "-b", "test", "--skip-existing", "--skip-unchanged")
 	if err == nil {
 		t.Fatal("expected mutually exclusive error, got nil")
 	}
@@ -436,8 +440,8 @@ func TestRemovedImageInputOutputFlagsAreRejected(t *testing.T) {
 	}
 
 	err := runContract("s3", "upload", "-i", "a.jpg", "-b", "test")
-	if err == nil || strings.Contains(err.Error(), "flag provided but not defined") {
-		t.Fatalf("s3 upload -i should remain valid, error = %v", err)
+	if err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+		t.Fatalf("s3 upload -i should be rejected, error = %v", err)
 	}
 }
 
@@ -534,9 +538,9 @@ func TestS3Validators(t *testing.T) {
 	}{
 		{"list 非法 format", []string{"s3", "list", "--format", "xml"}, "--format 仅支持"},
 		{"list max-keys 非正数", []string{"s3", "list", "--max-keys", "0"}, "--max-keys 必须大于 0"},
-		{"stat 非法 format", []string{"s3", "stat", "-k", "a.jpg", "--format", "plain"}, "--format 仅支持"},
-		{"upload 非法 format", []string{"s3", "upload", "-i", "a.jpg", "--format", "plain"}, "--format 仅支持"},
-		{"download 非法 format", []string{"s3", "download", "-k", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+		{"stat 非法 format", []string{"s3", "stat", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+		{"upload 非法 format", []string{"s3", "upload", "a.jpg", "--format", "plain"}, "--format 仅支持"},
+		{"download 非法 format", []string{"s3", "download", "a.jpg", "--format", "plain"}, "--format 仅支持"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

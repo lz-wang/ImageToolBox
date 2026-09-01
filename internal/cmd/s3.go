@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -92,8 +93,9 @@ func newS3Command() *cli.Command {
 
 func newS3UploadCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "upload",
-		Usage: "上传文件到存储桶",
+		Name:      "upload",
+		Usage:     "上传文件到存储桶",
+		ArgsUsage: "<src> [key]",
 		Description: `上传本地文件到 S3 兼容存储桶。
 
 默认无条件覆盖同名对象。上传时会把本地文件的 SHA-256 写入对象
@@ -102,41 +104,30 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 
 示例:
   # 上传文件
-  itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
+	  itb s3 upload -b my-bucket -e http://localhost:9000 photo.jpg
 
   # 指定对象键名
-  itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+	  itb s3 upload -b my-bucket photo.jpg images/photo.jpg
 
   # 指定 Content-Type
-  itb s3 upload -i data.json -b my-bucket --content-type application/json
+	  itb s3 upload -b my-bucket --content-type application/json data.json
 
   # 写入用户 metadata（key=value，可重复；itb-sha256 为保留键）
-  itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+	  itb s3 upload -b my-bucket image.webp image/xx.webp \
     --metadata source-sha256=abc123 --metadata width=1920
 
   # 设置标准 HTTP 响应头（稳定 URL 发布）
-  itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+	  itb s3 upload -b my-bucket --cache-control no-cache image.webp
 
   # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
-  itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+	  itb s3 upload -b my-bucket --skip-existing photo.jpg
 
   # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
-  itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+	  itb s3 upload -b my-bucket --skip-unchanged photo.jpg
 
   # PUT 后追加 HEAD 校验远端 header/metadata 与本次上传一致
-  itb s3 upload -i photo.jpg -b my-bucket --verify`,
+	  itb s3 upload -b my-bucket --verify photo.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "本地文件 `FILE`",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "key",
-				Aliases: []string{"k"},
-				Usage:   "对象键 `KEY`（默认使用文件名）",
-			},
 			&cli.StringFlag{
 				Name:  "content-type",
 				Usage: "内容类型 `MIME`（默认按文件内容检测，扩展名仅作兜底）",
@@ -193,38 +184,29 @@ metadata（x-amz-meta-itb-sha256），供 --skip-unchanged 比对。
 
 func newS3DownloadCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "download",
-		Usage: "从存储桶下载文件",
+		Name:      "download",
+		Usage:     "从存储桶下载文件",
+		ArgsUsage: "<key> [dst]",
 		Description: `从 S3 兼容存储桶下载文件到本地。
 
-下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败
-（网络中断、写盘错误、校验不通过）都不会在目标路径留下 partial 文件。
+	下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败
+	（网络中断、写盘错误、校验不通过）都不会在目标路径留下 partial 文件。
+	未提供 [dst] 时保存到当前目录，文件名取对象键最后一段。
 
 示例:
   # 下载文件
-  itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
+	  itb s3 download -b my-bucket photo.jpg ./photo.jpg
 
   # 使用默认文件名
-  itb s3 download -b my-bucket -k images/photo.jpg
+	  itb s3 download -b my-bucket images/photo.jpg
 
   # 边下载边校验（读取对象 itb-sha256 metadata，单遍计算）
-  itb s3 download -b my-bucket -k photo.jpg --verify
+	  itb s3 download -b my-bucket --verify photo.jpg
 
   # 按已知哈希校验（provider-neutral 完整性验证）
-  itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png \
-    --verify-sha256 "$SOURCE_SHA256"`,
+	  itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
+	    sha256/xxx /tmp/original.png`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "key",
-				Aliases:  []string{"k"},
-				Usage:    "对象键 `KEY`",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "output",
-				Aliases: []string{"o"},
-				Usage:   "本地输出 `FILE`（默认保存到当前目录，文件名取对象键最后一段）",
-			},
 			&cli.BoolFlag{
 				Name:  "verify",
 				Usage: "读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对（不二次读取本地文件）",
@@ -364,21 +346,23 @@ func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 }
 
 func runS3Upload(ctx context.Context, cmd *cli.Command) error {
-	client, err := newS3Client(ctx, cmd)
+	input, key, err := s3UploadArgs(cmd)
 	if err != nil {
 		return err
-	}
-
-	// 默认使用文件名作为对象键
-	input := cmd.String("input")
-	key := cmd.String("key")
-	if key == "" {
-		key = filepath.Base(input)
 	}
 
 	metadata, err := s3.ParseMetadata(cmd.StringSlice("metadata"))
 	if err != nil {
 		return err
+	}
+
+	client, err := newS3Client(ctx, cmd)
+	if err != nil {
+		return err
+	}
+
+	if key == "" {
+		key = filepath.Base(input)
 	}
 
 	opts := &s3.UploadOptions{
@@ -414,22 +398,24 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Download(ctx context.Context, cmd *cli.Command) error {
+	key, output, err := s3DownloadArgs(cmd)
+	if err != nil {
+		return err
+	}
+
 	client, err := newS3Client(ctx, cmd)
 	if err != nil {
 		return err
 	}
 
-	// 默认使用对象键名作为本地文件名
-	key := cmd.String("key")
-	output := cmd.String("output")
 	if output == "" {
-		output = filepath.Base(key)
+		output = path.Base(key)
 	}
 
 	result, err := s3.Download(ctx, client, key, output, &s3.DownloadOptions{
-		Verify:      cmd.Bool("verify"),
+		Verify:       cmd.Bool("verify"),
 		VerifySHA256: cmd.String("verify-sha256"),
-		Progress:    os.Stderr,
+		Progress:     os.Stderr,
 	})
 	if err != nil {
 		return err
