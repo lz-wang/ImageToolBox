@@ -1,6 +1,7 @@
 package watermark
 
 import (
+	"bytes"
 	"errors"
 	"image"
 	"image/color"
@@ -74,6 +75,30 @@ func TestAddFileRejectsSameFile(t *testing.T) {
 	err := AddFile(input, input, Options{Text: "mark"})
 	if !errors.Is(err, imageio.ErrSameFile) {
 		t.Fatalf("AddFile() error = %v, want imageio.ErrSameFile", err)
+	}
+}
+
+func TestAddFileRejectsOutputAliasingWatermarkImage(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.png")
+	logo := filepath.Join(dir, "logo.png")
+	writePNG(t, base, image.NewNRGBA(image.Rect(0, 0, 20, 20)))
+	writePNG(t, logo, image.NewNRGBA(image.Rect(0, 0, 4, 4)))
+	originalLogo, err := os.ReadFile(logo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = AddFile(base, logo, Options{ImagePath: logo})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("AddFile() error = %v, want imageio.ErrSameFile", err)
+	}
+	after, err := os.ReadFile(logo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(originalLogo, after) {
+		t.Fatal("watermark source was modified")
 	}
 }
 
