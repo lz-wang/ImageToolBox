@@ -13,8 +13,9 @@ import (
 
 func newCompressCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "compress",
-		Usage: "压缩 PNG/JPEG 图片",
+		Name:      "compress",
+		Usage:     "压缩 PNG/JPEG 图片",
+		ArgsUsage: "<src> [dst]",
 		Description: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
 
 无需指定图片类型，程序会通过读取文件头自动判断。
@@ -27,35 +28,13 @@ func newCompressCommand() *cli.Command {
   JPEG: djpeg → cjpeg（libjpeg-turbo）
 
 示例:
-  itb compress -i photo.png
-  itb compress -i photo.jpg -o compressed.jpg -q 90
-  itb compress -i photo.jpg --in-place`,
-		// --output 与 --in-place 是互斥的输出目标
-		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
-			{
-				Flags: [][]cli.Flag{
-					{
-						&cli.StringFlag{
-							Name:    "output",
-							Aliases: []string{"o"},
-							Usage:   "输出图片 `FILE`（默认在原文件名后加 _compressed）",
-						},
-					},
-					{
-						&cli.BoolFlag{
-							Name:  "in-place",
-							Usage: "覆盖输入文件",
-						},
-					},
-				},
-			},
-		},
+	  itb compress photo.png
+	  itb compress -q 90 photo.jpg compressed.jpg
+	  itb compress --in-place photo.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "输入图片 `FILE`",
-				Required: true,
+			&cli.BoolFlag{
+				Name:  "in-place",
+				Usage: "覆盖输入文件",
 			},
 			&cli.IntFlag{
 				Name:      "quality",
@@ -70,9 +49,13 @@ func newCompressCommand() *cli.Command {
 }
 
 func runCompress(ctx context.Context, cmd *cli.Command) error {
-	inputFile := cmd.String("input")
-
-	outputPath := cmd.String("output")
+	inputFile, outputPath, err := sourceDestinationArgs(cmd, false)
+	if err != nil {
+		return err
+	}
+	if cmd.Bool("in-place") && outputPath != "" {
+		return fmt.Errorf("--in-place 不能与 <dst> 同时使用")
+	}
 	tmpPath := ""
 	if cmd.Bool("in-place") {
 		// 临时文件放在输入文件所在目录，保证 rename 不跨文件系统
