@@ -17,10 +17,11 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `resize` for dimensions, aspect-ratio fitting, filling, stretching, or percentage scaling.
    - `convert` for `jpg` / `jpeg` / `png` / `webp` conversion (inputs limited to these formats).
    - `watermark` for text or image watermarking.
+   - `compare` for objective image-quality comparison using PSNR / SSIM / MS-SSIM.
    - `inspect` for metadata and file hash checks; add `--strict --full-decode` as an upload preflight (catches corrupted tails and reports GIF frame/animation info).
    - `s3` for S3-compatible upload/download/list/stat/delete.
    - `serve` for the trusted HTTP API used by remote automation or a personal VPS deployment.
-4. Use image command operands as `itb <command> [options] <src> [dst]`; `convert` requires `<dst>`, while the other transforms may derive one.
+4. Use transform command operands as `itb <command> [options] <src> [dst]`; `convert` requires `<dst>`, while the other transforms may derive one. `compare` instead takes `itb compare [options] <src> <dst>` where both operands are read-only inputs (the `dst` is the comparison target, not an output file).
 5. For multi-step local image pipelines, write intermediate outputs to a temporary or task-specific output directory and run commands in sequence.
 6. Verify outputs with file existence, dimensions/format checks, or a visual preview when the result is user-facing.
 
@@ -44,6 +45,7 @@ itb watermark -t "Draft" --mode repeat --opacity 0.25 output.webp marked.webp
 - All transforms (`convert`/`resize`/`crop`/`watermark`) share the same input contract: only `jpg`/`jpeg`/`png`/`webp` (GIF/BMP/TIFF rejected — animated GIFs are never silently reduced to their first frame), and JPEG EXIF orientation is baked into the pixels, so percent-based crops and resize plans always operate on the rotated (logical) dimensions.
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` cannot be combined with a `[dst]` operand).
 - Never choose an output path that aliases any input resource. `itb` rejects equivalent paths, hard links, and symlinks that resolve to the same file. For image watermarks this also applies to `--image`.
+- `compare` never modifies either operand; same-file comparison is valid (`itb compare a.jpg a.jpg` prints `PSNR: +Inf dB`). Both images must share identical logical dimensions — there is no implicit resize.
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
 - Use S3 resource operands positionally: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Do not use the removed `--input`, `--output`, `--key`, or `--prefix` flags.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).

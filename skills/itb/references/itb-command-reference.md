@@ -137,6 +137,38 @@ Flags:
 - `--angle`: repeat text angle; default `30`; range `-360` to `360`.
 - `--space`: repeat spacing; `0` auto-calculates.
 
+## Compare
+
+Read-only objective image-quality comparison (`PSNR` / `SSIM` / `MS-SSIM`), pure Go, CLI-only (not exposed via the HTTP API).
+
+```bash
+itb compare original.jpg compressed.jpg                    # default: PSNR + MS-SSIM
+itb compare original.jpg compressed.jpg --ssim             # SSIM only
+itb compare original.png original.webp --psnr --ssim --ms-ssim
+itb compare photo.jpg photo.jpg                            # sanity check: PSNR: +Inf dB
+```
+
+Flags and operands:
+
+- `<src>`: required reference image path.
+- `<dst>`: required comparison-target image path (read-only input, not an output file).
+- `--psnr`: compute PSNR in dB (`+Inf` when the active channels are identical).
+- `--ssim`: compute SSIM (standard parameters: 11×11 Gaussian window, sigma 1.5, K1=0.01, K2=0.03, L=255; no automatic downsampling).
+- `--ms-ssim`: compute MS-SSIM (fixed five scales with Wang weights `{0.0448, 0.2856, 0.3001, 0.2363, 0.1333}`; 2×2 average downsampling between scales).
+
+Metric selection semantics:
+
+- No metric flag given → PSNR + MS-SSIM.
+- Any metric flag given (including `=false`) → only the explicitly enabled metrics run; `--psnr=false` alone is an error (`at least one metric must be selected`).
+
+Requirements and semantics:
+
+- Supported formats: JPEG / PNG / WebP (GIF/BMP/TIFF rejected); JPEG EXIF orientation is baked in, so the metrics compare the actual visual pixels.
+- Both images must have identical logical dimensions (`1920x1080` vs `1280x720` fails with an error; never implicitly resized, cropped, or padded).
+- SSIM requires both dimensions ≥ 11; MS-SSIM requires the short edge ≥ 161 (five fixed scales; the scale count is never reduced for smaller images — use `--psnr` or `--ssim` instead).
+- Alpha handling: when either image has `alpha != 255`, the compared channels become premultiplied R/G/B plus A (fully transparent regions hide their RGB, and alpha loss is still detected). This is an itb-defined alpha-aware variant; do not expect bit-identical values with RGB-only third-party tools.
+- Output is fixed-order plain text (`%.6f`), independent of flag order; identical images print `PSNR: +Inf dB`, `SSIM: 1.000000`, `MS-SSIM: 1.000000`. There is intentionally no `--format json` yet.
+
 ## Inspect
 
 Read-only file/image inspection with hashes; JSON contract `itb.inspect.v2`.

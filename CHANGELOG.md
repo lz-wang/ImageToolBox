@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- 新增 `itb compare <src> <dst>` 只读图片质量比较命令，纯 Go 实现 PSNR、SSIM 与五尺度 MS-SSIM；默认计算 PSNR + MS-SSIM，显式指标 flag 时仅计算所选指标。两图逻辑尺寸必须一致（不隐式缩放），JPEG EXIF Orientation 已归一化，含 Alpha 图片采用 premultiplied RGB + A 的 alpha-aware 变体；SSIM 最小 11×11，MS-SSIM 短边最小 161。仅 CLI 暴露，不进入 HTTP API。
+
 ## [v0.8.0] - 2026-09-01
 
 ### Fixed

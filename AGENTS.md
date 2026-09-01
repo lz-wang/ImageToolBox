@@ -29,7 +29,7 @@ go vet ./...            # 静态检查
 
 - Domain 包是图片操作参数的唯一 Normalize/Validate 与业务规则来源。CLI 和 HTTP 只能将传输参数映射为领域 `Options`，不得通过调用 `cli.Command` 或复制业务分派来复用逻辑。
 - HTTP API 只暴露 `compress`、`resize`、`crop`、`convert`、`watermark` 和 `inspect`；S3 管理能力只由 CLI 暴露。
-- CLI 图像命令以 `<src>` / `[dst]` operand 传递本地路径；HTTP 的 `input` 是对应 `<src>` 的 multipart 上传文件，操作选项通常沿用 CLI long flag 名称，`output` 与 `in-place` 不属于 HTTP 参数。HTTP `convert` 保留 transport-only `to`，由 adapter 构造临时输出路径；`internal/convert` 始终只从 outputPath 扩展名确定目标格式。
+- CLI 图像命令以 `<src>` / `[dst]` operand 传递本地路径；HTTP 的 `input` 是对应 `<src>` 的 multipart 上传文件，操作选项通常沿用 CLI long flag 名称，`output` 与 `in-place` 不属于 HTTP 参数。HTTP `convert` 保留 transport-only `to`，由 adapter 构造临时输出路径；`internal/convert` 始终只从 outputPath 扩展名确定目标格式。`itb compare <src> <dst>` 是只读分析命令：两个 operand 都是输入（`dst` 是比较目标而非输出文件），因此 compare 绝不调用 `RejectSameFile`，同一文件自我比较合法。
 - File-transform domain APIs own file-safety invariants. An output path must not resolve to the same underlying file as any input resource, including equivalent paths, hard links, and symlinks. In image-watermark mode the watermark image is also an input resource. In-place mutation must use an explicit temporary-file + atomic replacement workflow; adapters must not bypass this rule.
 - HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
 - S3 CLI resource operands use positional arguments: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Connection configuration and execution behavior remain flags/environment variables; do not reintroduce `--input`, `--output`, `--key`, or `--prefix`.
@@ -44,7 +44,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 ```
 
 - `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
-- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
+- 领域包（`resize`、`convert`、`crop`、`watermark`、`compress`、`compare`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
 - `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，HTTP API 不提供任何存储相关 API。
 - `internal/httpapi`：`itb serve` 的标准库 HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程。
@@ -76,6 +76,17 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 
 - `compress.DetectFormat(io.ReadSeeker)`：基于文件头，返回小写格式名（`"png"`/`"jpeg"`），用于压缩命令分流。
 - `imageio.DetectFormat(path)`/`FormatFromPath`：返回 `Format` 枚举，供通用编解码使用。改动格式支持时两者都要顾及。
+
+### compare 指标契约
+
+`internal/compare` 是只读分析领域包，指标数学定义锁死，不得为小图或兼容性悄悄改变：
+
+- 默认指标为 PSNR + MS-SSIM（`DefaultMetrics`）；CLI 一旦显式提供任意指标 flag，只计算显式选择的指标（transport 语义在 `cmd/compare.go` 的 `resolveCompareMetrics`，全部显式关闭直接报错）。
+- SSIM 固定 11×11 高斯窗口、sigma 1.5、K1=0.01、K2=0.03、L=255，'valid' 窗口，不做自动 downsample，最小 11×11。
+- MS-SSIM 固定五尺度与 Wang 权重，2×2 均值降采样（ceil 半除），短边 >= 161；**绝不为了小图自动减少 scale 数**——那样同一数值会代表不同的数学定义。
+- 尺寸不一致直接报错，绝不隐式 resize/crop/pad；identical 的 PSNR 输出 `+Inf`，不用有限数值替代。
+- 颜色契约：都不透明比较 R/G/B；任一图存在 alpha != 255 时切换为 premultiplied R/G/B + A（itb 自定义 alpha-aware 变体）。
+- 仅由 CLI 暴露，不进入 HTTP API；输入统一走 `imageio.OpenStatic`（JPEG EXIF Orientation 已归一化）。
 
 ## 测试约定
 

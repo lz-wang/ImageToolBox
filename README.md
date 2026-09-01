@@ -279,6 +279,54 @@ brew install lz-wang/tap/itb
 
 </details>
 
+## 图片质量比较
+
+只读比较两张图片的客观质量指标（PSNR / SSIM / MS-SSIM），纯 Go 实现，不依赖外部工具。
+
+```bash
+# 默认：PSNR + MS-SSIM
+./itb compare original.jpg compressed.jpg
+
+# 仅 SSIM
+./itb compare original.jpg compressed.jpg --ssim
+
+# 全部指标
+./itb compare original.jpg compressed.jpg \
+  --psnr --ssim --ms-ssim
+```
+
+<details>
+<summary>命令参数</summary>
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `<src>` | (必填) | 基准图片 |
+| `<dst>` | (必填) | 待比较图片 |
+| `--psnr` | - | 计算 PSNR（峰值信噪比，单位 dB；完全一致为 `+Inf`） |
+| `--ssim` | - | 计算 SSIM（结构相似性，11×11 高斯窗口标准参数） |
+| `--ms-ssim` | - | 计算 MS-SSIM（固定五尺度，短边需 ≥ 161 像素） |
+
+</details>
+
+> 未指定任何指标 flag 时默认计算 PSNR 和 MS-SSIM；一旦指定任意指标 flag，只计算显式选择的指标。
+
+比较语义：
+
+- 支持 JPEG / PNG / WebP；JPEG 的 EXIF Orientation 已归一化，比较的是实际视觉像素
+- 两张图片的逻辑尺寸必须完全一致（`1920×1080` 与 `1280×720` 会直接报错），不会隐式 resize / crop / pad
+- `<src>` 与 `<dst>` 都是只读输入，同一文件自我比较是合法的 sanity check（输出 `PSNR: +Inf dB`）
+- SSIM 要求两边均 ≥ 11×11；MS-SSIM 固定五尺度，要求短边 ≥ 161 像素，小图请改用 `--psnr` 或 `--ssim`
+- 含 Alpha 的图片使用 itb 定义的 alpha-aware 变体（premultiplied RGB + A 共同参与比较），数值不应要求与只比较 RGB 的第三方工具逐位一致
+- 输出顺序固定为 PSNR、SSIM、MS-SSIM，例如：
+
+```text
+PSNR: 42.318274 dB
+SSIM: 0.976391
+MS-SSIM: 0.987423
+```
+
+该能力仅通过 CLI 暴露，不进入 HTTP API。
+
 ## 图片检查
 
 读取图片文件信息、图像基本信息、详细元数据和文件 hash。

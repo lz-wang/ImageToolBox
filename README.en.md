@@ -278,6 +278,54 @@ Text is tiled across the whole image, with adjustable rotation angle and spacing
 
 </details>
 
+## Image quality comparison
+
+Read-only comparison of two images using objective quality metrics (PSNR / SSIM / MS-SSIM), implemented in pure Go with no external tools.
+
+```bash
+# Default: PSNR + MS-SSIM
+./itb compare original.jpg compressed.jpg
+
+# SSIM only
+./itb compare original.jpg compressed.jpg --ssim
+
+# All metrics
+./itb compare original.jpg compressed.jpg \
+  --psnr --ssim --ms-ssim
+```
+
+<details>
+<summary>Options</summary>
+
+| Option | Default | Description |
+|------|--------|------|
+| `<src>` | (required) | Reference image |
+| `<dst>` | (required) | Image to compare |
+| `--psnr` | - | Compute PSNR (peak signal-to-noise ratio in dB; `+Inf` when identical) |
+| `--ssim` | - | Compute SSIM (structural similarity, standard 11×11 Gaussian window) |
+| `--ms-ssim` | - | Compute MS-SSIM (fixed five scales; short edge must be ≥ 161 pixels) |
+
+</details>
+
+> When no metric flag is given, PSNR and MS-SSIM are computed by default; once any metric flag is provided, only the explicitly selected metrics are computed.
+
+Comparison semantics:
+
+- Supports JPEG / PNG / WebP; JPEG EXIF orientation is normalized, so the comparison targets the actual visual pixels
+- Both images must share identical logical dimensions (`1920×1080` vs `1280×720` fails immediately); there is no implicit resize / crop / pad
+- `<src>` and `<dst>` are both read-only inputs; comparing a file with itself is a valid sanity check (prints `PSNR: +Inf dB`)
+- SSIM requires both sides to be ≥ 11×11; MS-SSIM uses a fixed five-scale definition and requires a short edge ≥ 161 pixels — use `--psnr` or `--ssim` for smaller images
+- Images with alpha use an itb-defined alpha-aware variant (premultiplied RGB plus A compared together); values are not expected to match third-party tools that compare RGB only
+- Output order is fixed as PSNR, SSIM, MS-SSIM, for example:
+
+```text
+PSNR: 42.318274 dB
+SSIM: 0.976391
+MS-SSIM: 0.987423
+```
+
+This capability is exposed through the CLI only and is not part of the HTTP API.
+
 ## Image inspection
 
 Read file info, basic image info, detailed metadata, and file hash.
