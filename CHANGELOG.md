@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.0] - 2026-09-02
+
 ### Added
 
 - 新增 `itb rotate --angle <degrees> <src> [dst]` 图像旋转命令：正角度逆时针、负角度顺时针，支持小数，范围 `(-360, 360)` 且不能为 0；精确 90/180/270 不做插值，任意角度双线性插值并按 imaging 旋转包围盒规则调整输出画布，未覆盖区域 PNG/WebP 保持透明、JPEG 铺白色背景；省略 `[dst]` 时输出 `<name>_rotated.<ext>`。输入统一走 transform 契约（仅 JPEG/PNG/WebP，JPEG EXIF Orientation 先归一化再旋转）。
