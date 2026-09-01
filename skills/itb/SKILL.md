@@ -30,7 +30,7 @@ CLI vs HTTP API: prefer CLI commands for local and scripted workflows. Use `itb 
 
 ## Command Use
 
-Load `references/itb-command-reference.md` when exact flags, examples, defaults, environment variables, or cloud upload settings are needed.
+For exact syntax, flags, defaults, and constraints, run `itb <command> --help` first. The installed binary's help is authoritative for that installed version — it always reflects the exact CLI you are driving, even when these skill files lag behind. Use `references/itb-command-reference.md` as supplemental guidance when deeper examples, environment variables, or cloud upload settings are needed.
 
 Common patterns:
 
