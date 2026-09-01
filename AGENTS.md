@@ -93,7 +93,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 `internal/rotate` 是图像旋转领域包，以下语义锁死：
 
 - positive angle = CCW（正角度逆时针，负角度顺时针，与 watermark 的 `imaging.Rotate` 语义一致）
-- arbitrary rotations expand canvas（任意角度扩大画布以完整容纳图像）
+- arbitrary rotations follow imaging's rotated bounding-box canvas, not a strict full-containment guarantee（任意角度按 imaging 旋转包围盒规则调整画布，非严格完整容纳保证）
 - uncovered pixels are transparent before encoding（未覆盖像素在编码前保持透明）
 - JPEG therefore flattens to white through `imageio.Save`（JPEG 最终由 imageio.Save 铺白色，rotate 自身不引入背景参数）
 - Resolve dimensions must equal Apply output bounds（`Resolve(bounds).size == Apply(img).Bounds().size`，测试锁定；`rotatedSize` 复刻 imaging v1.6.2 的推导语义，升级依赖后漂移会立即暴露）

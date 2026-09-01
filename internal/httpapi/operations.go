@@ -152,7 +152,7 @@ func rotateImage(_ context.Context, f form, dir string, cfg Config) (string, str
 		return "", "", 0, fmt.Errorf("angle is required")
 	}
 	opts := rotate.Options{Angle: *angle}
-	// 先用领域 Resolve 推导旋转后的输出尺寸（任意角度会扩大画布），
+	// 先用领域 Resolve 推导旋转后的输出尺寸（任意角度可能扩大画布），
 	// 再对计划输出做资源准入，杜绝先分配画布再发现超限。
 	info, err := imageio.Probe(input.Path)
 	if err != nil {

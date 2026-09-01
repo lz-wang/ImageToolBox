@@ -168,7 +168,7 @@ Resize by width/height, by percentage, or using different modes.
 
 ## Rotate images
 
-Rotate by any angle: positive angles rotate counter-clockwise, negative angles clockwise; exact `90/180/270` are interpolation-free, while arbitrary angles use bilinear interpolation and expand the canvas to keep the whole image.
+Rotate by any angle: positive angles rotate counter-clockwise, negative angles clockwise; exact `90/180/270` are interpolation-free, while arbitrary angles use bilinear interpolation and adjust the output canvas following imaging's rotated bounding-box rules, avoiding cropping the subject at common angles.
 
 ```bash
 # 90 degrees counter-clockwise (writes photo_rotated.jpg)
@@ -177,7 +177,7 @@ Rotate by any angle: positive angles rotate counter-clockwise, negative angles c
 # 90 degrees clockwise
 ./itb rotate --angle -90 photo.jpg clockwise.jpg
 
-# Arbitrary angle (canvas expands; PNG keeps transparency)
+# Arbitrary angle (canvas adjusts as needed; PNG keeps transparency)
 ./itb rotate --angle 45 transparent.png result.png
 
 # Fractional angle
@@ -198,7 +198,7 @@ Rotate by any angle: positive angles rotate counter-clockwise, negative angles c
 Rotation semantics:
 
 - Inputs follow the unified transform contract: JPEG/PNG/WebP only, and the JPEG EXIF orientation is normalized before the user rotation is applied
-- Arbitrary angles expand the canvas to fully contain the rotated image; uncovered areas stay transparent for PNG/WebP and are flattened onto white for JPEG
+- Arbitrary angles adjust the output canvas following imaging's rotated bounding-box rules, avoiding cropping the subject at common angles; uncovered areas stay transparent for PNG/WebP and are flattened onto white for JPEG
 - `<dst>` must not resolve to the same file as `<src>` (equivalent paths, hard links, and symlinks are rejected); the HTTP API exposes `rotate` as well
 
 ## Format conversion

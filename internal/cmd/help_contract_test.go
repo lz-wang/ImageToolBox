@@ -147,7 +147,7 @@ func TestWatermarkHelpContract(t *testing.T) {
 	}
 }
 
-// rotate：角度方向语义、画布扩展与透明背景契约必须在 help 中可读。
+// rotate：角度方向语义、画布调整与透明背景契约必须在 help 中可读。
 func TestRotateHelpContract(t *testing.T) {
 	out := helpOutput(t, "rotate")
 
@@ -158,7 +158,7 @@ func TestRotateHelpContract(t *testing.T) {
 		"顺时针",
 		"(-360, 360)",
 		"不能为 0",
-		"扩展画布",
+		"输出画布",
 		"_rotated",
 		"PNG",
 		"WebP",

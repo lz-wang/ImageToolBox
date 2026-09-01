@@ -168,7 +168,7 @@ brew install lz-wang/tap/itb
 
 ## 图片旋转
 
-按任意角度旋转图片：正角度逆时针、负角度顺时针；精确 `90/180/270` 不做插值，任意角度使用双线性插值并自动扩展画布以完整保留图片内容。
+按任意角度旋转图片：正角度逆时针、负角度顺时针；精确 `90/180/270` 不做插值，任意角度使用双线性插值并按 imaging 的旋转包围盒规则调整输出画布，避免常规角度下裁掉主体内容。
 
 ```bash
 # 逆时针 90 度（输出 photo_rotated.jpg）
@@ -177,7 +177,7 @@ brew install lz-wang/tap/itb
 # 顺时针 90 度
 ./itb rotate --angle -90 photo.jpg clockwise.jpg
 
-# 任意角度（画布自动扩大，PNG 保留透明）
+# 任意角度（画布按需调整，PNG 保留透明）
 ./itb rotate --angle 45 transparent.png result.png
 
 # 小数角度
@@ -198,7 +198,7 @@ brew install lz-wang/tap/itb
 旋转语义：
 
 - 输入遵循统一的 transform 契约：仅 JPEG/PNG/WebP，JPEG 的 EXIF Orientation 先归一化，再执行本次旋转
-- 任意角度会扩展画布以完整容纳旋转后的图像；未覆盖区域 PNG/WebP 保持透明，JPEG 铺白色背景
+- 任意角度按 imaging 的旋转包围盒规则调整输出画布，避免常规角度下裁掉主体内容；未覆盖区域 PNG/WebP 保持透明，JPEG 铺白色背景
 - `<dst>` 不得与 `<src>` 指向同一实际文件（等价路径、hard link、symlink 均拒绝）；HTTP API 同样暴露 `rotate`
 
 ## 图像格式转换

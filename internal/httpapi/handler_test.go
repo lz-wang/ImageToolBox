@@ -709,7 +709,7 @@ func TestConvertEndpointContracts(t *testing.T) {
 }
 
 // TestRotateEndpointContracts 验证 rotate 端点：输出计划准入必须先于
-// 画布分配（任意角度扩大画布）、angle 参数契约、EXIF 逻辑尺寸语义。
+// 画布分配（任意角度可能扩大画布）、angle 参数契约、EXIF 逻辑尺寸语义。
 func TestRotateEndpointContracts(t *testing.T) {
 	post := func(t *testing.T, cfg Config, fields map[string]string, files ...formFile) *httptest.ResponseRecorder {
 		t.Helper()
