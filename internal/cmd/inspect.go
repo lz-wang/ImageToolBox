@@ -13,8 +13,9 @@ import (
 
 func newInspectCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "inspect",
-		Usage: "查看图片信息、元数据和文件哈希",
+		Name:      "inspect",
+		Usage:     "查看图片信息、元数据和文件哈希",
+		ArgsUsage: "<src>",
 		Description: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
 
 该命令为只读操作，不会修改原始图片。
@@ -24,19 +25,13 @@ func newInspectCommand() *cli.Command {
 上传前 preflight。
 
 示例:
-  itb inspect -i photo.jpg
-  itb inspect -i photo.jpg --format json
-  itb inspect -i photo.jpg --format plain
-  itb inspect -i photo.jpg --no-detail
-  itb inspect -i photo.jpg --no-hash
-  itb inspect -i image.png --strict --full-decode --format json`,
+	  itb inspect photo.jpg
+	  itb inspect --format json photo.jpg
+	  itb inspect --format plain photo.jpg
+	  itb inspect --no-detail photo.jpg
+	  itb inspect --no-hash photo.jpg
+	  itb inspect --strict --full-decode --format json image.png`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "输入图片 `FILE`",
-				Required: true,
-			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
@@ -70,7 +65,11 @@ func newInspectCommand() *cli.Command {
 }
 
 func runInspect(ctx context.Context, cmd *cli.Command) error {
-	result, err := inspect.File(cmd.String("input"), inspect.Options{
+	inputFile, err := sourceArg(cmd)
+	if err != nil {
+		return err
+	}
+	result, err := inspect.File(inputFile, inspect.Options{
 		Detail:     cmd.Bool("detail") && !cmd.Bool("no-detail"),
 		NoHash:     cmd.Bool("no-hash"),
 		Strict:     cmd.Bool("strict"),

@@ -11,8 +11,9 @@ import (
 
 func newWatermarkCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "watermark",
-		Usage: "添加文字或图片水印",
+		Name:      "watermark",
+		Usage:     "添加文字或图片水印",
+		ArgsUsage: "<src> [dst]",
 		Description: `为图片添加文字或图片水印。
 
 文字水印支持两种模式:
@@ -23,31 +24,20 @@ func newWatermarkCommand() *cli.Command {
 
 示例:
   # 位置水印（默认右下角，智能颜色）
-  itb watermark -i photo.jpg -t "Author"
+	  itb watermark -t "Author" photo.jpg
 
   # 指定位置和透明度
-  itb watermark -i photo.png -t "Copyright" --position center --opacity 0.8
+	  itb watermark -t "Copyright" --position center --opacity 0.8 photo.png
 
   # 重复平铺水印
-  itb watermark -i photo.png -t "WATERMARK" --mode repeat
+	  itb watermark -t "WATERMARK" --mode repeat photo.png
 
   # 图片水印
-  itb watermark -i photo.jpg --image logo.png --scale 0.2
+	  itb watermark --image logo.png --scale 0.2 photo.jpg
 
   # 指定输出路径
-  itb watermark -i photo.jpg -t "Author" -o output.jpg`,
+	  itb watermark -t "Author" photo.jpg output.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "输入图片 `FILE`",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "output",
-				Aliases: []string{"o"},
-				Usage:   "输出图片 `FILE`（默认在原文件名后加 _watermarked）",
-			},
 			&cli.StringFlag{
 				Name:      "mode",
 				Aliases:   []string{"m"},
@@ -131,10 +121,12 @@ func newWatermarkCommand() *cli.Command {
 }
 
 func runWatermark(ctx context.Context, cmd *cli.Command) error {
-	inputFile := cmd.String("input")
+	inputFile, outputPath, err := sourceDestinationArgs(cmd, false)
+	if err != nil {
+		return err
+	}
 
 	// 生成默认输出路径
-	outputPath := cmd.String("output")
 	if outputPath == "" {
 		outputPath = imageio.SuffixedPath(inputFile, "_watermarked")
 	}
@@ -145,7 +137,7 @@ func runWatermark(ctx context.Context, cmd *cli.Command) error {
 	fontSize := cmd.Int("font-size")
 	margin := cmd.Float("margin")
 	scale := cmd.Float("scale")
-	err := watermark.AddFile(inputFile, outputPath, watermark.Options{
+	err = watermark.AddFile(inputFile, outputPath, watermark.Options{
 		Text:      cmd.String("text"),
 		ImagePath: cmd.String("image"),
 		Mode:      watermark.Mode(cmd.String("mode")),

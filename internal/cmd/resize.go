@@ -11,8 +11,9 @@ import (
 
 func newResizeCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "resize",
-		Usage: "调整图片尺寸",
+		Name:      "resize",
+		Usage:     "调整图片尺寸",
+		ArgsUsage: "<src> [dst]",
 		Description: `调整图片尺寸。
 
 尺寸规则:
@@ -23,22 +24,11 @@ func newResizeCommand() *cli.Command {
   - stretch 同时指定宽高时不保持原始宽高比
 
 示例:
-  itb resize -i photo.jpg --width 1200
-  itb resize -i photo.png --height 800
-  itb resize -i photo.jpg --percent 50%
-  itb resize -i photo.jpg --width 1200 --height 630 --mode fill --anchor top`,
+	  itb resize --width 1200 photo.jpg
+	  itb resize --height 800 photo.png
+	  itb resize --percent 50% photo.jpg
+	  itb resize --width 1200 --height 630 --mode fill --anchor top photo.jpg result.jpg`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "input",
-				Aliases:  []string{"i"},
-				Usage:    "输入图片 `FILE`",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "output",
-				Aliases: []string{"o"},
-				Usage:   "输出图片 `FILE`（默认在原文件名后加 _resized）",
-			},
 			&cli.IntFlag{
 				Name:      "width",
 				Usage:     "目标宽度（像素）",
@@ -80,14 +70,15 @@ func newResizeCommand() *cli.Command {
 }
 
 func runResize(ctx context.Context, cmd *cli.Command) error {
-	inputFile := cmd.String("input")
-
-	outputPath := cmd.String("output")
+	inputFile, outputPath, err := sourceDestinationArgs(cmd, false)
+	if err != nil {
+		return err
+	}
 	if outputPath == "" {
 		outputPath = imageio.SuffixedPath(inputFile, "_resized")
 	}
 
-	err := resize.ResizeFile(inputFile, outputPath, resize.Options{
+	err = resize.ResizeFile(inputFile, outputPath, resize.Options{
 		Width:   cmd.Int("width"),
 		Height:  cmd.Int("height"),
 		Percent: cmd.String("percent"),
