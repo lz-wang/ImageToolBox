@@ -17,48 +17,53 @@ func newInspectCommand() *cli.Command {
 		Usage:     "Inspect image info, metadata, and file hashes",
 		Category:  categoryAnalysis,
 		ArgsUsage: "<src>",
-		Description: `检查本地图片文件的文件信息、图像基本信息、详细元数据和文件 hash。
+		Description: `Inspect a local image file: file information, basic
+image properties, detailed metadata, and file hashes.
 
-该命令为只读操作，不会修改原始图片。
+This command is read-only: it does not modify the source
+image. Detailed metadata and SHA-256 are included by
+default; use --no-detail or --no-hash to skip them.
 
---full-decode 对文件做完整解码（GIF 逐帧），能捕获"文件头正常但
-后半部分损坏"的问题，并给出帧数与动画状态；配合 --strict 可作为
-上传前 preflight。
+--full-decode decodes the file completely (GIF frame by
+frame), catching files whose header is fine but whose tail
+is corrupted, and reports the frame count and animation
+state. Combine it with --strict as an upload preflight.
 
-示例:
-	  itb inspect photo.jpg
-	  itb inspect --format json photo.jpg
-	  itb inspect --format plain photo.jpg
-	  itb inspect --no-detail photo.jpg
-	  itb inspect --no-hash photo.jpg
-	  itb inspect --strict --full-decode --format json image.png`,
+EXAMPLES:
+  itb inspect photo.jpg
+  itb inspect --format json photo.jpg
+  itb inspect --format plain photo.jpg
+  itb inspect --no-detail photo.jpg
+  itb inspect --no-hash photo.jpg
+  itb inspect --strict --full-decode --format json image.png`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "输出格式 `FORMAT`: table/json/plain（plain 仅输出 SHA-256）",
+				Usage:     "Output `FORMAT`: table/json/plain (plain prints the SHA-256 only)",
 				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 			&cli.BoolFlag{
-				Name:  "detail",
-				Value: true,
-				Usage: "输出详细元数据（兼容保留，关闭请使用 --no-detail）",
+				Name:   "detail",
+				Value:  true,
+				Hidden: true,
+				Usage:  "Include detailed metadata (compatibility flag; use --no-detail to skip)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-detail",
-				Usage: "不输出详细元数据（优先于 --detail）",
+				Usage: "Skip detailed metadata",
 			},
 			&cli.BoolFlag{
 				Name:  "no-hash",
-				Usage: "不计算文件 hash",
+				Usage: "Skip file hash computation",
 			},
 			&cli.BoolFlag{
 				Name:  "strict",
-				Usage: "图像解析失败时直接返回错误",
+				Usage: "Return an error when image parsing fails",
 			},
 			&cli.BoolFlag{
 				Name:  "full-decode",
-				Usage: "完整解码图片（GIF 逐帧），校验文件后半部分并输出帧数/动画状态",
+				Usage: "Fully decode the image (GIF frame by frame) to verify the file tail and report the frame count / animation state",
 			},
 		},
 		Action: runInspect,

@@ -185,7 +185,7 @@ func TestRotateHelpContract(t *testing.T) {
 		"clockwise",
 		"(-360, 360)",
 		"cannot be 0",
-		"rotated bounding box",
+		"bounding box",
 		"writes <name>_rotated.<ext>",
 		"PNG",
 		"WebP",
@@ -208,11 +208,12 @@ func TestCompareHelpContract(t *testing.T) {
 		"--psnr",
 		"--ssim",
 		"--ms-ssim",
-		"默认计算 PSNR 和 MS-SSIM",
-		"只计算显式选择的指标",
+		"<dst> is the comparison target, not an output path",
+		"This command is read-only",
+		"If no metric flag is specified, PSNR and MS-SSIM are",
+		"only explicitly enabled",
 		"161",
-		"11",
-		"只读",
+		"11x11",
 	} {
 		assertContains(t, out, want)
 	}
@@ -220,14 +221,22 @@ func TestCompareHelpContract(t *testing.T) {
 	assertNotContains(t, out, "--output")
 }
 
-// inspect：--no-detail、plain 格式语义与 full-decode 能力。
+// inspect：--no-detail、plain 格式语义与 full-decode 能力；
+// compatibility-only 的 --detail 已从 help 隐藏（行为保留）。
 func TestInspectHelpContract(t *testing.T) {
 	out := helpOutput(t, "inspect")
 
-	assertContains(t, out, "--no-detail")
-	assertContains(t, out, "plain 仅输出 SHA-256")
-	assertContains(t, out, "--full-decode")
-	assertContains(t, out, "<src>")
+	for _, want := range []string{
+		"--no-detail",
+		"plain prints the SHA-256 only",
+		"--full-decode",
+		"<src>",
+		"Detailed metadata and SHA-256 are included by",
+		"read-only",
+	} {
+		assertContains(t, out, want)
+	}
+	assertNotContains(t, out, "--detail")
 	assertNotContains(t, out, "--input")
 }
 

@@ -15,33 +15,47 @@ func newCompareCommand() *cli.Command {
 		Usage:     "Compare objective quality metrics of two images",
 		Category:  categoryAnalysis,
 		ArgsUsage: "<src> <dst>",
-		Description: `只读比较两张图片的客观质量指标（PSNR / SSIM / MS-SSIM）。
+		Description: `Compare two images with objective quality metrics
+(PSNR / SSIM / MS-SSIM).
 
-- <src> 与 <dst> 都是只读输入，命令不修改任何文件；同一文件自我比较
-  是合法的 sanity check（PSNR 为 +Inf、SSIM / MS-SSIM 为 1）
-- 支持格式: JPEG / PNG / WebP；JPEG 的 EXIF Orientation 已归一化，
-  比较的是实际视觉像素
-- 两张图片的逻辑尺寸必须完全一致，不会隐式 resize / crop / pad
-- 未指定任何指标 flag 时默认计算 PSNR 和 MS-SSIM；一旦指定任意
-  指标 flag，只计算显式选择的指标
-- SSIM 要求两边均 >= 11×11；MS-SSIM 固定五尺度，要求短边 >= 161
+<src> is the reference image.
+<dst> is the comparison target, not an output path.
+This command is read-only: it does not modify either input.
+Comparing a file with itself is a valid sanity check (PSNR
+is +Inf, SSIM / MS-SSIM are 1).
 
-示例:
-	  itb compare original.jpg compressed.jpg
-	  itb compare original.jpg compressed.jpg --ssim
-	  itb compare original.png original.webp --psnr --ssim --ms-ssim`,
+DEFAULTS:
+  If no metric flag is specified, PSNR and MS-SSIM are
+  computed.
+  If any metric flag is specified, only explicitly enabled
+  metrics are computed.
+
+CONSTRAINTS:
+  Supported formats are JPEG / PNG / WebP. JPEG EXIF
+  Orientation is normalized, so metrics compare the actual
+  visual pixels.
+  Both images must have exactly the same logical dimensions;
+  there is no implicit resize, crop, or padding.
+  SSIM requires both images to be at least 11x11.
+  MS-SSIM uses a fixed five-scale decomposition and requires
+  the shortest side to be >= 161.
+
+EXAMPLES:
+  itb compare original.jpg compressed.jpg
+  itb compare original.jpg compressed.jpg --ssim
+  itb compare original.png original.webp --psnr --ssim --ms-ssim`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "psnr",
-				Usage: "计算 PSNR（峰值信噪比，单位 dB；完全一致为 +Inf）",
+				Usage: "Compute PSNR (peak signal-to-noise ratio in dB; +Inf for identical images)",
 			},
 			&cli.BoolFlag{
 				Name:  "ssim",
-				Usage: "计算 SSIM（结构相似性，11×11 高斯窗口、sigma 1.5 的标准参数）",
+				Usage: "Compute SSIM (structural similarity; 11x11 Gaussian window, sigma 1.5)",
 			},
 			&cli.BoolFlag{
 				Name:  "ms-ssim",
-				Usage: "计算 MS-SSIM（固定五尺度，短边需 >= 161 像素）",
+				Usage: "Compute MS-SSIM (fixed five-scale; shortest side must be >= 161 pixels)",
 			},
 		},
 		Action: runCompare,

@@ -392,8 +392,8 @@ Read file info, basic image info, detailed metadata, and file hash.
 |------|--------|------|
 | `<src>` | (required) | Input image path |
 | `--format` | `table` | Output format: `table` / `json` / `plain` (`plain` prints only the SHA-256) |
-| `--no-detail` | `false` | Skip detailed metadata (takes precedence over `--detail`) |
-| `--detail` | `true` | Kept for compatibility; equivalent to not passing `--no-detail` |
+| `--no-detail` | `false` | Skip detailed metadata |
+| `--detail` | `true` | Kept for compatibility (hidden from help); equivalent to not passing `--no-detail` |
 | `--no-hash` | `false` | Skip file hash computation |
 | `--strict` | `false` | Return an error immediately if image parsing fails |
 | `--full-decode` | `false` | Fully decode the image (frame-by-frame for GIF), validating the file tail and reporting frame/animation info |

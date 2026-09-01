@@ -393,8 +393,8 @@ MS-SSIM: 0.987423
 |------|--------|------|
 | `<src>` | (必填) | 输入图片路径 |
 | `--format` | `table` | 输出格式：`table` / `json` / `plain`（`plain` 仅输出 SHA-256） |
-| `--no-detail` | `false` | 不输出详细元数据（优先于 `--detail`） |
-| `--detail` | `true` | 兼容保留，等价于不传 `--no-detail` |
+| `--no-detail` | `false` | 不输出详细元数据 |
+| `--detail` | `true` | 兼容保留（已从 help 隐藏），等价于不传 `--no-detail` |
 | `--no-hash` | `false` | 不计算文件 hash |
 | `--strict` | `false` | 图像解析失败时直接返回错误 |
 | `--full-decode` | `false` | 完整解码图片（GIF 逐帧），校验文件后半部分并输出帧数/动画状态 |
