@@ -46,7 +46,7 @@ brew install lz-wang/tap/itb
 > xattr -d com.apple.quarantine your_binary
 > ```
 
-> **文件安全**：所有图像变换命令的 `<src>` 与 `<dst>` 必须指向不同文件；显式传入相同路径、hard link 或 symlink 指向同一文件时命令会拒绝执行。原地压缩请使用 `compress --in-place`。
+> **文件安全**：显式提供 `<dst>` 时，输出不得与任何输入资源指向同一实际文件（包括等价路径、hard link 和 symlink）。`resize`、`crop`、`watermark` 等命令可省略 `[dst]` 以使用默认派生输出路径；`convert` 必须显式提供 `<dst>`。原地压缩请使用 `compress --in-place`。
 
 ## 压缩图片
 
@@ -207,7 +207,7 @@ brew install lz-wang/tap/itb
 
 ## 图像水印
 
-为图片添加文字或图片水印；文字水印支持两种模式：位置水印（单点）和重复平铺水印，图片水印仅支持位置水印。
+为图片添加文字或图片水印；文字水印支持两种模式：位置水印（单点）和重复平铺水印，图片水印仅支持位置水印。图片水印模式下，`<dst>` 也不得与 `--image` 指向同一文件。
 
 ### 位置水印（position）
 

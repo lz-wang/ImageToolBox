@@ -29,7 +29,7 @@ go vet ./...            # 静态检查
 - Domain 包是图片操作参数的唯一 Normalize/Validate 与业务规则来源。CLI 和 HTTP 只能将传输参数映射为领域 `Options`，不得通过调用 `cli.Command` 或复制业务分派来复用逻辑。
 - HTTP API 只暴露 `compress`、`resize`、`crop`、`convert`、`watermark` 和 `inspect`；S3 管理能力只由 CLI 暴露。
 - CLI 图像命令以 `<src>` / `[dst]` operand 传递本地路径；HTTP 的 `input` 是对应 `<src>` 的 multipart 上传文件，操作选项通常沿用 CLI long flag 名称，`output` 与 `in-place` 不属于 HTTP 参数。HTTP `convert` 保留 transport-only `to`，由 adapter 构造临时输出路径；`internal/convert` 始终只从 outputPath 扩展名确定目标格式。
-- File-transform domain APIs reject input/output paths that resolve to the same file. In-place mutation must use an explicit temporary-file + atomic replacement workflow; adapters must not bypass this rule.
+- File-transform domain APIs own file-safety invariants. An output path must not resolve to the same underlying file as any input resource, including equivalent paths, hard links, and symlinks. In image-watermark mode the watermark image is also an input resource. In-place mutation must use an explicit temporary-file + atomic replacement workflow; adapters must not bypass this rule.
 - HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
 - `serve` 负责 HTTP server 生命周期；`internal/httpapi` 只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
 
@@ -46,6 +46,7 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
 - `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，HTTP API 不提供任何存储相关 API。
 - `internal/httpapi`：`itb serve` 的标准库 HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程。
+- `watermark.AddFile` 是文件级水印领域入口。渲染 helper 必须保持包私有，CLI/HTTP adapter 不得绕过该入口。
 
 ### 命令注册约定
 

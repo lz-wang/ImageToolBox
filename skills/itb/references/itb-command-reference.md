@@ -248,27 +248,42 @@ carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,
 `itb.s3.stat.v1`); scripts should branch on it rather than parsing terminal
 text. stdout carries results only — progress and diagnostics go to stderr.
 
-## Serve (WebUI)
+## Serve (HTTP API)
 
-Starts the local-first WebUI. It calls the same Go domain packages as the CLI (no subprocesses) and embeds the built frontend, so a single binary is all you need.
+Starts the trusted HTTP API. It directly calls the same Go domain packages used by the CLI and does not spawn CLI subprocesses. There is no built-in WebUI.
 
 Examples:
 
 ```bash
+export ITB_API_TOKEN='replace-with-a-strong-token'
 itb serve
 itb serve --addr 127.0.0.1:9000
-itb serve --open
 curl http://127.0.0.1:8080/api/v1/health
+
+# For loopback local development only
+itb serve --no-auth
 ```
 
 Flags:
 
 - `--addr`: listen address; default `127.0.0.1:8080`. Keep it on loopback unless the network is trusted.
-- `--open`: open the browser after startup; default `false`.
+- `--max-upload`: maximum multipart request size.
+- `--max-pixels`: maximum decoded image pixel count.
+- `--max-dimension`: maximum image width or height.
+- `--max-concurrent`: maximum concurrent image operations.
+- `--max-working-bytes`: per-operation working-memory limit.
+- `--timeout`: per-operation timeout.
+- `--no-auth`: disable Bearer-token authentication for loopback-only local development.
 
-Feature scope: single-image tools (compress/resize/crop/convert/watermark/inspect).
+Authentication:
+
+- Set `ITB_API_TOKEN` for normal operation.
+- Image-processing requests use `Authorization: Bearer $ITB_API_TOKEN`.
+- `/api/v1/health` remains unauthenticated.
+
+Feature scope: `compress`, `resize`, `crop`, `convert`, `watermark`, and `inspect`. The HTTP API intentionally does not expose S3 management, a WebUI, workflows, user management, databases, or task queues.
 
 Security notes:
 
-- The WebUI is stateless: uploads land in per-request temp directories that are removed after the response.
-- The WebUI only performs local image processing and never handles external-service credentials.
+- The API is stateless: uploads land in per-request temp directories that are removed after the response.
+- The API only performs local image processing and never handles external-service credentials.

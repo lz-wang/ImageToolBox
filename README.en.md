@@ -46,7 +46,7 @@ After installing, verify with `itb --version` (or `itb version`).
 > xattr -d com.apple.quarantine your_binary
 > ```
 
-> **File safety:** every image transform command requires `<src>` and `<dst>` to refer to different files. The command rejects identical paths, hard links, and symbolic links that resolve to the same file. Use `compress --in-place` for in-place compression.
+> **File safety:** when an explicit `<dst>` is provided, the output must not resolve to the same file as any input resource, including equivalent paths, hard links, and symbolic links. `resize`, `crop`, and `watermark` may derive a default destination when `[dst]` is omitted; `convert` requires `<dst>`. Use `compress --in-place` for in-place compression.
 
 ## Compress images
 
@@ -206,7 +206,7 @@ Conversion semantics are fixed per target format:
 
 ## Watermark
 
-Add text or image watermarks to images; text watermarks support two modes — position (single point) and repeated tile — while image watermarks support the position mode only.
+Add text or image watermarks to images; text watermarks support two modes — position (single point) and repeated tile — while image watermarks support the position mode only. For image watermarks, `<dst>` must not alias the file passed to `--image`.
 
 ### Position watermark (position)
 
