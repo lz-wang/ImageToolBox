@@ -115,10 +115,10 @@ jobs:
           docker logs minio
           exit 1
 
-      - name: Run release checks
+      - name: Run unit checks
         run: |
           make check
-          make test
+          make test-unit
 
       - name: Run MinIO domain integration tests
         run: go test ./internal/s3 -run '^TestMinIOIntegration$' -v

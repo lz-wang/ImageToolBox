@@ -34,6 +34,9 @@ check:
 test:
 	go test ./...
 
+test-unit:
+	go test ./... -skip '^TestMinIO(Integration|CLIE2E)$$'
+
 serve: build
 	./itb serve
 

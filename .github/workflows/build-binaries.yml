@@ -61,10 +61,10 @@ jobs:
           docker logs minio
           exit 1
 
-      - name: Run checks
+      - name: Run unit checks
         run: |
           make check
-          make test
+          make test-unit
           go test -race ./internal/compress ./internal/httpapi
 
       - name: Run MinIO domain integration tests
