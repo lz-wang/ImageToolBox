@@ -410,6 +410,37 @@ func TestPositionalPathContracts(t *testing.T) {
 	}
 }
 
+func TestPositionalPathsAllowFlagsAfterOperands(t *testing.T) {
+	err := runContract("resize", "missing.jpg", "out.jpg", "--width", "100")
+	if err == nil {
+		t.Fatal("expected missing input error, got nil")
+	}
+	if strings.Contains(err.Error(), "flag provided but not defined") {
+		t.Fatalf("flags after operands were parsed as unknown: %v", err)
+	}
+}
+
+func TestRemovedImageInputOutputFlagsAreRejected(t *testing.T) {
+	tests := [][]string{
+		{"resize", "--input", "a.jpg", "--width", "100"},
+		{"convert", "--to", "webp", "a.png", "b.webp"},
+		{"crop", "-i", "a.jpg", "--anchor", "left", "--width", "40%"},
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			err := runContract(args...)
+			if err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+				t.Fatalf("error = %v, want undefined flag error", err)
+			}
+		})
+	}
+
+	err := runContract("s3", "upload", "-i", "a.jpg", "-b", "test")
+	if err == nil || strings.Contains(err.Error(), "flag provided but not defined") {
+		t.Fatalf("s3 upload -i should remain valid, error = %v", err)
+	}
+}
+
 func TestVersionCommand(t *testing.T) {
 	if err := runContract("version"); err != nil {
 		t.Fatalf("version command failed: %v", err)

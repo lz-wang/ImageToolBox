@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -23,7 +24,15 @@ func TestRejectSameFile(t *testing.T) {
 		{name: "literal path", output: input, wantErr: ErrSameFile},
 		{name: "equivalent path", output: filepath.Join(dir, ".", "input.png"), wantErr: ErrSameFile},
 		{name: "hardlink", output: filepath.Join(dir, "hardlink.png"), prepare: func(output string) error { return os.Link(input, output) }, wantErr: ErrSameFile},
-		{name: "symlink", output: filepath.Join(dir, "symlink.png"), prepare: func(output string) error { return os.Symlink(input, output) }, wantErr: ErrSameFile},
+		{name: "symlink", output: filepath.Join(dir, "symlink.png"), prepare: func(output string) error {
+			if err := os.Symlink(input, output); err != nil {
+				if runtime.GOOS == "windows" {
+					t.Skipf("creating symlink: %v", err)
+				}
+				return err
+			}
+			return nil
+		}, wantErr: ErrSameFile},
 		{name: "different nonexistent output", output: filepath.Join(dir, "new.png")},
 		{name: "different existing output", output: filepath.Join(dir, "other.png"), prepare: func(output string) error { return os.WriteFile(output, []byte("other"), 0o600) }},
 	}
