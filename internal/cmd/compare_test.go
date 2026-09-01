@@ -167,3 +167,74 @@ func TestComparePositionalArgs(t *testing.T) {
 		})
 	}
 }
+
+// CLI 集成：testApp 全链路（解析 → 领域 → 输出）正常完成，
+// identical 输出 +Inf，小图按验收矩阵分别成功 / 失败。
+func TestCompareCLIIntegration(t *testing.T) {
+	src, dst := compareTestImages(t)
+
+	t.Run("默认指标正常完成", func(t *testing.T) {
+		if err := runContract("compare", src, dst); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("identical 输出 +Inf", func(t *testing.T) {
+		out, err := captureStdoutRun(t, src, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !hasLine(out, "PSNR: +Inf dB") {
+			t.Fatalf("output missing \"PSNR: +Inf dB\":\n%s", out)
+		}
+		if !hasLine(out, "MS-SSIM: 1.000000") {
+			t.Fatalf("output missing \"MS-SSIM: 1.000000\":\n%s", out)
+		}
+	})
+
+	t.Run("小图 --psnr 成功", func(t *testing.T) {
+		dir := t.TempDir()
+		small, small2 := smallTestImages(t, dir)
+		if err := runContract("compare", small, small2, "--psnr"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("小图默认因 MS-SSIM 失败并给出建议", func(t *testing.T) {
+		dir := t.TempDir()
+		small, small2 := smallTestImages(t, dir)
+		err := runContract("compare", small, small2)
+		if err == nil || !strings.Contains(err.Error(), "161") {
+			t.Fatalf("error = %v, want MS-SSIM minimum-size hint", err)
+		}
+	})
+}
+
+// smallTestImages 生成 32×32 的对比图（低于 MS-SSIM 的 161 最小短边）。
+func smallTestImages(t *testing.T, dir string) (string, string) {
+	t.Helper()
+
+	makeImg := func(name string, distort bool) string {
+		img := image.NewNRGBA(image.Rect(0, 0, 32, 32))
+		for y := 0; y < 32; y++ {
+			for x := 0; x < 32; x++ {
+				r := uint8((x * 255) / 31)
+				if distort {
+					r = uint8(min(int(r)+5, 255))
+				}
+				img.SetNRGBA(x, y, color.NRGBA{R: r, G: uint8(y * 8), B: 128, A: 255})
+			}
+		}
+		path := filepath.Join(dir, name)
+		f, err := os.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, img); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	return makeImg("small.png", false), makeImg("small2.png", true)
+}
