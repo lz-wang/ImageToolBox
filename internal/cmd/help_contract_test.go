@@ -180,6 +180,7 @@ func TestS3UploadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "upload")
 
 	for _, want := range []string{
+		"<src>", "[key]",
 		"--metadata",
 		"--cache-control",
 		"--content-disposition",
@@ -191,6 +192,8 @@ func TestS3UploadHelpContract(t *testing.T) {
 	} {
 		assertContains(t, out, want)
 	}
+	assertNotContains(t, out, "--input")
+	assertNotContains(t, out, "--key")
 }
 
 // s3 download：默认输出是对象键最后一段，不是完整键名；
@@ -198,6 +201,8 @@ func TestS3UploadHelpContract(t *testing.T) {
 func TestS3DownloadHelpContract(t *testing.T) {
 	out := helpOutput(t, "s3", "download")
 
+	assertContains(t, out, "<key>")
+	assertContains(t, out, "[dst]")
 	assertContains(t, out, "当前目录")
 	assertContains(t, out, "最后一段")
 	assertContains(t, out, "--verify")
@@ -205,4 +210,25 @@ func TestS3DownloadHelpContract(t *testing.T) {
 	assertContains(t, out, "--format")
 	assertContains(t, out, "partial")
 	assertNotContains(t, out, "默认使用对象键名")
+	assertNotContains(t, out, "--key")
+	assertNotContains(t, out, "--output")
+}
+
+func TestS3ObjectSelectorHelpContract(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		args   []string
+		want   string
+		banned string
+	}{
+		{"stat", []string{"s3", "stat"}, "<key>", "--key"},
+		{"delete", []string{"s3", "delete"}, "<key>", "--key"},
+		{"list", []string{"s3", "list"}, "[prefix]", "--prefix"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := helpOutput(t, tt.args...)
+			assertContains(t, out, tt.want)
+			assertNotContains(t, out, tt.banned)
+		})
+	}
 }

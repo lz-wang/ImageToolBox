@@ -445,6 +445,59 @@ func TestRemovedImageInputOutputFlagsAreRejected(t *testing.T) {
 	}
 }
 
+func TestRemovedS3LocatorFlagsAreRejected(t *testing.T) {
+	tests := [][]string{
+		{"s3", "upload", "-i", "a.jpg"},
+		{"s3", "upload", "a.jpg", "-k", "x.jpg"},
+		{"s3", "download", "-k", "x.jpg"},
+		{"s3", "download", "x.jpg", "-o", "y.jpg"},
+		{"s3", "stat", "-k", "x.jpg"},
+		{"s3", "delete", "-k", "x.jpg"},
+		{"s3", "list", "-p", "images/"},
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			err := runContract(args...)
+			if err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+				t.Fatalf("error = %v, want undefined flag error", err)
+			}
+		})
+	}
+}
+
+func TestS3StatAcceptsDashPrefixedKeyAfterSeparator(t *testing.T) {
+	setS3Env(t, map[string]string{
+		"ITB_S3_ENDPOINT":          "http://localhost:9000",
+		"ITB_S3_ACCESS_KEY_ID":     "ak",
+		"ITB_S3_SECRET_ACCESS_KEY": "sk",
+		"ITB_S3_BUCKET":            "test",
+	})
+
+	app := testApp()
+	for _, sub := range app.Commands {
+		if sub.Name != "s3" {
+			continue
+		}
+		for _, command := range sub.Commands {
+			if command.Name == "stat" {
+				command.Action = func(_ context.Context, cmd *cli.Command) error {
+					key, err := s3KeyArg(cmd)
+					if err != nil {
+						return err
+					}
+					if key != "-object-name" {
+						t.Fatalf("key = %q, want %q", key, "-object-name")
+					}
+					return nil
+				}
+			}
+		}
+	}
+	if err := app.Run(context.Background(), []string{"itb", "s3", "stat", "--", "-object-name"}); err != nil {
+		t.Fatalf("stat with -- separator: %v", err)
+	}
+}
+
 func TestVersionCommand(t *testing.T) {
 	if err := runContract("version"); err != nil {
 		t.Fatalf("version command failed: %v", err)
