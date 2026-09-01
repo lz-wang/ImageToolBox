@@ -85,21 +85,31 @@ func combineMSSSIM(ssim5 float64, csMeans [msSSIMScales - 1]float64) float64 {
 // downsample2x2 对平面做 2×2 均值低通加 2 倍降采样。
 //
 // 奇数宽/高的边缘块只平均实际存在的 1-2 个像素（新尺寸为 ceil 半除），
-// 偶数尺寸的行为与标准 2×2 平均完全一致。
+// 绝不做 clamp 重复采样——同一像素被重复累加后无论除数如何修正都
+// 不等于真实平均值。偶数尺寸的行为与标准 2×2 平均完全一致。
 func downsample2x2(in []float32, width, height, newWidth, newHeight int) []float32 {
 	out := make([]float32, newWidth*newHeight)
 	for y := 0; y < newHeight; y++ {
 		y0 := 2 * y
-		y1 := min(y0+1, height-1)
-		yCount := y1 - y0 + 1
 		for x := 0; x < newWidth; x++ {
 			x0 := 2 * x
-			x1 := min(x0+1, width-1)
-			xCount := x1 - x0 + 1
-			// x0==x1（或 y0==y1）时同一像素被加两次，除以对应计数后
-			// 恰好等于单像素（或行/列）平均值。
-			sum := in[y0*width+x0] + in[y0*width+x1] + in[y1*width+x0] + in[y1*width+x1]
-			out[y*newWidth+x] = sum / float32(xCount*yCount)
+			var sum float32
+			var count int
+			for dy := 0; dy < 2; dy++ {
+				sy := y0 + dy
+				if sy >= height {
+					continue
+				}
+				for dx := 0; dx < 2; dx++ {
+					sx := x0 + dx
+					if sx >= width {
+						continue
+					}
+					sum += in[sy*width+sx]
+					count++
+				}
+			}
+			out[y*newWidth+x] = sum / float32(count)
 		}
 	}
 	return out

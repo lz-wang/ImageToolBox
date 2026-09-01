@@ -121,7 +121,9 @@ func TestReferenceVectorMatchesNaive(t *testing.T) {
 }
 
 // naiveMSSSIMChannel 是 MS-SSIM 的独立参考实现：复用 naive 逐窗口
-// SSIM，按固定权重组合，幂运算前非负钳制。
+// SSIM 与独立的 naiveDownsample2x2（不调用生产 downsample helper，
+// 避免参考实现与被测实现共享同一处错误），按固定权重组合，幂运算前
+// 非负钳制。
 func naiveMSSSIMChannel(x, y []float32, width, height int) float64 {
 	xs, ys := x, y
 	w, h := width, height
@@ -134,10 +136,9 @@ func naiveMSSSIMChannel(x, y []float32, width, height int) float64 {
 			break
 		}
 		csMeans[scale] = cs
-		nw, nh := (w+1)/2, (h+1)/2
-		nextX := downsample2x2(xs, w, h, nw, nh)
-		nextY := downsample2x2(ys, w, h, nw, nh)
-		xs, ys, w, h = nextX, nextY, nw, nh
+		nextX, nextY := naiveDownsample2x2(xs, w, h), naiveDownsample2x2(ys, w, h)
+		w, h = (w+1)/2, (h+1)/2
+		xs, ys = nextX, nextY
 	}
 	result := math.Pow(max(ssim5, 0), msSSIMWeights[msSSIMScales-1])
 	for j := range csMeans {

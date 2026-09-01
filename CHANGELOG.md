@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - 新增 `itb compare <src> <dst>` 只读图片质量比较命令，纯 Go 实现 PSNR、SSIM 与五尺度 MS-SSIM；默认计算 PSNR + MS-SSIM，显式指标 flag 时仅计算所选指标。两图逻辑尺寸必须一致（不隐式缩放），JPEG EXIF Orientation 已归一化，含 Alpha 图片采用 premultiplied RGB + A 的 alpha-aware 变体；SSIM 最小 11×11，MS-SSIM 短边最小 161。仅 CLI 暴露，不进入 HTTP API。
 
+### Fixed
+
+- 修正 MS-SSIM 奇数宽/高边缘块的 2×2 下采样：原先对边缘像素做 clamp 重复采样并以可变除数修正，导致奇数尺寸图（如 321×257，以及 161 最小边界的每一层金字塔）的边缘块平均值被放大 2-4 倍；现在只平均实际存在的像素。偶数尺寸的数值不受影响。MS-SSIM 参考实现不再复用生产下采样 helper，并新增奇数尺寸（3×2/2×3/3×3/5×5/161×161/321×257）回归锁定。
+
 ## [v0.8.0] - 2026-09-01
 
 ### Fixed
