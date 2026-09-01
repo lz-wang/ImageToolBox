@@ -190,24 +190,26 @@ Common flags:
 Examples:
 
 ```bash
-itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000 --force-path-style
-itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
-itb s3 upload -i image.webp -b my-bucket -k image/xx.webp --cache-control no-cache \
+itb s3 upload -b my-bucket -e http://localhost:9000 --force-path-style photo.jpg
+itb s3 upload -b my-bucket photo.jpg images/photo.jpg
+itb s3 upload -b my-bucket --cache-control no-cache image.webp image/xx.webp \
   --metadata source-sha256=abc123 --metadata width=1920
-itb s3 upload -i photo.jpg -b my-bucket --skip-existing
-itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
-itb s3 upload -i photo.jpg -b my-bucket --verify
-itb s3 download -b my-bucket -k images/photo.jpg -o ./photo.jpg
-itb s3 download -b my-bucket -k images/photo.jpg   # saves ./photo.jpg (last key segment)
-itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
-itb s3 list -b my-bucket -p images/ --format json
-itb s3 stat -b my-bucket -k images/photo.jpg
-itb s3 stat -b my-bucket -k images/photo.jpg --format json
-itb s3 delete -b my-bucket -k images/photo.jpg
-itb s3 delete -b my-bucket -k images/photo.jpg -f
+itb s3 upload -b my-bucket --skip-existing photo.jpg
+itb s3 upload -b my-bucket --skip-unchanged photo.jpg
+itb s3 upload -b my-bucket --verify photo.jpg
+itb s3 download -b my-bucket images/photo.jpg ./photo.jpg
+itb s3 download -b my-bucket images/photo.jpg   # saves ./photo.jpg (last key segment)
+itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
+itb s3 list -b my-bucket --format json images/
+itb s3 stat -b my-bucket images/photo.jpg
+itb s3 stat -b my-bucket --format json images/photo.jpg
+itb s3 delete -b my-bucket images/photo.jpg
+itb s3 delete -b my-bucket -f images/photo.jpg
 ```
 
 Use `s3 delete -f` only for explicitly requested non-interactive deletion.
+
+S3 object/file operands are positional: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Connection settings and processing behavior remain flags or `ITB_S3_*` environment variables.
 
 `s3 stat` shows full metadata of one object with a single HEAD request (no
 content transfer) and never falls back to list inference; prefer it over

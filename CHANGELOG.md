@@ -10,7 +10,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`; S3 command flags are unchanged.
+- **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`.
+- **BREAKING:** S3 object/file selectors now use positional operands: `s3 upload <src> [key]`, `s3 download <key> [dst]`, `s3 stat <key>`, `s3 delete <key>`, and `s3 list [prefix]`. Removed S3 locator flags `--input/-i`, `--output/-o`, `--key/-k`, and `--prefix/-p`.
 
 ## [v0.7.0] - 2026-09-01
 

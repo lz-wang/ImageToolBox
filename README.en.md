@@ -396,6 +396,8 @@ make test     # go test
 
 ## S3-compatible storage
 
+S3 object/file operands use positional arguments: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Connection settings and execution behavior remain flags or `ITB_S3_*` environment variables.
+
 Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, Tencent Cloud COS, etc.
 
 Output convention: **stdout carries formal results only** (switch with
@@ -453,29 +455,29 @@ All S3 subcommands share the following options:
 
 ```bash
 # Upload a file to the bucket
-./itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
+./itb s3 upload -b my-bucket -e http://localhost:9000 photo.jpg
 
 # Specify the object key (defaults to the file name)
-./itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+./itb s3 upload -b my-bucket photo.jpg images/photo.jpg
 
 # Specify the Content-Type
-./itb s3 upload -i data.json -b my-bucket --content-type application/json
+./itb s3 upload -b my-bucket --content-type application/json data.json
 
 # Attach user metadata (key=value, repeatable; keys are lowercased, itb-sha256 is reserved)
-./itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+./itb s3 upload -b my-bucket image.webp image/xx.webp \
   --metadata source-sha256=abc123 --metadata width=1920 --metadata height=1080
 
 # Set standard HTTP response headers (stable-URL publishing)
-./itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+./itb s3 upload -b my-bucket --cache-control no-cache image.webp
 
 # Skip when an object with the same key already exists (one HEAD instead of a full upload)
-./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+./itb s3 upload -b my-bucket --skip-existing photo.jpg
 
 # Skip only when content is unchanged (compares itb-sha256 metadata, not ETag)
-./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+./itb s3 upload -b my-bucket --skip-unchanged photo.jpg
 
 # Follow the PUT with one HEAD to verify the stored object matches this upload
-./itb s3 upload -i photo.jpg -b my-bucket --verify
+./itb s3 upload -b my-bucket --verify photo.jpg
 ```
 
 Every upload stores the local file's SHA-256 in object user metadata
@@ -498,8 +500,8 @@ uploads as `text/html`, not `image/jpeg`.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-i, --input` | (required) | Local file path |
-| `-k, --key` | file name | Object key |
+| `<src>` | (required) | Local file path |
+| `[key]` | file name | Object key |
 | `--content-type` | content-detected | Content type (explicit value is used verbatim) |
 | `--metadata` | (empty) | Object user metadata `KEY=VALUE` (repeatable) |
 | `--cache-control` | (empty) | Cache-Control response header (e.g. `no-cache`, `max-age=31536000`) |
@@ -528,16 +530,16 @@ local file values.
 
 ```bash
 # Download a file
-./itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
+./itb s3 download -b my-bucket photo.jpg ./photo.jpg
 
-# Without -o, saves to the current directory using the last segment of the key (photo.jpg)
-./itb s3 download -b my-bucket -k images/photo.jpg
+# Without [dst], saves to the current directory using the last segment of the key (photo.jpg)
+./itb s3 download -b my-bucket images/photo.jpg
 
 # Verify while downloading (reads the object's itb-sha256 metadata, single pass)
-./itb s3 download -b my-bucket -k photo.jpg --verify
+./itb s3 download -b my-bucket --verify photo.jpg
 
 # Verify against a known hash (provider-neutral integrity check; combinable with --verify)
-./itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
+./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
 ```
 
 Downloads stream into a temp file in the output directory and rename into place
@@ -553,8 +555,8 @@ with `ErrInvalidSHA256` before any network request is made.
 
 | Option | Description |
 |------|------|
-| `-k, --key` | Object key (required) |
-| `-o, --output` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
+| `<key>` | Object key (required) |
+| `[dst]` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
 | `--verify` | Read the object's itb-sha256 metadata and compare the SHA-256 computed while streaming |
 | `--verify-sha256` | Expected SHA-256 (64 hex characters), independent of object metadata |
 | `--format` | Output format: `table` / `json` (JSON contract `itb.s3.download.v1`) |
@@ -565,10 +567,10 @@ with `ErrInvalidSHA256` before any network request is made.
 
 ```bash
 # Delete an object (confirmation required)
-./itb s3 delete -b my-bucket -k photo.jpg
+./itb s3 delete -b my-bucket photo.jpg
 
 # Force delete (no confirmation)
-./itb s3 delete -b my-bucket -k photo.jpg -f
+./itb s3 delete -b my-bucket -f photo.jpg
 ```
 
 <details>
@@ -576,7 +578,7 @@ with `ErrInvalidSHA256` before any network request is made.
 
 | Option | Description |
 |------|------|
-| `-k, --key` | Object key (required) |
+| `<key>` | Object key (required) |
 | `-f, --force` | Force delete without confirmation |
 
 </details>
@@ -588,7 +590,7 @@ with `ErrInvalidSHA256` before any network request is made.
 ./itb s3 list -b my-bucket
 
 # Filter by prefix
-./itb s3 list -b my-bucket -p images/
+./itb s3 list -b my-bucket images/
 
 # JSON output
 ./itb s3 list -b my-bucket --format json
@@ -599,7 +601,7 @@ with `ErrInvalidSHA256` before any network request is made.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-p, --prefix` | | Object key prefix |
+| `[prefix]` | | Object key prefix |
 | `--max-keys` | `1000` | Maximum number of results |
 | `--format` | `table` | Output format: `table` / `json` / `plain` |
 
@@ -609,10 +611,10 @@ with `ErrInvalidSHA256` before any network request is made.
 
 ```bash
 # Show full metadata of a single object (one HEAD request, no content transfer)
-./itb s3 stat -b my-bucket -k images/photo.jpg
+./itb s3 stat -b my-bucket images/photo.jpg
 
 # JSON output
-./itb s3 stat -b my-bucket -k images/photo.jpg --format json
+./itb s3 stat -b my-bucket --format json images/photo.jpg
 ```
 
 stat always queries by the exact object key and never falls back to list
@@ -640,7 +642,7 @@ Scripts should branch on `schema_version` instead of parsing terminal text.
 
 | Option | Default | Description |
 |------|--------|------|
-| `-k, --key` | (required) | Object key |
+| `<key>` | (required) | Object key |
 | `--format` | `table` | Output format: `table` / `json` |
 
 </details>

@@ -397,6 +397,8 @@ make test     # go test
 
 ## S3 兼容存储操作
 
+S3 的对象/文件 operand 使用位置参数：`upload <src> [key]`、`download <key> [dst]`、`stat/delete <key>`、`list [prefix]`。连接配置与执行策略继续使用 flags 或 `ITB_S3_*` 环境变量。
+
 支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
 
 输出约定：**stdout 只承载正式结果**（`--format table|json` 切换，upload/download/stat/list
@@ -450,29 +452,29 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 
 ```bash
 # 上传文件到存储桶
-./itb s3 upload -i photo.jpg -b my-bucket -e http://localhost:9000
+./itb s3 upload -b my-bucket -e http://localhost:9000 photo.jpg
 
 # 指定对象键名（默认使用文件名）
-./itb s3 upload -i photo.jpg -b my-bucket -k images/photo.jpg
+./itb s3 upload -b my-bucket photo.jpg images/photo.jpg
 
 # 指定 Content-Type
-./itb s3 upload -i data.json -b my-bucket --content-type application/json
+./itb s3 upload -b my-bucket --content-type application/json data.json
 
 # 写入用户 metadata（key=value，可重复；键转小写，itb-sha256 为保留键）
-./itb s3 upload -i image.webp -b my-bucket -k image/xx.webp \
+./itb s3 upload -b my-bucket image.webp image/xx.webp \
   --metadata source-sha256=abc123 --metadata width=1920 --metadata height=1080
 
 # 设置标准 HTTP 响应头（稳定 URL 发布）
-./itb s3 upload -i image.webp -b my-bucket --cache-control no-cache
+./itb s3 upload -b my-bucket --cache-control no-cache image.webp
 
 # 同名对象已存在即跳过（1 次 HEAD 代替整文件上传）
-./itb s3 upload -i photo.jpg -b my-bucket --skip-existing
+./itb s3 upload -b my-bucket --skip-existing photo.jpg
 
 # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
-./itb s3 upload -i photo.jpg -b my-bucket --skip-unchanged
+./itb s3 upload -b my-bucket --skip-unchanged photo.jpg
 
 # PUT 后追加 1 次 HEAD，校验远端属性与本次上传一致
-./itb s3 upload -i photo.jpg -b my-bucket --verify
+./itb s3 upload -b my-bucket --verify photo.jpg
 ```
 
 上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
@@ -491,8 +493,8 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-i, --input` | (必填) | 本地文件路径 |
-| `-k, --key` | 文件名 | 对象键名 |
+| `<src>` | (必填) | 本地文件路径 |
+| `[key]` | 文件名 | 对象键名 |
 | `--content-type` | 内容检测 | 内容类型（显式指定原样生效） |
 | `--metadata` | (空) | 对象用户 metadata `KEY=VALUE`（可重复） |
 | `--cache-control` | (空) | Cache-Control 响应头（如 `no-cache`、`max-age=31536000`） |
@@ -519,16 +521,16 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 ```bash
 # 下载文件
-./itb s3 download -b my-bucket -k photo.jpg -o ./photo.jpg
+./itb s3 download -b my-bucket photo.jpg ./photo.jpg
 
-# 未指定 -o 时保存到当前目录，文件名取对象键最后一段（photo.jpg）
-./itb s3 download -b my-bucket -k images/photo.jpg
+# 未指定 [dst] 时保存到当前目录，文件名取对象键最后一段（photo.jpg）
+./itb s3 download -b my-bucket images/photo.jpg
 
 # 边下载边校验（读取对象 itb-sha256 metadata，单遍计算，不二次读取本地文件）
-./itb s3 download -b my-bucket -k photo.jpg --verify
+./itb s3 download -b my-bucket --verify photo.jpg
 
 # 按已知哈希校验（provider-neutral 完整性验证，可与 --verify 同用）
-./itb s3 download -b my-bucket -k sha256/xxx -o /tmp/original.png --verify-sha256 "$SOURCE_SHA256"
+./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
 ```
 
 下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败（网络中断、
@@ -543,8 +545,8 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 | 参数 | 说明 |
 |------|------|
-| `-k, --key` | 对象键名（必填） |
-| `-o, --output` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
+| `<key>` | 对象键名（必填） |
+| `[dst]` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
 | `--verify` | 读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对 |
 | `--verify-sha256` | 期望的 SHA-256（64 个十六进制字符），独立于对象 metadata 的完整性校验 |
 | `--format` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.download.v1`） |
@@ -555,10 +557,10 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 ```bash
 # 删除对象（需要确认）
-./itb s3 delete -b my-bucket -k photo.jpg
+./itb s3 delete -b my-bucket photo.jpg
 
 # 强制删除（不需要确认）
-./itb s3 delete -b my-bucket -k photo.jpg -f
+./itb s3 delete -b my-bucket -f photo.jpg
 ```
 
 <details>
@@ -566,7 +568,7 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 | 参数 | 说明 |
 |------|------|
-| `-k, --key` | 对象键名（必填） |
+| `<key>` | 对象键名（必填） |
 | `-f, --force` | 强制删除，不确认 |
 
 </details>
@@ -578,7 +580,7 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 ./itb s3 list -b my-bucket
 
 # 按前缀过滤
-./itb s3 list -b my-bucket -p images/
+./itb s3 list -b my-bucket images/
 
 # JSON 格式输出
 ./itb s3 list -b my-bucket --format json
@@ -589,7 +591,7 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-p, --prefix` | | 对象键前缀 |
+| `[prefix]` | | 对象键前缀 |
 | `--max-keys` | `1000` | 最大返回数量 |
 | `--format` | `table` | 输出格式：`table` / `json` / `plain` |
 
@@ -599,10 +601,10 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 ```bash
 # 查看单个对象的完整元数据（只发一次 HEAD 请求，不下载内容）
-./itb s3 stat -b my-bucket -k images/photo.jpg
+./itb s3 stat -b my-bucket images/photo.jpg
 
 # JSON 格式输出
-./itb s3 stat -b my-bucket -k images/photo.jpg --format json
+./itb s3 stat -b my-bucket --format json images/photo.jpg
 ```
 
 stat 始终按精确对象键查询，对象不存在时不回退到 list 推断。返回的元数据包括
@@ -627,7 +629,7 @@ Size、ETag、Content-Type、Storage Class、Cache-Control、Version ID 与用�
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `-k, --key` | (必填) | 对象键名 |
+| `<key>` | (必填) | 对象键名 |
 | `--format` | `table` | 输出格式：`table` / `json` |
 
 </details>

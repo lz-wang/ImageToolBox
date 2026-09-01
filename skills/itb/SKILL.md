@@ -45,6 +45,7 @@ itb watermark -t "Draft" --mode repeat --opacity 0.25 output.webp marked.webp
 - `compress` keeps the input and writes `<name>_compressed.<ext>` by default; pass `--in-place` only when the user explicitly wants to overwrite the original (`--in-place` cannot be combined with a `[dst]` operand).
 - Never choose an output path that aliases any input resource. `itb` rejects equivalent paths, hard links, and symlinks that resolve to the same file. For image watermarks this also applies to `--image`.
 - Treat `s3 delete` as destructive; use `-f` only when the user clearly requested non-interactive deletion.
+- Use S3 resource operands positionally: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Do not use the removed `--input`, `--output`, `--key`, or `--prefix` flags.
 - Do not print secrets. Prefer environment variables for `ITB_S3_*` credentials, including the temporary-credential `ITB_S3_SESSION_TOKEN` (session tokens must not land in shell history).
 - Use `--force-path-style` (or `ITB_S3_FORCE_PATH_STYLE`) for MinIO-style endpoints; loopback and `:9000` endpoints enable path style automatically.
 - When uploading for publishing, attach provenance with `--metadata key=value` (e.g. `source-sha256`, `width`, `height`) and `--cache-control no-cache` for stable-URL images; `itb-sha256` is a reserved metadata key.

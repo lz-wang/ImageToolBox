@@ -31,6 +31,7 @@ go vet ./...            # 静态检查
 - CLI 图像命令以 `<src>` / `[dst]` operand 传递本地路径；HTTP 的 `input` 是对应 `<src>` 的 multipart 上传文件，操作选项通常沿用 CLI long flag 名称，`output` 与 `in-place` 不属于 HTTP 参数。HTTP `convert` 保留 transport-only `to`，由 adapter 构造临时输出路径；`internal/convert` 始终只从 outputPath 扩展名确定目标格式。
 - File-transform domain APIs own file-safety invariants. An output path must not resolve to the same underlying file as any input resource, including equivalent paths, hard links, and symlinks. In image-watermark mode the watermark image is also an input resource. In-place mutation must use an explicit temporary-file + atomic replacement workflow; adapters must not bypass this rule.
 - HTTP API 是可信远程服务而非远程 Shell：不提供 WebUI、工作流、用户系统、数据库、任务队列、TLS/ACME 或 API S3 管理能力。
+- S3 CLI resource operands use positional arguments: `upload <src> [key]`, `download <key> [dst]`, `stat/delete <key>`, and `list [prefix]`. Connection configuration and execution behavior remain flags/environment variables; do not reintroduce `--input`, `--output`, `--key`, or `--prefix`.
 - `serve` 负责 HTTP server 生命周期；`internal/httpapi` 只负责 HTTP adapter。每个请求必须有独立临时目录并在结束时清理。
 
 ### 分层与依赖方向
