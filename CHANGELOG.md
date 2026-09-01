@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Image transform commands reject destinations that resolve to the source file, including equivalent paths, hard links, and symbolic links, preventing destructive partial overwrites. `compress --in-place` continues to use its temporary-file + rename path.
+
 ### Changed
 
 - **BREAKING:** local image commands now use positional paths: `itb <command> [options] <src> [dst]`; `convert` requires `<dst>` and determines its format from the destination extension. Removed local image-command `-i`/`--input`, `-o`/`--output`, and `convert --to`; S3 command flags are unchanged.

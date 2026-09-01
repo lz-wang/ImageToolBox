@@ -46,6 +46,8 @@ brew install lz-wang/tap/itb
 > xattr -d com.apple.quarantine your_binary
 > ```
 
+> **文件安全**：所有图像变换命令的 `<src>` 与 `<dst>` 必须指向不同文件；显式传入相同路径、hard link 或 symlink 指向同一文件时命令会拒绝执行。原地压缩请使用 `compress --in-place`。
+
 ## 压缩图片
 
 自动检测图片格式（PNG/JPEG）并压缩，默认保留原文件：

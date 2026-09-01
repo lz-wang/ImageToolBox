@@ -46,6 +46,8 @@ After installing, verify with `itb --version` (or `itb version`).
 > xattr -d com.apple.quarantine your_binary
 > ```
 
+> **File safety:** every image transform command requires `<src>` and `<dst>` to refer to different files. The command rejects identical paths, hard links, and symbolic links that resolve to the same file. Use `compress --in-place` for in-place compression.
+
 ## Compress images
 
 Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original file by default:

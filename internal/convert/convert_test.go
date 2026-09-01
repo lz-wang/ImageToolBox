@@ -146,32 +146,34 @@ func TestConvertPNGToWEBPLossless(t *testing.T) {
 
 func TestOptionsNormalize(t *testing.T) {
 	tests := []struct {
-		name    string
-		opts    Options
-		want    Options
-		wantErr bool
+		name string
+		opts Options
+		want Options
 	}{
 		{name: "defaults", opts: Options{}, want: Options{Quality: DefaultQuality, Background: DefaultBackground}},
-		{name: "invalid negative quality", opts: Options{Quality: -1}, wantErr: true},
-		{name: "invalid excessive quality", opts: Options{Quality: 101}, wantErr: true},
 		{name: "short background", opts: Options{Background: "#fff"}, want: Options{Quality: DefaultQuality, Background: "#fff"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.opts.Normalize()
-			if !tt.wantErr && tt.opts != tt.want {
+			if tt.opts != tt.want {
 				t.Fatalf("Normalize() = %+v, want %+v", tt.opts, tt.want)
-			}
-			_, err := resolveOptions("output.webp", tt.opts)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("resolveOptions() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func validate(t *testing.T, opts Options, format imageio.Format) error {
+func TestResolveOptionsRejectsInvalidQuality(t *testing.T) {
+	for _, quality := range []int{-1, 101} {
+		_, err := resolveOptions("output.webp", Options{Quality: quality})
+		if err == nil {
+			t.Errorf("resolveOptions() with quality %d = nil, want error", quality)
+		}
+	}
+}
+
+func resolveForFormat(t *testing.T, opts Options, format imageio.Format) error {
 	t.Helper()
 	returnErrorPath := "output." + string(format)
 	if format == imageio.FormatJPEG {
@@ -181,59 +183,59 @@ func validate(t *testing.T, opts Options, format imageio.Format) error {
 	return err
 }
 
-func TestValidateInvalidJPEGBackground(t *testing.T) {
-	if err := validate(t, Options{Background: "invalid"}, imageio.FormatJPEG); err == nil {
-		t.Fatal("Validate() = nil, want error for invalid background with jpeg target")
+func TestResolveOptionsRejectsInvalidJPEGBackground(t *testing.T) {
+	if err := resolveForFormat(t, Options{Background: "invalid"}, imageio.FormatJPEG); err == nil {
+		t.Fatal("resolveOptions() = nil, want error for invalid background with jpeg target")
 	}
 }
 
-func TestValidateIgnoresBackgroundForPNG(t *testing.T) {
-	if err := validate(t, Options{Background: "invalid"}, imageio.FormatPNG); err != nil {
-		t.Fatalf("Validate() = %v, want nil (background is ignored for png)", err)
+func TestResolveOptionsIgnoresBackgroundForPNG(t *testing.T) {
+	if err := resolveForFormat(t, Options{Background: "invalid"}, imageio.FormatPNG); err != nil {
+		t.Fatalf("resolveOptions() = %v, want nil (background is ignored for png)", err)
 	}
 }
 
-func TestValidateIgnoresBackgroundForWEBP(t *testing.T) {
-	if err := validate(t, Options{Background: "invalid"}, imageio.FormatWEBP); err != nil {
-		t.Fatalf("Validate() = %v, want nil (background is ignored for webp)", err)
+func TestResolveOptionsIgnoresBackgroundForWEBP(t *testing.T) {
+	if err := resolveForFormat(t, Options{Background: "invalid"}, imageio.FormatWEBP); err != nil {
+		t.Fatalf("resolveOptions() = %v, want nil (background is ignored for webp)", err)
 	}
 }
 
-func TestValidateRejectsLosslessJPEG(t *testing.T) {
-	if err := validate(t, Options{Lossless: true}, imageio.FormatJPEG); err == nil {
-		t.Fatal("Validate() = nil, want error for lossless jpeg")
+func TestResolveOptionsRejectsLosslessJPEG(t *testing.T) {
+	if err := resolveForFormat(t, Options{Lossless: true}, imageio.FormatJPEG); err == nil {
+		t.Fatal("resolveOptions() = nil, want error for lossless jpeg")
 	}
 }
 
-func TestValidateAllowsLosslessPNG(t *testing.T) {
-	if err := validate(t, Options{Lossless: true}, imageio.FormatPNG); err != nil {
-		t.Fatalf("Validate() = %v, want nil (accepted no-op for png)", err)
+func TestResolveOptionsAllowsLosslessPNG(t *testing.T) {
+	if err := resolveForFormat(t, Options{Lossless: true}, imageio.FormatPNG); err != nil {
+		t.Fatalf("resolveOptions() = %v, want nil (accepted no-op for png)", err)
 	}
 }
 
-func TestValidateAllowsLosslessWEBP(t *testing.T) {
-	if err := validate(t, Options{Lossless: true}, imageio.FormatWEBP); err != nil {
-		t.Fatalf("Validate() = %v, want nil", err)
+func TestResolveOptionsAllowsLosslessWEBP(t *testing.T) {
+	if err := resolveForFormat(t, Options{Lossless: true}, imageio.FormatWEBP); err != nil {
+		t.Fatalf("resolveOptions() = %v, want nil", err)
 	}
 }
 
-// TestValidateRejectsTransparentJPEGBackground 锁定 JPEG background 必须
+// TestResolveOptionsRejectsTransparentJPEGBackground 锁定 JPEG background 必须
 // 不透明：JPEG 本身没有透明背景，且 #00000000 解析出的零值会被 imageio
 // Encode 当作"未设置"而静默变成默认白色。
-func TestValidateRejectsTransparentJPEGBackground(t *testing.T) {
+func TestResolveOptionsRejectsTransparentJPEGBackground(t *testing.T) {
 	for _, background := range []string{"#00000000", "#FF000000", "#FFFFFF00", "transparent"} {
-		if err := validate(t, Options{Background: background}, imageio.FormatJPEG); err == nil {
-			t.Errorf("Validate() with background %q = nil, want error", background)
+		if err := resolveForFormat(t, Options{Background: background}, imageio.FormatJPEG); err == nil {
+			t.Errorf("resolveOptions() with background %q = nil, want error", background)
 		}
 	}
 	// 8 位形式中 A=255 是合法的不透明颜色。
-	if err := validate(t, Options{Background: "#00FF00FF"}, imageio.FormatJPEG); err != nil {
-		t.Fatalf("Validate() with opaque #00FF00FF = %v, want nil", err)
+	if err := resolveForFormat(t, Options{Background: "#00FF00FF"}, imageio.FormatJPEG); err != nil {
+		t.Fatalf("resolveOptions() with opaque #00FF00FF = %v, want nil", err)
 	}
 	// PNG/WebP 不使用 background，透明值与其他值一样被忽略。
 	for _, format := range []imageio.Format{imageio.FormatPNG, imageio.FormatWEBP} {
-		if err := validate(t, Options{Background: "#00000000"}, format); err != nil {
-			t.Fatalf("Validate() format=%s with transparent background = %v, want nil", format, err)
+		if err := resolveForFormat(t, Options{Background: "#00000000"}, format); err != nil {
+			t.Fatalf("resolveOptions() format=%s with transparent background = %v, want nil", format, err)
 		}
 	}
 }
