@@ -1,6 +1,7 @@
 package watermark
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"imagetoolbox/internal/imageio"
 )
 
 func TestAddImageWatermark(t *testing.T) {
@@ -59,6 +62,18 @@ func TestAddFileDispatchValidation(t *testing.T) {
 				t.Fatalf("AddFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestAddFileRejectsSameFile(t *testing.T) {
+	input := filepath.Join(t.TempDir(), "input.png")
+	if err := os.WriteFile(input, []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := AddFile(input, input, Options{Text: "mark"})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("AddFile() error = %v, want imageio.ErrSameFile", err)
 	}
 }
 

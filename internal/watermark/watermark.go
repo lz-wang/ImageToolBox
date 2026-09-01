@@ -165,6 +165,9 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
+	if err := imageio.RejectSameFile(inputPath, outputPath); err != nil {
+		return err
+	}
 
 	if strings.TrimSpace(opts.ImagePath) != "" {
 		_, err := AddImageWatermark(inputPath, outputPath, &ImageOptions{

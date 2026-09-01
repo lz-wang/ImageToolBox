@@ -3,6 +3,7 @@ package resize
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"image"
 	"image/color"
 	"image/gif"
@@ -11,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"imagetoolbox/internal/imageio"
 )
 
 func TestApplyPercent(t *testing.T) {
@@ -286,5 +289,17 @@ func TestResizeFileRejectsGIF(t *testing.T) {
 
 	if err := ResizeFile(input, filepath.Join(t.TempDir(), "out.png"), Options{Width: 2}); err == nil {
 		t.Fatal("expected gif input to be rejected")
+	}
+}
+
+func TestResizeFileRejectsSameFile(t *testing.T) {
+	input := filepath.Join(t.TempDir(), "input.png")
+	if err := os.WriteFile(input, []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ResizeFile(input, input, Options{Width: 1})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("ResizeFile() error = %v, want imageio.ErrSameFile", err)
 	}
 }

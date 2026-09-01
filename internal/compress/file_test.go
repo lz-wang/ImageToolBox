@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"imagetoolbox/internal/imageio"
 )
 
 func TestFileOptionsNormalizeAndValidate(t *testing.T) {
@@ -42,29 +44,9 @@ func TestCompressFileRejectsSameFileBeforeStartingCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, output := range []string{input, filepath.Join(dir, ".", "input.jpg")} {
-		t.Run(output, func(t *testing.T) {
-			_, err := CompressFile(context.Background(), input, output, FileOptions{})
-			if !errors.Is(err, ErrSameFile) {
-				t.Fatalf("CompressFile() error = %v, want ErrSameFile", err)
-			}
-		})
-	}
-
-	for name, link := range map[string]func(string, string) error{
-		"hardlink": os.Link,
-		"symlink":  os.Symlink,
-	} {
-		t.Run(name, func(t *testing.T) {
-			output := filepath.Join(dir, name+".jpg")
-			if err := link(input, output); err != nil {
-				t.Fatal(err)
-			}
-			_, err := CompressFile(context.Background(), input, output, FileOptions{})
-			if !errors.Is(err, ErrSameFile) {
-				t.Fatalf("CompressFile() error = %v, want ErrSameFile", err)
-			}
-		})
+	_, err := CompressFile(context.Background(), input, input, FileOptions{})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("CompressFile() error = %v, want imageio.ErrSameFile", err)
 	}
 }
 

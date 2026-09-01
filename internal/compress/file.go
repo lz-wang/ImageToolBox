@@ -2,15 +2,13 @@ package compress
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+
+	"imagetoolbox/internal/imageio"
 )
 
 const DefaultQuality = 80
-
-var ErrSameFile = errors.New("input and output must not refer to the same file")
 
 // FileOptions 文件级压缩选项
 type FileOptions struct {
@@ -59,7 +57,7 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 	if err != nil {
 		return Result{}, fmt.Errorf("无法读取输入文件信息: %w", err)
 	}
-	if err := rejectSameFile(inputPath, outputPath, stat); err != nil {
+	if err := imageio.RejectSameFile(inputPath, outputPath); err != nil {
 		return Result{}, err
 	}
 
@@ -101,29 +99,6 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 		InputSize:  stat.Size(),
 		OutputSize: outStat.Size(),
 	}, nil
-}
-
-func rejectSameFile(inputPath, outputPath string, inputInfo os.FileInfo) error {
-	inputAbs, err := filepath.Abs(inputPath)
-	if err != nil {
-		return fmt.Errorf("无法解析输入文件路径: %w", err)
-	}
-	outputAbs, err := filepath.Abs(outputPath)
-	if err != nil {
-		return fmt.Errorf("无法解析输出文件路径: %w", err)
-	}
-	if filepath.Clean(inputAbs) == filepath.Clean(outputAbs) {
-		return ErrSameFile
-	}
-
-	outputInfo, err := os.Stat(outputPath)
-	if err == nil && os.SameFile(inputInfo, outputInfo) {
-		return ErrSameFile
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("无法读取输出文件信息: %w", err)
-	}
-	return nil
 }
 
 func compressPNGTo(ctx context.Context, inputPath, outputPath string, quality int) error {

@@ -33,6 +33,10 @@ type Options struct {
 }
 
 func CropFile(inputPath, outputPath string, opts Options) (image.Rectangle, error) {
+	if err := imageio.RejectSameFile(inputPath, outputPath); err != nil {
+		return image.Rectangle{}, err
+	}
+
 	// 输入统一走 imageio.OpenStatic：仅 JPEG/PNG/WebP，JPEG EXIF
 	// Orientation 烘焙进像素，裁剪框基于应用旋转后的逻辑尺寸
 	img, err := imageio.OpenStatic(inputPath)

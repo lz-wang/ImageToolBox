@@ -73,6 +73,9 @@ func ConvertFile(inputPath, outputPath string, opts Options) error {
 	if err != nil {
 		return err
 	}
+	if err := imageio.RejectSameFile(inputPath, outputPath); err != nil {
+		return err
+	}
 
 	// 输入统一走 imageio.OpenStatic：严格限定 JPEG/PNG/WebP，并把
 	// JPEG EXIF Orientation 烘焙进像素。所有 transform（convert/

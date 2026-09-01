@@ -265,6 +265,18 @@ func TestConvertFileUsesDomainDefaults(t *testing.T) {
 	}
 }
 
+func TestConvertFileRejectsSameFile(t *testing.T) {
+	input := filepath.Join(t.TempDir(), "input.webp")
+	if err := os.WriteFile(input, []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ConvertFile(input, input, Options{})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("ConvertFile() error = %v, want imageio.ErrSameFile", err)
+	}
+}
+
 func TestConvertDerivesFormatFromOutputPath(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.png")

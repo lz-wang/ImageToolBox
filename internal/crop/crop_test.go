@@ -1,8 +1,13 @@
 package crop
 
 import (
+	"errors"
 	"image"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"imagetoolbox/internal/imageio"
 )
 
 func TestParsePercent(t *testing.T) {
@@ -36,6 +41,18 @@ func TestParsePercent(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCropFileRejectsSameFile(t *testing.T) {
+	input := filepath.Join(t.TempDir(), "input.png")
+	if err := os.WriteFile(input, []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := CropFile(input, input, Options{Anchor: AnchorLeft, Width: "50%"})
+	if !errors.Is(err, imageio.ErrSameFile) {
+		t.Fatalf("CropFile() error = %v, want imageio.ErrSameFile", err)
 	}
 }
 
