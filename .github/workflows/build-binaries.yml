@@ -67,8 +67,11 @@ jobs:
           make test
           go test -race ./internal/compress ./internal/httpapi
 
-      - name: Run MinIO integration tests
-        run: go test ./internal/s3 -run TestMinIOIntegration -v
+      - name: Run MinIO domain integration tests
+        run: go test ./internal/s3 -run '^TestMinIOIntegration$' -v
+
+      - name: Run MinIO CLI end-to-end tests
+        run: go test ./internal/s3 -run '^TestMinIOCLIE2E$' -v
 
   build:
     name: ${{ matrix.target.name }}
