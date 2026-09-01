@@ -15,84 +15,94 @@ func newWatermarkCommand() *cli.Command {
 		Usage:     "Add a text or image watermark",
 		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
-		Description: `为图片添加文字或图片水印。
+		Description: `Add a text or image watermark to a JPEG, PNG, or
+WebP image.
 
-文字水印支持两种模式:
-  position（默认）  单点位置水印
-  repeat            重复平铺水印
+DEFAULTS:
+  If [dst] is omitted, writes <name>_watermarked.<ext>.
+  The text watermark color and font size are auto-selected
+  from the underlying image when not specified.
 
-图片水印当前仅支持 position 模式。
+CONSTRAINTS:
+  Exactly one of --text or --image is required.
+  Text watermarks support position and repeat modes.
+  Image watermarks support position mode only; tiled image
+  watermarks are not supported.
 
-示例:
-  # 位置水印（默认右下角，智能颜色）
-	  itb watermark -t "Author" photo.jpg
+EXAMPLES:
+  # Position watermark (default: bottom-right, auto color)
+  itb watermark -t "Author" photo.jpg
 
-  # 指定位置和透明度
-	  itb watermark -t "Copyright" --position center --opacity 0.8 photo.png
+  # Explicit position and opacity
+  itb watermark -t "Copyright" --position center --opacity 0.8 photo.png
 
-  # 重复平铺水印
-	  itb watermark -t "WATERMARK" --mode repeat photo.png
+  # Repeated tiled watermark
+  itb watermark -t "WATERMARK" --mode repeat photo.png
 
-  # 图片水印
-	  itb watermark --image logo.png --scale 0.2 photo.jpg
+  # Image watermark
+  itb watermark --image logo.png --scale 0.2 photo.jpg
 
-  # 指定输出路径
-	  itb watermark -t "Author" photo.jpg output.jpg`,
+  # Explicit output path
+  itb watermark -t "Author" photo.jpg output.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:      "mode",
 				Aliases:   []string{"m"},
 				Value:     "position",
-				Usage:     "水印模式 `MODE`: position（位置）/ repeat（重复平铺）",
+				Usage:     "Watermark `MODE`: position (single placement) / repeat (tiled)",
 				Validator: enumValidator("mode", "position", "repeat"),
 			},
 			&cli.StringFlag{
-				Name:      "color",
-				Usage:     "文字水印颜色（#RGB/#RRGGBB/#RRGGBBAA）；未指定时自动选择",
-				Validator: colorValidator("color"),
+				Name:        "color",
+				Usage:       "Text watermark `COLOR` (#RGB/#RRGGBB/#RRGGBBAA)",
+				DefaultText: "auto",
+				Validator:   colorValidator("color"),
 			},
 			&cli.IntFlag{
-				Name:      "space",
-				Usage:     "平铺间距（仅文字 repeat 模式；0=自动计算）",
-				Validator: nonNegativeIntValidator("space"),
+				Name:        "space",
+				Usage:       "Tile spacing in `PIXELS` (text repeat mode only)",
+				DefaultText: "auto",
+				Validator:   nonNegativeIntValidator("space"),
 			},
 			&cli.IntFlag{
 				Name:      "angle",
 				Value:     30,
-				Usage:     "旋转角度，单位为度（仅文字 repeat 模式）",
+				Usage:     "Tile rotation `ANGLE` in degrees (text repeat mode only)",
 				Validator: intRangeValidator("angle", -360, 360),
 			},
 			&cli.FloatFlag{
 				Name:      "opacity",
 				Value:     0.5,
-				Usage:     "水印透明度，范围 0~1",
+				Usage:     "Watermark opacity, range [0,1]",
 				Validator: floatRangeValidator("opacity", 0, 1),
 			},
 			&cli.StringFlag{
-				Name:  "font",
-				Usage: "文字水印字体 `FILE`；未指定时自动使用可用的默认字体",
+				Name:        "font",
+				Usage:       "Text watermark font `FILE`",
+				DefaultText: "auto",
 			},
 			&cli.IntFlag{
-				Name:      "font-size",
-				Usage:     "文字水印字号（0=自动计算）",
-				Validator: intRangeValidator("font-size", 0, watermark.MaxFontSize),
+				Name:        "font-size",
+				Usage:       "Text watermark font size in `PIXELS`",
+				DefaultText: "auto",
+				Validator:   intRangeValidator("font-size", 0, watermark.MaxFontSize),
 			},
 			&cli.StringFlag{
 				Name:      "position",
 				Value:     "bottom-right",
-				Usage:     "水印位置（position 模式）: bottom-right/bottom-left/top-right/top-left/center",
+				Usage:     "Watermark `POSITION` (position mode): bottom-right/bottom-left/top-right/top-left/center",
 				Validator: enumValidator("position", "bottom-right", "bottom-left", "top-right", "top-left", "center"),
 			},
 			&cli.FloatFlag{
 				Name:      "margin",
 				Value:     0.04,
-				Usage:     "边距比例（position 模式）",
+				Usage:     "Margin as a fraction of the image dimensions (position mode)",
 				Validator: nonNegativeFloatValidator("margin"),
 			},
 			&cli.FloatFlag{
 				Name:      "scale",
 				Value:     0.2,
-				Usage:     "图片水印尺寸比例，相对底图短边",
+				Usage:     "Image watermark size relative to the source image's shorter side",
 				Validator: positiveFloatValidator("scale"),
 			},
 		},
@@ -105,13 +115,13 @@ func newWatermarkCommand() *cli.Command {
 						&cli.StringFlag{
 							Name:    "text",
 							Aliases: []string{"t"},
-							Usage:   "水印文字",
+							Usage:   "Watermark text",
 						},
 					},
 					{
 						&cli.StringFlag{
 							Name:  "image",
-							Usage: "图片水印 `FILE`",
+							Usage: "Image watermark `FILE`",
 						},
 					},
 				},

@@ -17,31 +17,35 @@ func newCompressCommand() *cli.Command {
 		Usage:     "Compress a PNG or JPEG image",
 		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
-		Description: `自动检测输入图片的格式（PNG/JPEG），然后执行对应的压缩操作。
+		Description: `Compress a PNG or JPEG image. The input format is
+detected from the file header; no format flag is needed.
 
-无需指定图片类型，程序会通过读取文件头自动判断。
+Pipelines:
+  PNG:  pngquant -> oxipng
+  JPEG: djpeg -> cjpeg (libjpeg-turbo)
 
-默认保留输入文件，输出到原文件名后加 _compressed 的新文件；
-需要覆盖原文件时显式指定 --in-place。
+DEFAULTS:
+  If [dst] is omitted, writes <name>_compressed.<ext>.
+  The input file is kept; only --in-place overwrites it.
 
-压缩管道:
-  PNG:  pngquant → oxipng
-  JPEG: djpeg → cjpeg（libjpeg-turbo）
+CONSTRAINTS:
+  Supported input formats are PNG and JPEG only.
+  --in-place cannot be combined with a [dst] operand.
 
-示例:
-	  itb compress photo.png
-	  itb compress -q 90 photo.jpg compressed.jpg
-	  itb compress --in-place photo.jpg`,
+EXAMPLES:
+  itb compress photo.png
+  itb compress -q 90 photo.jpg compressed.jpg
+  itb compress --in-place photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "in-place",
-				Usage: "覆盖输入文件",
+				Usage: "Overwrite the source file",
 			},
 			&cli.IntFlag{
 				Name:      "quality",
 				Aliases:   []string{"q"},
 				Value:     compress.DefaultQuality,
-				Usage:     "压缩质量 (1-100)",
+				Usage:     "Compression quality (1-100)",
 				Validator: intRangeValidator("quality", 1, 100),
 			},
 		},

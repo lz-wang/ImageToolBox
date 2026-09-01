@@ -75,13 +75,17 @@ func TestRootHelpContract(t *testing.T) {
 func TestCompressHelpContract(t *testing.T) {
 	out := helpOutput(t, "compress")
 
-	assertContains(t, out, "<src>")
-	assertContains(t, out, "[dst]")
-	assertContains(t, out, "--in-place")
-	assertContains(t, out, "_compressed")
-	assertContains(t, out, "1-100")
-	assertContains(t, out, "PNG")
-	assertContains(t, out, "JPEG")
+	for _, want := range []string{
+		"<src>", "[dst]",
+		"--in-place",
+		"writes <name>_compressed.<ext>",
+		"1-100",
+		"PNG",
+		"JPEG",
+		"--in-place cannot be combined with a [dst] operand",
+	} {
+		assertContains(t, out, want)
+	}
 	assertNotContains(t, out, "--input")
 	assertNotContains(t, out, "--output")
 }
@@ -94,9 +98,10 @@ func TestResizeHelpContract(t *testing.T) {
 		"<src>", "[dst]",
 		"--percent", "--width", "--height",
 		"fit", "fill", "stretch",
-		"--percent 不能与 --width / --height 同时使用",
-		"fill 必须同时指定宽度和高度",
-		"（像素）",
+		"writes <name>_resized.<ext>",
+		"--percent cannot be combined with --width or --height",
+		"fill requires both --width and --height",
+		"--width PIXELS",
 	} {
 		assertContains(t, out, want)
 	}
@@ -112,14 +117,14 @@ func TestConvertHelpContract(t *testing.T) {
 	for _, want := range []string{
 		"<src>",
 		"<dst>",
-		"目标格式由 <dst>",
+		"determined only by the <dst>",
 		".jpg / .jpeg / .png / .webp",
-		"JPEG/WebP 输出质量",
-		"PNG 忽略该参数",
-		"使用 WebP 无损编码",
-		"PNG 始终为无损格式",
-		"输出 JPEG 时透明区域使用的背景色",
-		"必须为不透明颜色",
+		"JPEG/WebP output quality",
+		"ignored for PNG",
+		"lossless WebP encoding",
+		"PNG is always lossless",
+		"flattened onto --background",
+		"must be opaque",
 	} {
 		assertContains(t, out, want)
 	}
@@ -139,7 +144,8 @@ func TestCropHelpContract(t *testing.T) {
 		"(0,100]",
 		"left / right",
 		"top / bottom",
-		"必须同时提供 --width 和 --height",
+		"require both --width and --height",
+		"writes <name>_cropped.<ext>",
 	} {
 		assertContains(t, out, want)
 	}
@@ -152,10 +158,13 @@ func TestCropHelpContract(t *testing.T) {
 func TestWatermarkHelpContract(t *testing.T) {
 	out := helpOutput(t, "watermark")
 
-	for _, want := range []string{"文字", "图片", "position", "repeat"} {
-		assertContains(t, out, want)
-	}
-	for _, want := range []string{"<src>", "[dst]", "--image"} {
+	for _, want := range []string{
+		"text", "image", "position", "repeat",
+		"<src>", "[dst]", "--image",
+		"writes <name>_watermarked.<ext>",
+		"Exactly one of --text or --image is required",
+		"position mode only",
+	} {
 		assertContains(t, out, want)
 	}
 	assertNotContains(t, out, "--input")
@@ -172,12 +181,12 @@ func TestRotateHelpContract(t *testing.T) {
 	for _, want := range []string{
 		"<src>", "[dst]",
 		"--angle",
-		"逆时针",
-		"顺时针",
+		"counter-clockwise",
+		"clockwise",
 		"(-360, 360)",
-		"不能为 0",
-		"输出画布",
-		"_rotated",
+		"cannot be 0",
+		"rotated bounding box",
+		"writes <name>_rotated.<ext>",
 		"PNG",
 		"WebP",
 		"JPEG",

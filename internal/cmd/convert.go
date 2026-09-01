@@ -14,30 +14,41 @@ func newConvertCommand() *cli.Command {
 		Usage:     "Convert an image to another format",
 		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> <dst>",
-		Description: `转换图片格式。
-目标格式由 <dst> 文件扩展名决定。
-支持: .jpg / .jpeg / .png / .webp
+		Description: `Convert a JPEG, PNG, or WebP image to another
+format.
 
-示例:
-	  itb convert photo.png photo.webp
-	  itb convert photo.png photo.jpg --background "#FFFFFF"
-	  itb convert -q 85 photo.jpg converted.png`,
+The output format is determined only by the <dst> file
+extension: .jpg / .jpeg / .png / .webp.
+
+CONSTRAINTS:
+  <dst> is required; there is no derived output path.
+  PNG output is always lossless; --quality and --lossless
+  have no effect on PNG.
+  --lossless switches WebP to lossless encoding, where
+  --quality controls compression effort instead.
+  Transparent areas are flattened onto --background when the
+  output is JPEG; the background must be an opaque color.
+
+EXAMPLES:
+  itb convert photo.png photo.webp
+  itb convert photo.png photo.jpg --background "#FFFFFF"
+  itb convert -q 85 photo.jpg converted.png`,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:      "quality",
 				Aliases:   []string{"q"},
 				Value:     convert.DefaultQuality,
-				Usage:     "JPEG/WebP 输出质量 (1-100)；WebP 无损模式下表示压缩强度，PNG 忽略该参数",
+				Usage:     "JPEG/WebP output quality (1-100); compression effort for lossless WebP; ignored for PNG",
 				Validator: intRangeValidator("quality", 1, 100),
 			},
 			&cli.BoolFlag{
 				Name:  "lossless",
-				Usage: "使用 WebP 无损编码；PNG 始终为无损格式，该参数对 PNG 无额外影响",
+				Usage: "Use lossless WebP encoding; PNG is always lossless, so this has no extra effect on PNG",
 			},
 			&cli.StringFlag{
 				Name:  "background",
 				Value: convert.DefaultBackground,
-				Usage: "输出 JPEG 时透明区域使用的背景色（必须为不透明颜色）",
+				Usage: "Background `COLOR` (#RGB/#RRGGBB/#RRGGBBAA) for transparent areas when writing JPEG; must be opaque",
 			},
 		},
 		Action: runConvert,

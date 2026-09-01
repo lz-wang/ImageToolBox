@@ -15,24 +15,30 @@ func newCropCommand() *cli.Command {
 		Usage:     "Crop an image by anchor and percentage",
 		Category:  categoryImageTransforms,
 		ArgsUsage: "<src> [dst]",
-		Description: `按指定锚点和百分比裁剪图片。
+		Description: `Crop a JPEG, PNG, or WebP image by anchor and by
+percentage of the source dimensions.
 
-宽高仅支持百分比，范围为 (0,100]，例如 40%。
+Width and height accept percentages only, in the range
+(0,100], e.g. 40%.
 
-规则:
-  - left / right      必须提供 --width，且不能提供 --height
-  - top / bottom      必须提供 --height，且不能提供 --width
-  - 角点 / center     必须同时提供 --width 和 --height
+DEFAULTS:
+  If [dst] is omitted, writes <name>_cropped.<ext>.
 
-示例:
-	  itb crop --anchor left --width 40% a.jpg
-	  itb crop --anchor right --width 40% a.jpg
-	  itb crop --anchor top-left --width 40% --height 40% a.jpg
-	  itb crop --anchor center --width 40% --height 40% a.jpg result.jpg`,
+CONSTRAINTS:
+  --anchor is required.
+  left / right require --width and forbid --height.
+  top / bottom require --height and forbid --width.
+  corners / center require both --width and --height.
+
+EXAMPLES:
+  itb crop --anchor left --width 40% a.jpg
+  itb crop --anchor right --width 40% a.jpg
+  itb crop --anchor top-left --width 40% --height 40% a.jpg
+  itb crop --anchor center --width 40% --height 40% a.jpg result.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "anchor",
-				Usage:    "裁剪锚点: left/right/top/bottom/top-left/top-right/bottom-left/bottom-right/center",
+				Usage:    "Crop `ANCHOR`: left/right/top/bottom/top-left/top-right/bottom-left/bottom-right/center",
 				Required: true,
 				Validator: enumValidator("anchor",
 					"left", "right", "top", "bottom",
@@ -40,12 +46,12 @@ func newCropCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:      "width",
-				Usage:     "裁剪宽度百分比，例如 40%",
+				Usage:     "Crop width as `PERCENT` of the source width, e.g. 40%",
 				Validator: percentRangeValidator("width", 100),
 			},
 			&cli.StringFlag{
 				Name:      "height",
-				Usage:     "裁剪高度百分比，例如 40%",
+				Usage:     "Crop height as `PERCENT` of the source height, e.g. 40%",
 				Validator: percentRangeValidator("height", 100),
 			},
 		},
