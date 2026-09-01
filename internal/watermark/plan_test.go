@@ -9,7 +9,7 @@ import (
 
 func TestResolveImagePlan(t *testing.T) {
 	scale := func(v float64) *float64 { return &v }
-	t.Run("default scale matches AddImageWatermark formula", func(t *testing.T) {
+	t.Run("default scale matches image watermark formula", func(t *testing.T) {
 		plan, err := ResolveImagePlan(image.Rect(0, 0, 1000, 1000), image.Rect(0, 0, 100, 100), Options{ImagePath: "logo.png"})
 		if err != nil {
 			t.Fatalf("ResolveImagePlan() error = %v", err)

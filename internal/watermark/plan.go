@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-// 领域默认值。AddImageWatermark / AddRepeatWatermark 与资源规划共用，
+// 领域默认值。渲染 helper 与资源规划共用，
 // 保证 admission 推导与真实执行一致。
 const (
 	DefaultOpacity      = 0.5
@@ -26,7 +26,7 @@ type ImagePlan struct {
 }
 
 // ResolveImagePlan 从底图与 logo 尺寸推导缩放后 logo 的目标尺寸。
-// AddImageWatermark 实际执行使用同一推导（scaledLogoSize），对计划做
+// 图片水印实际执行使用同一推导（scaledLogoSize），对计划做
 // 限制检查等价于对真实分配做限制检查。
 func ResolveImagePlan(baseBounds, logoBounds image.Rectangle, opts Options) (ImagePlan, error) {
 	if baseBounds.Dx() <= 0 || baseBounds.Dy() <= 0 {
@@ -122,7 +122,7 @@ func ResolveWorkingSet(baseBounds, logoBounds image.Rectangle, opts Options) (Wo
 	return set, nil
 }
 
-// effectiveFontSize 与 AddRepeatWatermark/AddPositionWatermark 的自动
+// effectiveFontSize 与文字水印渲染的自动
 // 字号公式一致（0 或未指定 = 按底图短边推导）。
 func effectiveFontSize(fontSize *int, baseW, baseH int) int {
 	if fontSize != nil && *fontSize > 0 {
@@ -131,7 +131,7 @@ func effectiveFontSize(fontSize *int, baseW, baseH int) int {
 	return max(min(baseW, baseH)/25, 16)
 }
 
-// effectiveSpace 与 AddRepeatWatermark 的自动间距公式一致。
+// effectiveSpace 与重复文字水印的自动间距公式一致。
 func effectiveSpace(space *int, fontSize int) int {
 	if space != nil && *space > 0 {
 		return *space

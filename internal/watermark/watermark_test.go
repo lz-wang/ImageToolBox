@@ -15,7 +15,7 @@ import (
 	"imagetoolbox/internal/imageio"
 )
 
-func TestAddImageWatermark(t *testing.T) {
+func TestAddImageWatermarkRendering(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.png")
 	logo := filepath.Join(dir, "logo.png")
@@ -29,7 +29,7 @@ func TestAddImageWatermark(t *testing.T) {
 	fill(wm, color.NRGBA{255, 0, 0, 255})
 	writePNG(t, logo, wm)
 
-	got, err := AddImageWatermark(input, output, &ImageOptions{
+	got, err := addImageWatermark(input, output, &ImageOptions{
 		ImagePath:  logo,
 		Position:   BottomRight,
 		ScaleRatio: float64Ptr(0.2),

@@ -173,7 +173,7 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 		if err := imageio.RejectSameFile(opts.ImagePath, outputPath); err != nil {
 			return fmt.Errorf("watermark image and output: %w", err)
 		}
-		_, err := AddImageWatermark(inputPath, outputPath, &ImageOptions{
+		_, err := addImageWatermark(inputPath, outputPath, &ImageOptions{
 			ImagePath:   opts.ImagePath,
 			Opacity:     opts.Opacity,
 			Position:    opts.Position,
@@ -185,7 +185,7 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 
 	switch opts.Mode {
 	case ModePosition:
-		_, err := AddPositionWatermark(inputPath, outputPath, opts.Text, &PositionOptions{
+		_, err := addPositionWatermark(inputPath, outputPath, opts.Text, &PositionOptions{
 			Opacity:     opts.Opacity,
 			Position:    opts.Position,
 			FontPath:    opts.FontPath,
@@ -195,7 +195,7 @@ func AddFile(inputPath, outputPath string, opts Options) error {
 		})
 		return err
 	case ModeRepeat:
-		_, err := AddRepeatWatermark(inputPath, outputPath, opts.Text, &RepeatOptions{
+		_, err := addRepeatWatermark(inputPath, outputPath, opts.Text, &RepeatOptions{
 			Color:    &opts.Color,
 			Space:    opts.Space,
 			Angle:    opts.Angle,
@@ -298,8 +298,8 @@ func SaveImage(img image.Image, path string, jpgBackground color.NRGBA) error {
 	})
 }
 
-// AddRepeatWatermark adds a repeated text watermark and saves the output.
-func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions) (image.Image, error) {
+// addRepeatWatermark renders a repeated text watermark and saves the output.
+func addRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions) (image.Image, error) {
 	var colorVal *string
 	var space *int
 	var angleVal = DefaultRepeatAngle
@@ -376,8 +376,8 @@ func AddRepeatWatermark(inputPath, outputPath, text string, opts *RepeatOptions)
 	return marked, nil
 }
 
-// AddPositionWatermark adds a single positioned watermark and saves the output.
-func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOptions) (image.Image, error) {
+// addPositionWatermark renders a single positioned watermark and saves the output.
+func addPositionWatermark(inputPath, outputPath, text string, opts *PositionOptions) (image.Image, error) {
 	var opacityVal = DefaultOpacity
 	var marginRatio = DefaultMarginRatio
 	var fontPath string
@@ -483,7 +483,7 @@ func AddPositionWatermark(inputPath, outputPath, text string, opts *PositionOpti
 	return rgba, nil
 }
 
-func AddImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.Image, error) {
+func addImageWatermark(inputPath, outputPath string, opts *ImageOptions) (image.Image, error) {
 	if opts == nil {
 		return nil, errors.New("image watermark options are required")
 	}
