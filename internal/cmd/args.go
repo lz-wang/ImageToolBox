@@ -16,3 +16,10 @@ func sourceDestinationArgs(cmd *cli.Command, requireDestination bool) (src, dst 
 	}
 	return cmd.Args().Get(0), cmd.Args().Get(1), nil
 }
+
+func sourceArg(cmd *cli.Command) (string, error) {
+	if cmd.NArg() != 1 {
+		return "", fmt.Errorf("需要提供 <src>")
+	}
+	return cmd.Args().Get(0), nil
+}
