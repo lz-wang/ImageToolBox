@@ -71,3 +71,37 @@ func TestSourceDestinationArgsAcceptsFlagsAroundPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestS3OperandArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		parse   func(*cli.Command) error
+		wantErr bool
+	}{
+		{"upload no operands", nil, func(cmd *cli.Command) error { _, _, err := s3UploadArgs(cmd); return err }, true},
+		{"upload source", []string{"input.txt"}, func(cmd *cli.Command) error { _, _, err := s3UploadArgs(cmd); return err }, false},
+		{"upload source and key", []string{"input.txt", "objects/input.txt"}, func(cmd *cli.Command) error { _, _, err := s3UploadArgs(cmd); return err }, false},
+		{"upload too many operands", []string{"a", "b", "c"}, func(cmd *cli.Command) error { _, _, err := s3UploadArgs(cmd); return err }, true},
+		{"download no operands", nil, func(cmd *cli.Command) error { _, _, err := s3DownloadArgs(cmd); return err }, true},
+		{"download key", []string{"objects/input.txt"}, func(cmd *cli.Command) error { _, _, err := s3DownloadArgs(cmd); return err }, false},
+		{"download key and destination", []string{"objects/input.txt", "output.txt"}, func(cmd *cli.Command) error { _, _, err := s3DownloadArgs(cmd); return err }, false},
+		{"download too many operands", []string{"a", "b", "c"}, func(cmd *cli.Command) error { _, _, err := s3DownloadArgs(cmd); return err }, true},
+		{"key no operands", nil, func(cmd *cli.Command) error { _, err := s3KeyArg(cmd); return err }, true},
+		{"key one operand", []string{"object"}, func(cmd *cli.Command) error { _, err := s3KeyArg(cmd); return err }, false},
+		{"key too many operands", []string{"a", "b"}, func(cmd *cli.Command) error { _, err := s3KeyArg(cmd); return err }, true},
+		{"prefix no operands", nil, func(cmd *cli.Command) error { _, err := s3PrefixArg(cmd); return err }, false},
+		{"prefix one operand", []string{"images/"}, func(cmd *cli.Command) error { _, err := s3PrefixArg(cmd); return err }, false},
+		{"prefix too many operands", []string{"a", "b"}, func(cmd *cli.Command) error { _, err := s3PrefixArg(cmd); return err }, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &cli.Command{Action: func(_ context.Context, cmd *cli.Command) error { return tt.parse(cmd) }}
+			err := app.Run(context.Background(), append([]string{"itb"}, tt.args...))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Run(%v) error = %v, wantErr %v", tt.args, err, tt.wantErr)
+			}
+		})
+	}
+}
