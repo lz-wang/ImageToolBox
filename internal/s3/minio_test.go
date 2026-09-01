@@ -2,9 +2,11 @@ package s3
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -261,4 +263,111 @@ func TestMinIOIntegration(t *testing.T) {
 			t.Fatalf("expected not found after delete, got %v", err)
 		}
 	})
+}
+
+// TestMinIOCLIE2E 通过编译后的真实 itb 二进制验证 positional operand
+// 接线，而不是只验证领域 API。
+func TestMinIOCLIE2E(t *testing.T) {
+	_, prefix := newMinIOTestClient(t)
+	cfg := minioTestConfig(t)
+
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
+	}
+	binary := filepath.Join(t.TempDir(), "itb")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	build.Dir = repoRoot
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build itb binary: %v\n%s", err, output)
+	}
+
+	tmp := t.TempDir()
+	fixture := filepath.Join(tmp, "fixture.txt")
+	if err := os.WriteFile(fixture, []byte(helloContent), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	baseEnv := append(os.Environ(),
+		"ITB_S3_ENDPOINT="+cfg.Endpoint,
+		"ITB_S3_ACCESS_KEY_ID="+cfg.AccessKeyID,
+		"ITB_S3_SECRET_ACCESS_KEY="+cfg.SecretAccessKey,
+		"ITB_S3_REGION="+cfg.Region,
+		"ITB_S3_BUCKET="+cfg.Bucket,
+		"ITB_S3_FORCE_PATH_STYLE=true",
+	)
+	run := func(dir string, args ...string) []byte {
+		t.Helper()
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = dir
+		cmd.Env = baseEnv
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("itb %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+		return output
+	}
+
+	key := prefix + "fixture.txt"
+	var upload struct {
+		SchemaVersion int    `json:"schema_version"`
+		Key           string `json:"key"`
+		Size          int64  `json:"size"`
+		SHA256        string `json:"sha256"`
+	}
+	if err := json.Unmarshal(run(tmp, "s3", "upload", "--format", "json", fixture, key), &upload); err != nil {
+		t.Fatalf("decode upload JSON: %v", err)
+	}
+	if upload.SchemaVersion == 0 || upload.Key != key || upload.Size != int64(len(helloContent)) || upload.SHA256 != helloSHA256 {
+		t.Fatalf("upload result = %+v", upload)
+	}
+
+	var stat struct {
+		Key  string `json:"key"`
+		Size int64  `json:"size"`
+	}
+	if err := json.Unmarshal(run(tmp, "s3", "stat", "--format", "json", key), &stat); err != nil {
+		t.Fatalf("decode stat JSON: %v", err)
+	}
+	if stat.Key != key || stat.Size != int64(len(helloContent)) {
+		t.Fatalf("stat result = %+v", stat)
+	}
+
+	downloaded := filepath.Join(tmp, "downloaded.txt")
+	run(tmp, "s3", "download", "--verify", "--format", "json", key, downloaded)
+	got, err := os.ReadFile(downloaded)
+	if err != nil || string(got) != helloContent {
+		t.Fatalf("downloaded content = %q, read error = %v", got, err)
+	}
+	if output := string(run(tmp, "s3", "list", "--format", "plain", prefix)); !strings.Contains(output, key) {
+		t.Fatalf("list output missing %q: %s", key, output)
+	}
+
+	var skipped struct {
+		Skipped bool `json:"skipped"`
+	}
+	if err := json.Unmarshal(run(tmp, "s3", "upload", "--skip-existing", "--format", "json", fixture, key), &skipped); err != nil {
+		t.Fatalf("decode skipped upload JSON: %v", err)
+	}
+	if !skipped.Skipped {
+		t.Fatalf("skip-existing result = %+v", skipped)
+	}
+
+	run(tmp, "s3", "delete", "-f", key)
+	cmd := exec.Command(binary, "s3", "stat", key)
+	cmd.Dir = tmp
+	cmd.Env = baseEnv
+	if output, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("stat after delete unexpectedly succeeded: %s", output)
+	}
+
+	// 默认 operand：upload <src> 使用 basename，download <key> 写入当前目录。
+	run(tmp, "s3", "upload", "fixture.txt")
+	if err := os.Remove(fixture); err != nil {
+		t.Fatalf("remove fixture before default download: %v", err)
+	}
+	run(tmp, "s3", "download", "fixture.txt")
+	if got, err := os.ReadFile(fixture); err != nil || string(got) != helloContent {
+		t.Fatalf("default downloaded content = %q, read error = %v", got, err)
+	}
+	run(tmp, "s3", "delete", "-f", "fixture.txt")
 }
