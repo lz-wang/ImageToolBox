@@ -3,9 +3,12 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/urfave/cli/v3"
 )
 
 // Help Contract 测试：不做整页 snapshot（库升级噪声大），
@@ -321,4 +324,155 @@ func TestS3ObjectSelectorHelpContract(t *testing.T) {
 			assertNotContains(t, out, tt.banned)
 		})
 	}
+}
+
+// TestAllHelpIsEnglish 递归遍历整个命令树，对每个命令实际渲染
+// `--help` 并断言无 Han 字符。未来任何新增命令的中文 Usage/
+// Description/flag 文案都会在这里直接失败。
+func TestAllHelpIsEnglish(t *testing.T) {
+	var walk func(path []string, cmd *cli.Command)
+	walk = func(path []string, cmd *cli.Command) {
+		t.Run(strings.Join(append([]string{"itb"}, path...), " "), func(t *testing.T) {
+			assertNoHan(t, helpOutput(t, path...))
+		})
+		for _, sub := range cmd.Commands {
+			// 显式复制，避免 append 复用底层数组污染兄弟分支的路径
+			subPath := append(append([]string{}, path...), sub.Name)
+			walk(subPath, sub)
+		}
+	}
+	walk(nil, testApp())
+}
+
+// TestFlagDefaultContracts 锁定普通 flag 默认值（单一来源：flag Value）
+// 与计算型默认值的 DefaultText 展示。命令级/位置参数级语义默认
+// （_resized、PSNR + MS-SSIM 等）由各命令的 help contract 检查
+// Description 关键文本，不映射成 flag value。
+func TestFlagDefaultContracts(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        []string
+		flag        string
+		want        string
+		defaultText bool
+	}{
+		{"compress quality", []string{"compress"}, "quality", "80", false},
+		{"resize mode", []string{"resize"}, "mode", `"fit"`, false},
+		{"resize anchor", []string{"resize"}, "anchor", `"center"`, false},
+		{"resize filter", []string{"resize"}, "filter", `"lanczos"`, false},
+		{"convert quality", []string{"convert"}, "quality", "80", false},
+		{"convert background", []string{"convert"}, "background", `"#FFFFFF"`, false},
+		{"watermark mode", []string{"watermark"}, "mode", `"position"`, false},
+		{"watermark opacity", []string{"watermark"}, "opacity", "0.5", false},
+		{"watermark position", []string{"watermark"}, "position", `"bottom-right"`, false},
+		{"watermark angle", []string{"watermark"}, "angle", "30", false},
+		{"watermark margin", []string{"watermark"}, "margin", "0.04", false},
+		{"watermark scale", []string{"watermark"}, "scale", "0.2", false},
+		{"watermark color auto", []string{"watermark"}, "color", "auto", true},
+		{"watermark font auto", []string{"watermark"}, "font", "auto", true},
+		{"watermark font-size auto", []string{"watermark"}, "font-size", "auto", true},
+		{"watermark space auto", []string{"watermark"}, "space", "auto", true},
+		{"inspect format", []string{"inspect"}, "format", `"table"`, false},
+		{"s3 region", []string{"s3"}, "region", `"us-east-1"`, false},
+		{"s3 list max-keys", []string{"s3", "list"}, "max-keys", "1000", false},
+		{"s3 list format", []string{"s3", "list"}, "format", `"table"`, false},
+		{"s3 upload content-type auto-detect", []string{"s3", "upload"}, "content-type", "auto-detect", true},
+		{"serve addr", []string{"serve"}, "addr", `"127.0.0.1:8080"`, false},
+		{"serve max-upload", []string{"serve"}, "max-upload", `"64MiB"`, false},
+		{"serve max-pixels", []string{"serve"}, "max-pixels", "50000000", false},
+		{"serve max-dimension", []string{"serve"}, "max-dimension", "16384", false},
+		{"serve max-concurrent", []string{"serve"}, "max-concurrent", "2", false},
+		{"serve max-working-bytes", []string{"serve"}, "max-working-bytes", `"512MiB"`, false},
+		{"serve timeout", []string{"serve"}, "timeout", "2m0s", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := findCommand(t, tt.path)
+			flag := findFlag(t, cmd, tt.flag)
+			doc, ok := flag.(cli.DocGenerationFlag)
+			if !ok {
+				t.Fatalf("flag --%s does not implement DocGenerationFlag", tt.flag)
+			}
+			got := doc.GetValue()
+			if tt.defaultText {
+				got = doc.GetDefaultText()
+			}
+			if got != tt.want {
+				t.Fatalf("%s = %q, want %q", tt.flag, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRemovedFlagsStayOutOfHelp 锁定已删除的旧 flag 名称不得重新进入
+// 任何命令的 flag 面（含 MutuallyExclusiveFlags 组内）。
+func TestRemovedFlagsStayOutOfHelp(t *testing.T) {
+	banned := map[string]bool{
+		"input":  true,
+		"output": true,
+		"to":     true,
+		"key":    true,
+		"prefix": true,
+		"tile":   true,
+	}
+
+	var check func(path []string, cmd *cli.Command)
+	check = func(path []string, cmd *cli.Command) {
+		flags := append([]cli.Flag{}, cmd.Flags...)
+		for _, group := range cmd.MutuallyExclusiveFlags {
+			for _, fs := range group.Flags {
+				flags = append(flags, fs...)
+			}
+		}
+		for _, f := range flags {
+			for _, name := range f.Names() {
+				if banned[name] {
+					t.Errorf("%s still defines removed flag --%s", strings.Join(append([]string{"itb"}, path...), " "), name)
+				}
+			}
+		}
+		for _, sub := range cmd.Commands {
+			subPath := append(append([]string{}, path...), sub.Name)
+			check(subPath, sub)
+		}
+	}
+	check(nil, testApp())
+}
+
+// findCommand 沿 path 逐级查找命令，找不到时 fail。
+func findCommand(t *testing.T, path []string) *cli.Command {
+	t.Helper()
+	cmd := testApp()
+	for _, name := range path {
+		var next *cli.Command
+		for _, sub := range cmd.Commands {
+			if sub.Name == name {
+				next = sub
+				break
+			}
+		}
+		if next == nil {
+			t.Fatalf("command %q not found under %q", name, cmd.Name)
+		}
+		cmd = next
+	}
+	return cmd
+}
+
+// findFlag 按名称查找命令的 flag（含 MutuallyExclusiveFlags 组内）。
+func findFlag(t *testing.T, cmd *cli.Command, name string) cli.Flag {
+	t.Helper()
+	flags := append([]cli.Flag{}, cmd.Flags...)
+	for _, group := range cmd.MutuallyExclusiveFlags {
+		for _, fs := range group.Flags {
+			flags = append(flags, fs...)
+		}
+	}
+	for _, f := range flags {
+		if slices.Contains(f.Names(), name) {
+			return f
+		}
+	}
+	t.Fatalf("flag --%s not found on %q", name, cmd.Name)
+	return nil
 }
