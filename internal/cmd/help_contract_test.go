@@ -45,6 +45,19 @@ func assertNotContains(t *testing.T, out, want string) {
 	}
 }
 
+// assertRenderedFlagDefault 断言同一个实际渲染的 flag 行同时包含 flag 名称
+// 与默认值，防止 HideDefault 等改动让 metadata 正确但用户看不到默认值。
+func assertRenderedFlagDefault(t *testing.T, path []string, flag, defaultValue string) {
+	t.Helper()
+
+	for _, line := range strings.Split(helpOutput(t, path...), "\n") {
+		if strings.Contains(line, "--"+flag) && strings.Contains(line, "(default: "+defaultValue+")") {
+			return
+		}
+	}
+	t.Errorf("help for %q does not render --%s with default %s", strings.Join(path, " "), flag, defaultValue)
+}
+
 // assertNoHan 断言输出不含 Han 字符：help 是人类用户与 LLM agent 共同
 // 依赖的英文契约面，任何中文回归都在此处失败。
 func assertNoHan(t *testing.T, out string) {
@@ -377,6 +390,9 @@ func TestFlagDefaultContracts(t *testing.T) {
 		{"s3 region", []string{"s3"}, "region", `"us-east-1"`, false},
 		{"s3 list max-keys", []string{"s3", "list"}, "max-keys", "1000", false},
 		{"s3 list format", []string{"s3", "list"}, "format", `"table"`, false},
+		{"s3 upload format", []string{"s3", "upload"}, "format", `"table"`, false},
+		{"s3 download format", []string{"s3", "download"}, "format", `"table"`, false},
+		{"s3 stat format", []string{"s3", "stat"}, "format", `"table"`, false},
 		{"s3 upload content-type auto-detect", []string{"s3", "upload"}, "content-type", "auto-detect", true},
 		{"serve addr", []string{"serve"}, "addr", `"127.0.0.1:8080"`, false},
 		{"serve max-upload", []string{"serve"}, "max-upload", `"64MiB"`, false},
@@ -401,6 +417,26 @@ func TestFlagDefaultContracts(t *testing.T) {
 			if got != tt.want {
 				t.Fatalf("%s = %q, want %q", tt.flag, got, tt.want)
 			}
+		})
+	}
+}
+
+// TestRenderedDefaultHelpContracts 覆盖 Value 与 DefaultText 的实际 help
+// 输出。它不替代上面的完整 metadata 表，而是锁定 urfave 的渲染契约。
+func TestRenderedDefaultHelpContracts(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		path         []string
+		flag         string
+		defaultValue string
+	}{
+		{"integer value", []string{"compress"}, "quality", "80"},
+		{"string value", []string{"resize"}, "mode", `"fit"`},
+		{"default text", []string{"watermark"}, "color", "auto"},
+		{"duration value", []string{"serve"}, "timeout", "2m0s"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assertRenderedFlagDefault(t, tt.path, tt.flag, tt.defaultValue)
 		})
 	}
 }
