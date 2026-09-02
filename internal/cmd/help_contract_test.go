@@ -45,6 +45,19 @@ func assertNotContains(t *testing.T, out, want string) {
 	}
 }
 
+// assertRenderedFlagContains 断言实际渲染的指定 flag 行包含目标文本，
+// 避免同一帮助页面中其他 flag 的相同文案掩盖语义回归。
+func assertRenderedFlagContains(t *testing.T, out, flag, want string) {
+	t.Helper()
+
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "--"+flag) && strings.Contains(line, want) {
+			return
+		}
+	}
+	t.Errorf("rendered --%s flag does not contain %q\n--- got ---\n%s", flag, want, out)
+}
+
 // assertRenderedFlagDefault 断言同一个实际渲染的 flag 行同时包含 flag 名称
 // 与默认值，防止 HideDefault 等改动让 metadata 正确但用户看不到默认值。
 func assertRenderedFlagDefault(t *testing.T, path []string, flag, defaultValue string) {
@@ -180,10 +193,10 @@ func TestWatermarkHelpContract(t *testing.T) {
 		"writes <name>_watermarked.<ext>",
 		"Exactly one of --text or --image is required",
 		"position mode only",
-		"source image's shorter side",
 	} {
 		assertContains(t, out, want)
 	}
+	assertRenderedFlagContains(t, out, "margin", "source image's shorter side")
 	assertNotContains(t, out, "--input")
 	assertNotContains(t, out, "--output")
 	for _, banned := range []string{"当前版本暂不支持", "需要指定字体", "--tile"} {
