@@ -96,7 +96,7 @@ EXAMPLES:
 			&cli.FloatFlag{
 				Name:      "margin",
 				Value:     0.04,
-				Usage:     "Margin as a fraction of the image dimensions (position mode)",
+				Usage:     "Margin as a fraction of the source image's shorter side (position mode)",
 				Validator: nonNegativeFloatValidator("margin"),
 			},
 			&cli.FloatFlag{

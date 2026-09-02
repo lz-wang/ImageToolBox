@@ -167,6 +167,7 @@ func TestWatermarkHelpContract(t *testing.T) {
 		"writes <name>_watermarked.<ext>",
 		"Exactly one of --text or --image is required",
 		"position mode only",
+		"source image's shorter side",
 	} {
 		assertContains(t, out, want)
 	}
