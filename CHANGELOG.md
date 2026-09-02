@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.1] - 2026-09-02
+
 ### Changed
 
 - CLI help 全面英文化并升级为人类用户与 LLM agent 都可直接依赖的自包含命令契约：root help 按 Category 分组（Image transforms / Analysis / Storage / Service / Utility，由 urfave 原生渲染）；每个命令统一 `DEFAULTS / CONSTRAINTS / EXAMPLES` 结构，补齐此前只存在于 Skill/README 的隐含默认行为——`[dst]` 推导规则（`_compressed` / `_resized` / `_cropped` / `_rotated` / `_watermarked`）、S3 operand 默认（upload key = `basename(<src>)`、download dst = 当前目录 + 对象键最后一段、list 省略 prefix = 全量）、compare 的默认 PSNR + MS-SSIM 与显式选择规则、`--force-path-style` 的有效默认（loopback / `:9000` 端点自动启用）。计算型默认值通过 `DefaultText` 展示（watermark `--color` / `--font` / `--font-size` / `--space` = auto，s3 upload `--content-type` = auto-detect），普通默认值继续由 flag `Value` 单一维护并自动渲染。
