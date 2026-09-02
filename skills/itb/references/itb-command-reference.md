@@ -78,7 +78,7 @@ Flags:
 
 ## Rotate
 
-Rotate by any angle. Positive angles rotate counter-clockwise, negative clockwise; exact `90/180/270` are interpolation-free, arbitrary angles use bilinear interpolation and expand the canvas to keep the whole image (uncovered areas stay transparent for PNG/WebP, flatten onto white for JPEG).
+Rotate by any angle. Positive angles rotate counter-clockwise, negative clockwise; exact `90/180/270` are interpolation-free, arbitrary angles use bilinear interpolation and adjust the canvas according to the rotated bounding box (uncovered areas stay transparent for PNG/WebP, flatten onto white for JPEG).
 
 ```bash
 itb rotate --angle 90 photo.jpg                       # CCW 90° (writes photo_rotated.jpg)
