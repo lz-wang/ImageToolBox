@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.3] - 2026-09-03
+
+### Changed
+
+- `resize` 的 `--filter` 支持列表收敛为领域层单一事实来源：新增 `resize.Filter` 类型、过滤器常量与 `FilterNames()`，CLI 的 help 文案与参数校验改从 `FilterNames()` 派生，消除 domain/validator/help 三处重复维护的枚举。纯内部架构改进，命令行为、help 渲染与错误信息均无变化。
+
 ## [v0.9.2] - 2026-09-03
 
 ### Added
