@@ -64,8 +64,17 @@ jobs:
       - name: Run unit checks
         run: |
           make check
-          make test-unit
+          go test ./... -skip '^TestMinIO(Integration|CLIE2E)$' -covermode=atomic -coverprofile=coverage.out
           go test -race ./internal/compress ./internal/httpapi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+          flags: backend
+          name: backend
+          fail_ci_if_error: true
 
       - name: Run MinIO domain integration tests
         run: go test ./internal/s3 -run '^TestMinIOIntegration$' -v

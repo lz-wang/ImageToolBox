@@ -1,5 +1,7 @@
 # GO 图像工具箱
 
+[![codecov](https://codecov.io/gh/lz-wang/image-tool-box/graph/badge.svg?token=UW9vZvWwxY)](https://codecov.io/gh/lz-wang/image-tool-box)
+
 > **English**: [README.en.md](./README.en.md)
 
 > 外部依赖说明见 [docs/build-bins.md](docs/build-bins.md)。
