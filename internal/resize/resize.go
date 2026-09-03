@@ -219,17 +219,40 @@ func parsePercent(value string) (float64, error) {
 	return parsed, nil
 }
 
+// Filter 是 resize 支持的重采样过滤器名称。FilterNames 与 parseFilter
+// 都从这里派生，CLI validator/help 不再维护自己的枚举副本。
+type Filter string
+
+const (
+	FilterNearest    Filter = "nearest"
+	FilterLinear     Filter = "linear"
+	FilterMitchell   Filter = "mitchell"
+	FilterCatmullRom Filter = "catmullrom"
+	FilterLanczos    Filter = "lanczos"
+)
+
+// FilterNames 返回全部支持的过滤器名称，顺序与 CLI help 渲染一致。
+func FilterNames() []string {
+	return []string{
+		string(FilterNearest),
+		string(FilterLinear),
+		string(FilterMitchell),
+		string(FilterCatmullRom),
+		string(FilterLanczos),
+	}
+}
+
 func parseFilter(value string) (imaging.ResampleFilter, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "lanczos":
+	switch Filter(strings.ToLower(strings.TrimSpace(value))) {
+	case "", FilterLanczos:
 		return imaging.Lanczos, nil
-	case "nearest":
+	case FilterNearest:
 		return imaging.NearestNeighbor, nil
-	case "linear":
+	case FilterLinear:
 		return imaging.Linear, nil
-	case "mitchell":
+	case FilterMitchell:
 		return imaging.MitchellNetravali, nil
-	case "catmullrom":
+	case FilterCatmullRom:
 		return imaging.CatmullRom, nil
 	default:
 		return imaging.Lanczos, fmt.Errorf("unsupported filter: %s", value)

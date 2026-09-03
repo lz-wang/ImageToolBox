@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/disintegration/imaging"
@@ -181,6 +182,23 @@ func TestParseFilter(t *testing.T) {
 				t.Fatalf("parseFilter(%q) = %+v, want %+v", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestFilterNamesMatchesParseFilter 锁定 FilterNames 是过滤器的单一
+// 事实来源：列表无空名、无重复、顺序即 CLI help 渲染顺序，且每个
+// 名称都能被 parseFilter 接受。CLI validator/help 从 FilterNames
+// 派生，此处失败意味着支持集合本身发生了漂移。
+func TestFilterNamesMatchesParseFilter(t *testing.T) {
+	want := []string{"nearest", "linear", "mitchell", "catmullrom", "lanczos"}
+	got := FilterNames()
+	if !slices.Equal(got, want) {
+		t.Fatalf("FilterNames() = %v, want %v", got, want)
+	}
+	for _, name := range got {
+		if _, err := parseFilter(name); err != nil {
+			t.Fatalf("parseFilter(%q) rejected but listed in FilterNames: %v", name, err)
+		}
 	}
 }
 

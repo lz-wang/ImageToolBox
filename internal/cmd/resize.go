@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 	"imagetoolbox/internal/imageio"
@@ -64,9 +65,11 @@ EXAMPLES:
 			},
 			&cli.StringFlag{
 				Name:      "filter",
-				Value:     "lanczos",
-				Usage:     "Resampling filter: nearest/linear/mitchell/catmullrom/lanczos",
-				Validator: enumValidator("filter", "nearest", "linear", "mitchell", "catmullrom", "lanczos"),
+				Value:     string(resize.FilterLanczos),
+				// 支持列表单一来源于 resize.FilterNames，
+				// 与领域层 parseFilter 共享同一份枚举。
+				Usage:     "Resampling filter: " + strings.Join(resize.FilterNames(), "/"),
+				Validator: enumValidator("filter", resize.FilterNames()...),
 			},
 		},
 		Action: runResize,
