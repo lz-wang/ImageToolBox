@@ -65,8 +65,8 @@ EXAMPLES:
 			&cli.StringFlag{
 				Name:      "filter",
 				Value:     "lanczos",
-				Usage:     "Resampling filter: nearest/linear/catmullrom/lanczos",
-				Validator: enumValidator("filter", "nearest", "linear", "catmullrom", "lanczos"),
+				Usage:     "Resampling filter: nearest/linear/mitchell/catmullrom/lanczos",
+				Validator: enumValidator("filter", "nearest", "linear", "mitchell", "catmullrom", "lanczos"),
 			},
 		},
 		Action: runResize,

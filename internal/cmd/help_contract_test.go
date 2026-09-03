@@ -134,6 +134,9 @@ func TestResizeHelpContract(t *testing.T) {
 	} {
 		assertContains(t, out, want)
 	}
+	// filter 枚举必须完整渲染在 --filter 行上，锁定传输层枚举与
+	// 领域层 parseFilter 同步演进。
+	assertRenderedFlagContains(t, out, "filter", "nearest/linear/mitchell/catmullrom/lanczos")
 	assertNotContains(t, out, "--input")
 	assertNotContains(t, out, "--output")
 }

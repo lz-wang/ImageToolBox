@@ -126,6 +126,27 @@ func TestAuthenticationAndLimits(t *testing.T) {
 	})
 }
 
+// TestResizeAcceptsMitchellFilter 锁定 filter=mitchell 的完整链路：
+// HTTP transport 原样透传 → resize.Resolve/parseFilter → imaging
+// MitchellNetravali，HTTP 层不维护自己的 filter 枚举。
+func TestResizeAcceptsMitchellFilter(t *testing.T) {
+	h := mustNew(t, Config{Token: "secret"})
+	req := newMultipartRequest(t, http.MethodPost, "/api/v1/resize",
+		map[string]string{"width": "16", "filter": "mitchell"},
+		formFile{field: "input", filename: "input.png", content: testPNG(t, 32, 32)},
+	)
+	req.Header.Set("Authorization", "Bearer secret")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if img := decodePNG(t, w.Body.Bytes()); img.Bounds() != image.Rect(0, 0, 16, 16) {
+		t.Fatalf("bounds = %v, want 16x16", img.Bounds())
+	}
+}
+
 func TestConfigNormalizeAndValidate(t *testing.T) {
 	t.Run("normalize fills zero values with defaults", func(t *testing.T) {
 		cfg := Config{}
