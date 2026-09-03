@@ -154,7 +154,7 @@ Resize by width/height, by percentage, or using different modes.
 | `--percent` | | Scale exactly by percentage, e.g. `50%`; upscaling like `200%` works |
 | `--mode` | `fit` | Resize mode: `fit` / `fill` / `stretch` |
 | `--anchor` | `center` | Anchor for `fill` mode |
-| `--filter` | `lanczos` | Resampler: `nearest` / `linear` / `catmullrom` / `lanczos` |
+| `--filter` | `lanczos` | Resampler: `nearest` / `linear` / `mitchell` / `catmullrom` / `lanczos` |
 
 **Rules**
 
@@ -163,6 +163,14 @@ Resize by width/height, by percentage, or using different modes.
 - `fit` accepts a single dimension and preserves the aspect ratio
 - `fill` requires both width and height
 - `stretch` does not preserve the aspect ratio when both dimensions are given
+
+**Choosing a resampler**
+
+- `nearest`: fastest, no antialiasing; useful for pixel art and masks
+- `linear`: fast bilinear interpolation with smooth output
+- `mitchell`: Mitchell-Netravali cubic filter; smoother output with less ringing than Catmull-Rom
+- `catmullrom`: sharp cubic filter with a good quality/performance balance
+- `lanczos`: default high-quality filter for photographic images where maximum detail retention matters
 
 </details>
 

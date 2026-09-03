@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `resize --filter mitchell` 新增 Mitchell-Netravali cubic 重采样器：输出较平滑，相比 Catmull-Rom 更少出现 ringing；默认 filter 仍为 `lanczos`。CLI `--filter` 枚举、HTTP API `filter` 字段与 `skills/itb` 命令参考同步开放该取值。
+
 ## [v0.9.1] - 2026-09-02
 
 ### Changed

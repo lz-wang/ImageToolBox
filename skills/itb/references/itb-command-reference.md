@@ -74,7 +74,7 @@ Flags:
 - `--percent`: exact scale percentage, e.g. `50%`; upscaling (`200%`) works.
 - `--mode`: `fit`, `fill`, `stretch`; default `fit`.
 - `--anchor`: fill-mode anchor; default `center`.
-- `--filter`: `nearest`, `linear`, `catmullrom`, `lanczos`; default `lanczos`.
+- `--filter`: `nearest`, `linear`, `mitchell`, `catmullrom`, `lanczos`; default `lanczos`. Use `mitchell` when smoother edges and reduced ringing are preferred; use the default `lanczos` when maximum detail retention is preferred.
 
 ## Rotate
 

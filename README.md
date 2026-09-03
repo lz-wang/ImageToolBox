@@ -154,7 +154,7 @@ brew install lz-wang/tap/itb
 | `--percent` | | 按百分比精确缩放，例如 `50%`；支持放大如 `200%` |
 | `--mode` | `fit` | 缩放模式：`fit` / `fill` / `stretch` |
 | `--anchor` | `center` | `fill` 模式的锚点 |
-| `--filter` | `lanczos` | 采样器：`nearest` / `linear` / `catmullrom` / `lanczos` |
+| `--filter` | `lanczos` | 采样器：`nearest` / `linear` / `mitchell` / `catmullrom` / `lanczos` |
 
 **参数规则**
 
@@ -163,6 +163,14 @@ brew install lz-wang/tap/itb
 - `fit` 支持仅指定宽度或高度，并保持宽高比
 - `fill` 必须同时指定宽度和高度
 - `stretch` 同时指定宽高时不保持原始宽高比
+
+**采样器选择**
+
+- `nearest`：最快，不做抗锯齿，适合像素画、mask 等离散像素图像
+- `linear`：双线性插值，速度快，输出较平滑
+- `mitchell`：Mitchell-Netravali cubic filter，输出较平滑，相比 Catmull-Rom 更少出现 ringing
+- `catmullrom`：锐利的 cubic filter，在质量与性能之间取得平衡
+- `lanczos`：默认值，适合照片等需要高细节保持的高质量缩放
 
 </details>
 
