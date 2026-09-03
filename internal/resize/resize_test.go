@@ -9,10 +9,12 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/disintegration/imaging"
 	"imagetoolbox/internal/imageio"
 )
 
@@ -127,6 +129,70 @@ func TestApplyPercentUpscale(t *testing.T) {
 				t.Fatalf("Apply(percent=%s) = %dx%d, want %dx%d", tt.percent, got.Bounds().Dx(), got.Bounds().Dy(), tt.wantW, tt.wantH)
 			}
 		})
+	}
+}
+
+// sameFilter 比较 ResampleFilter：结构体含函数字段无法直接比较，
+// 用 Support 加采样点上的 Kernel 输出锁定具体过滤器核。
+// NearestNeighbor 没有核函数（Kernel 为 nil，imaging 内部特判），
+// 双方都为 nil 时视为相等。
+func sameFilter(a, b imaging.ResampleFilter) bool {
+	if a.Support != b.Support {
+		return false
+	}
+	if (a.Kernel == nil) != (b.Kernel == nil) {
+		return false
+	}
+	if a.Kernel == nil {
+		return true
+	}
+	for _, x := range []float64{0, 0.25, 0.5, 1, 1.5} {
+		if math.Abs(a.Kernel(x)-b.Kernel(x)) > 1e-12 {
+			return false
+		}
+	}
+	return true
+}
+
+// TestParseFilter 锁定 filter 名称到 imaging.ResampleFilter 的成功映射，
+// 防止某个名称被静默改映射到其他核。
+func TestParseFilter(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  imaging.ResampleFilter
+	}{
+		{name: "default", input: "", want: imaging.Lanczos},
+		{name: "nearest", input: "nearest", want: imaging.NearestNeighbor},
+		{name: "linear", input: "linear", want: imaging.Linear},
+		{name: "mitchell", input: "mitchell", want: imaging.MitchellNetravali},
+		{name: "catmullrom", input: "catmullrom", want: imaging.CatmullRom},
+		{name: "lanczos", input: "lanczos", want: imaging.Lanczos},
+		{name: "case insensitive", input: "MITCHELL", want: imaging.MitchellNetravali},
+		{name: "trim spaces", input: " mitchell ", want: imaging.MitchellNetravali},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseFilter(tt.input)
+			if err != nil {
+				t.Fatalf("parseFilter(%q): %v", tt.input, err)
+			}
+			if !sameFilter(got, tt.want) {
+				t.Fatalf("parseFilter(%q) = %+v, want %+v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestApplyMitchellFilter 行为冒烟：mitchell 在 Apply 全链路可用。
+func TestApplyMitchellFilter(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 8, 4))
+	got, err := Apply(img, Options{Percent: "200%", Filter: "mitchell"})
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if got.Bounds().Dx() != 16 || got.Bounds().Dy() != 8 {
+		t.Fatalf("Apply(mitchell 200%%) = %dx%d, want 16x8", got.Bounds().Dx(), got.Bounds().Dy())
 	}
 }
 

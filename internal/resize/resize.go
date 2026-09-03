@@ -227,6 +227,8 @@ func parseFilter(value string) (imaging.ResampleFilter, error) {
 		return imaging.NearestNeighbor, nil
 	case "linear":
 		return imaging.Linear, nil
+	case "mitchell":
+		return imaging.MitchellNetravali, nil
 	case "catmullrom":
 		return imaging.CatmullRom, nil
 	default:
