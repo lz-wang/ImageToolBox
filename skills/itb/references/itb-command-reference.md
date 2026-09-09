@@ -274,6 +274,7 @@ itb s3 upload -b my-bucket --cache-control no-cache image.webp image/xx.webp \
   --metadata source-sha256=abc123 --metadata width=1920
 itb s3 upload -b my-bucket --skip-existing photo.jpg
 itb s3 upload -b my-bucket --skip-unchanged photo.jpg
+itb s3 upload -b my-bucket --skip-matching photo.jpg --metadata source-sha256=abc123
 itb s3 upload -b my-bucket --verify photo.jpg
 itb s3 download -b my-bucket images/photo.jpg ./photo.jpg
 itb s3 download -b my-bucket images/photo.jpg   # saves ./photo.jpg (last key segment)
@@ -300,8 +301,13 @@ inspecting its metadata.
 `s3 upload` stores the file's SHA-256 in `x-amz-meta-itb-sha256` metadata by
 default. `--skip-existing` skips when the key exists; `--skip-unchanged`
 skips only when that metadata hash matches the local file (never rely on
-ETag for this). Default upload always overwrites. The two skip flags are
-mutually exclusive — combining them is a flag error.
+ETag for this); `--skip-matching` skips (JSON `status=reused`) only when the
+remote object's complete state matches: sha256, size, Content-Type, plus
+every explicitly requested header/metadata (requested subset matching —
+extra remote metadata is irrelevant, unspecified headers mean "don't care").
+Default upload always overwrites. The three skip flags are mutually
+exclusive — combining them is a flag error. The `itb.s3.upload.v2` JSON adds
+`status`: `uploaded` / `skipped` / `reused` (legacy `skipped`/`reason` kept).
 
 Uploads read the source through a private stable snapshot: the stored
 `itb-sha256` always matches the actual PUT body, retries re-read identical

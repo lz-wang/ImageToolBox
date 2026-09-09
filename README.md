@@ -678,13 +678,26 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 # 内容一致才跳过（比对 itb-sha256 metadata，不依赖 ETag）
 ./itb s3 upload -b my-bucket --skip-unchanged photo.jpg
 
+# 完整状态一致才跳过（复用远端对象，status=reused）
+./itb s3 upload -b my-bucket --skip-matching photo.jpg \
+  --metadata source-sha256=abc123 --cache-control no-cache
+
 # PUT 后追加 1 次 HEAD，校验远端属性与本次上传一致
 ./itb s3 upload -b my-bucket --verify photo.jpg
 ```
 
 上传时会把本地文件的 SHA-256 写入对象用户 metadata（`x-amz-meta-itb-sha256`），
 `--skip-unchanged` 依赖该值判断远端对象与本地是否一致；默认行为仍是无条件覆盖。
-`--skip-existing` 与 `--skip-unchanged` 是互斥的上传策略，同时使用会报参数错误。
+`--skip-existing`、`--skip-unchanged` 与 `--skip-matching` 是三个互斥的上传策略，
+同时使用多个会报参数错误。
+
+**`--skip-matching`（完整状态匹配）**：远端对象的完整状态与本次上传的预期一致才
+跳过（JSON `status=reused`）。始终比对 **SHA-256、Content-Length、Content-Type**；
+调用方显式指定的 `--cache-control` / `--content-disposition` / `--content-encoding`
+/ `--metadata` 也必须匹配——采用 **requested subset matching**：请求的每个 metadata
+键都必须原样在场且相等，远端多出的 metadata 不影响匹配；未指定的 header 表示
+"don't care" 而非"要求为空"。请求契约：命中为单次 `HEAD`；未命中为 `HEAD → PUT`
+（再加 `--verify` 时为 `HEAD → PUT → HEAD`，最多两个 HEAD）。
 
 **稳定快照语义**：上传前源文件会被复制到一份私有临时快照（0600，用后即删），
 SHA-256 在同一次读取中计算，随后源文件做可观察变化检测（`os.SameFile` +
@@ -714,10 +727,15 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 | `--content-encoding` | (空) | Content-Encoding 响应头 |
 | `--skip-existing` | `false` | 对象键已存在即跳过上传 |
 | `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
+| `--skip-matching` | `false` | 完整状态一致才跳过（sha256/size/Content-Type + 显式请求的 header/metadata，`status=reused`） |
 | `--verify` | `false` | PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致 |
-| `--format` | `table` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.upload.v1`） |
+| `--format` | `table` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.upload.v2`） |
 
 </details>
+
+`--format json` 契约为 `itb.s3.upload.v2`，新增 `status` 字段：
+`uploaded`（已上传）/ `skipped`（命中 skip-existing/skip-unchanged）/ `reused`
+（完整状态一致，复用远端对象）；`skipped`/`reason` 字段兼容保留。
 
 `--verify` 的请求契约：默认上传 `PUT`；`--verify` 为 `PUT → HEAD`；
 `--skip-existing` 命中为单次 `HEAD`，未命中加 `--verify` 为

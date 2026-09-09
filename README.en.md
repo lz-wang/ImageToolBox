@@ -694,15 +694,30 @@ All S3 subcommands share the following options:
 # Skip only when content is unchanged (compares itb-sha256 metadata, not ETag)
 ./itb s3 upload -b my-bucket --skip-unchanged photo.jpg
 
+# Skip (status reused) only when the remote object's complete state matches
+./itb s3 upload -b my-bucket --skip-matching photo.jpg \
+  --metadata source-sha256=abc123 --cache-control no-cache
+
 # Follow the PUT with one HEAD to verify the stored object matches this upload
 ./itb s3 upload -b my-bucket --verify photo.jpg
 ```
 
 Every upload stores the local file's SHA-256 in object user metadata
 (`x-amz-meta-itb-sha256`), which `--skip-unchanged` compares against;
-the default behavior remains unconditional overwrite. `--skip-existing`
-and `--skip-unchanged` are mutually exclusive upload strategies;
-combining them is rejected as a flag error.
+the default behavior remains unconditional overwrite. `--skip-existing`,
+`--skip-unchanged`, and `--skip-matching` are three mutually exclusive upload
+strategies; combining any of them is rejected as a flag error.
+
+**`--skip-matching` (complete state matching)**: skips (JSON `status=reused`)
+only when the remote object's complete state matches this upload's
+expectations. **SHA-256, Content-Length, and Content-Type** are always
+compared; explicitly requested `--cache-control` / `--content-disposition` /
+`--content-encoding` / `--metadata` must match too — with **requested subset
+matching**: every requested metadata key must be present and equal, extra
+remote metadata does not affect matching, and unspecified headers mean
+"don't care", not "must be empty". Request contract: a hit is a single
+`HEAD`; a miss is `HEAD → PUT` (plus a final `HEAD` with `--verify`, at most
+two HEADs).
 
 **Stable snapshot semantics**: before uploading, the source file is copied to
 a private temporary snapshot (0600, removed afterwards) whose SHA-256 is
@@ -738,10 +753,16 @@ uploads as `text/html`, not `image/jpeg`.
 | `--content-encoding` | (empty) | Content-Encoding response header |
 | `--skip-existing` | `false` | Skip upload when the object key already exists |
 | `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
+| `--skip-matching` | `false` | Skip only when the remote object's complete state matches (sha256/size/Content-Type + explicitly requested headers/metadata, `status=reused`) |
 | `--verify` | `false` | After PUT, issue one HEAD to verify remote size/Content-Type/HTTP headers/metadata match this upload |
-| `--format` | `table` | Output format: `table` / `json` (JSON contract `itb.s3.upload.v1`) |
+| `--format` | `table` | Output format: `table` / `json` (JSON contract `itb.s3.upload.v2`) |
 
 </details>
+
+The `--format json` contract is `itb.s3.upload.v2` with a new `status` field:
+`uploaded` / `skipped` (skip-existing or skip-unchanged hit) / `reused`
+(complete state match, remote object reused); the legacy `skipped`/`reason`
+fields are kept for compatibility.
 
 Request contract of `--verify`: a plain upload is `PUT`; `--verify` makes it
 `PUT → HEAD`; a `--skip-existing` hit is a single `HEAD` (a miss with

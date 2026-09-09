@@ -110,12 +110,19 @@ DEFAULTS:
   metadata (x-amz-meta-itb-sha256) for --skip-unchanged.
 
 CONSTRAINTS:
-  --skip-existing and --skip-unchanged are mutually
-  exclusive.
+  --skip-existing, --skip-unchanged, and --skip-matching
+  are mutually exclusive.
   --skip-existing skips the upload when the object key
   already exists (one HEAD instead of a full upload).
   --skip-unchanged skips only when the stored itb-sha256
   metadata matches (no ETag dependency).
+  --skip-matching skips (status reused) only when the remote
+  object's complete state matches this upload: SHA-256,
+  size, Content-Type, plus every explicitly requested
+  Cache-Control / Content-Disposition / Content-Encoding /
+  metadata value. Extra remote metadata is irrelevant;
+  unspecified headers mean "don't care", not "must be
+  empty".
   --verify issues one HEAD after the PUT and checks that
   the remote size / Content-Type / HTTP headers / metadata
   match this upload (body bytes are not re-checked).
@@ -129,6 +136,8 @@ EXAMPLES:
   itb s3 upload -b my-bucket --cache-control no-cache image.webp
   itb s3 upload -b my-bucket --skip-existing photo.jpg
   itb s3 upload -b my-bucket --skip-unchanged photo.jpg
+  itb s3 upload -b my-bucket --skip-matching photo.jpg \
+    --metadata source-sha256=abc123 --cache-control no-cache
   itb s3 upload -b my-bucket --verify photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -163,7 +172,8 @@ EXAMPLES:
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},
-		// 两个跳过选项是互斥的上传策略：同名跳过 or 内容一致跳过
+		// 三个跳过选项是互斥的上传策略：同名跳过 / 内容一致跳过 /
+		// 完整状态一致复用
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
 			{
 				Flags: [][]cli.Flag{
@@ -177,6 +187,13 @@ EXAMPLES:
 						&cli.BoolFlag{
 							Name:  "skip-unchanged",
 							Usage: "Skip the upload only when content is unchanged (compares itb-sha256 metadata)",
+						},
+					},
+					{
+						&cli.BoolFlag{
+							Name: "skip-matching",
+							Usage: "Skip (status reused) only when the remote object's complete state matches: " +
+								"sha256, size, Content-Type, and every explicitly requested header/metadata",
 						},
 					},
 				},
@@ -407,6 +424,7 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		Progress:           os.Stderr,
 		SkipExisting:       cmd.Bool("skip-existing"),
 		SkipUnchanged:      cmd.Bool("skip-unchanged"),
+		SkipMatching:       cmd.Bool("skip-matching"),
 		Verify:             cmd.Bool("verify"),
 	}
 
@@ -421,6 +439,10 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(result)
+	}
+	if result.Status == s3.StatusReused {
+		fmt.Printf("Upload reused remote object: %s -> s3://%s/%s\n", input, cmd.String("bucket"), key)
+		return nil
 	}
 	if result.Skipped {
 		fmt.Printf("Upload skipped: %s -> s3://%s/%s (%s)\n", input, cmd.String("bucket"), key, result.Reason)

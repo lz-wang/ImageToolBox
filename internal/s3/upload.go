@@ -22,9 +22,22 @@ const MetadataSHA256Key = "itb-sha256"
 // 机器可读输出契约（--format json）的 schema 版本。脚本消费方依赖
 // JSON 结构稳定时，应以 schema_version 判断契约版本，而不是解析
 // 终端文本。stat 与 upload/download 各自独立演进。
+// v2：新增 status 字段（uploaded/skipped/reused），skipped/reason
+// 兼容保留。
 const (
-	UploadSchemaVersion = "itb.s3.upload.v1"
+	UploadSchemaVersion = "itb.s3.upload.v2"
 )
+
+// UploadResult.Status 的取值。
+const (
+	StatusUploaded = "uploaded"
+	StatusSkipped  = "skipped"
+	StatusReused   = "reused"
+)
+
+// ErrSkipStrategyConflict 同时指定多个互斥的跳过策略
+//（--skip-existing / --skip-unchanged / --skip-matching）。
+var ErrSkipStrategyConflict = errors.New("only one skip strategy can be enabled")
 
 // UploadOptions 上传选项
 type UploadOptions struct {
@@ -50,7 +63,16 @@ type UploadOptions struct {
 
 	// SkipUnchanged 为 true 时，仅当远端 metadata 中的 itb-sha256
 	// 与本地文件 SHA-256 一致才跳过上传（内容一致跳过）。
+	// 语义锁定不变。
 	SkipUnchanged bool
+
+	// SkipMatching 为 true 时，远端对象完整状态与本次上传预期一致才
+	// 跳过（复用远端对象）：始终比对 SHA-256、Content-Length、
+	// Content-Type；调用方显式指定的 Cache-Control、Content-Disposition、
+	// Content-Encoding 与 metadata 也必须匹配（requested subset
+	// matching：远端多出的 metadata 不影响匹配，未指定的 header 表示
+	// don't care 而非"要求为空"）。
+	SkipMatching bool
 
 	// Verify 为 true 时，PUT 成功后追加 1 次 HeadObject，比对远端
 	// size / Content-Type / 标准 HTTP 头 / metadata 与本次 PUT 的
@@ -61,7 +83,7 @@ type UploadOptions struct {
 
 // UploadResult 上传结果
 type UploadResult struct {
-	// SchemaVersion 机器可读契约版本（itb.s3.upload.v1）
+	// SchemaVersion 机器可读契约版本（itb.s3.upload.v2）
 	SchemaVersion string `json:"schema_version"`
 
 	// Key 实际写入的对象键
@@ -76,7 +98,12 @@ type UploadResult struct {
 	// skip-existing 命中时未计算、留空
 	SHA256 string `json:"sha256"`
 
-	// Skipped 表示命中跳过规则，未执行上传
+	// Status 是本次上传的结果状态：uploaded（已上传）/ skipped
+	//（命中 skip-existing/skip-unchanged）/ reused（远端状态与预期
+	// 完全一致，复用远端对象，v2 新增）
+	Status string `json:"status"`
+
+	// Skipped 表示未执行上传。兼容保留：新脚本应改读 status。
 	Skipped bool `json:"skipped"`
 
 	// Reason 跳过原因，仅 Skipped 为 true 时有值
@@ -116,6 +143,17 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	if key == "" {
 		return nil, ErrMissingKey
 	}
+	if opts != nil {
+		strategies := 0
+		for _, enabled := range []bool{opts.SkipExisting, opts.SkipUnchanged, opts.SkipMatching} {
+			if enabled {
+				strategies++
+			}
+		}
+		if strategies > 1 {
+			return nil, ErrSkipStrategyConflict
+		}
+	}
 
 	// 用户 metadata 在任何网络请求之前完成归一化校验，
 	// 非法参数不产生副作用。
@@ -143,7 +181,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	// HEAD preflight 必须发生在快照之前
 	var remote *StatInfo
 
-	if opts != nil && (opts.SkipExisting || opts.SkipUnchanged) {
+	if opts != nil && (opts.SkipExisting || opts.SkipUnchanged || opts.SkipMatching) {
 		remote, err = statUploadTarget(ctx, client, key)
 		if err != nil {
 			return nil, err
@@ -157,6 +195,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 				SchemaVersion: UploadSchemaVersion,
 				Key:           key,
 				Size:          fileInfo.Size(),
+				Status:        StatusSkipped,
 				Skipped:       true,
 				Reason:        "object already exists",
 			}, nil
@@ -178,6 +217,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 			Key:           key,
 			Size:          fileInfo.Size(),
 			SHA256:        sha256Value,
+			Status:        StatusSkipped,
 			Skipped:       true,
 			Reason:        "content unchanged (itb-sha256 match)",
 		}, nil
@@ -209,6 +249,42 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 
 	fileSize := fileInfo.Size()
 
+	// 执行上传：itb-sha256 与用户 metadata 合并写入，用户不可覆盖
+	// 保留键（NormalizeMetadata 已拒绝）。
+	objectMetadata := make(map[string]string, len(metadata)+1)
+	maps.Copy(objectMetadata, metadata)
+	objectMetadata[MetadataSHA256Key] = sha256Value
+
+	// 本次上传的完整预期状态：--skip-matching 的跳过判定与 --verify
+	// 的回读校验共用同一比较逻辑（唯一事实来源）。
+	var cacheControl, contentDisposition, contentEncoding string
+	if opts != nil {
+		cacheControl = opts.CacheControl
+		contentDisposition = opts.ContentDisposition
+		contentEncoding = opts.ContentEncoding
+	}
+	expect := uploadExpectations{
+		Size:               fileSize,
+		ContentType:        contentType,
+		CacheControl:       cacheControl,
+		ContentDisposition: contentDisposition,
+		ContentEncoding:    contentEncoding,
+		Metadata:           objectMetadata,
+	}
+
+	// --skip-matching 命中：远端已是完整预期状态，复用远端对象
+	if opts != nil && opts.SkipMatching && matchesExpectedState(remote, expect) {
+		return &UploadResult{
+			SchemaVersion: UploadSchemaVersion,
+			Key:           key,
+			Size:          fileSize,
+			SHA256:        sha256Value,
+			Status:        StatusReused,
+			Skipped:       true,
+			Reason:        "remote object state matches (sha256/size/content-type/headers)",
+		}, nil
+	}
+
 	// 如果文件大于 5MB，向 Progress 输出传输提示
 	var progress io.Writer
 	if opts != nil {
@@ -217,12 +293,6 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	if fileSize > 5*1024*1024 && progress != nil {
 		fmt.Fprintf(progress, "Uploading %s (%.2f MB)...\n", inputPath, float64(fileSize)/(1024*1024))
 	}
-
-	// 执行上传：itb-sha256 与用户 metadata 合并写入，用户不可覆盖
-	// 保留键（NormalizeMetadata 已拒绝）。
-	objectMetadata := make(map[string]string, len(metadata)+1)
-	maps.Copy(objectMetadata, metadata)
-	objectMetadata[MetadataSHA256Key] = sha256Value
 
 	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(client.bucket),
@@ -249,24 +319,16 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	}
 
 	if opts != nil && opts.Verify {
-		expect := uploadExpectations{
-			Size:               fileSize,
-			ContentType:        contentType,
-			CacheControl:       aws.ToString(putInput.CacheControl),
-			ContentDisposition: aws.ToString(putInput.ContentDisposition),
-			ContentEncoding:    aws.ToString(putInput.ContentEncoding),
-			Metadata:           objectMetadata,
-		}
 		if err := verifyUpload(ctx, client, key, expect); err != nil {
 			return nil, err
 		}
 	}
 
-	return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Size: fileSize, SHA256: sha256Value}, nil
+	return &UploadResult{SchemaVersion: UploadSchemaVersion, Key: key, Size: fileSize, SHA256: sha256Value, Status: StatusUploaded}, nil
 }
 
-// uploadExpectations 记录本次 PUT 写入的对象属性，供 --verify 的
-// HEAD 回读比对。
+// uploadExpectations 记录本次 PUT 写入的对象属性，供 --skip-matching
+// 的跳过判定与 --verify 的 HEAD 回读比对共用。
 type uploadExpectations struct {
 	Size               int64
 	ContentType        string
@@ -274,6 +336,61 @@ type uploadExpectations struct {
 	ContentDisposition string
 	ContentEncoding    string
 	Metadata           map[string]string
+}
+
+// expectedStateMismatch 比对远端对象状态与本次上传的预期，返回第一处
+// 不一致的描述；完全一致返回空串。这是 upload 状态比较的唯一事实来源：
+//
+//   - SHA-256（itb-sha256 metadata）、Content-Length、Content-Type
+//     始终比对；
+//   - Cache-Control / Content-Disposition / Content-Encoding 仅在
+//     调用方显式指定时比对（未指定 = don't care，不要求远端为空）；
+//   - metadata 采用 requested subset matching：预期中的每个键都必须
+//     原样在场且相等，远端多出的 metadata 不影响匹配。
+func expectedStateMismatch(remote *StatInfo, expect uploadExpectations) string {
+	if remote == nil {
+		return "remote object does not exist"
+	}
+	if remote.Size != expect.Size {
+		return fmt.Sprintf("content-length: got %d, want %d", remote.Size, expect.Size)
+	}
+	if remote.ContentType != expect.ContentType {
+		return fmt.Sprintf("content-type: got %q, want %q", remote.ContentType, expect.ContentType)
+	}
+	for _, field := range []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"cache-control", remote.CacheControl, expect.CacheControl},
+		{"content-disposition", remote.ContentDisposition, expect.ContentDisposition},
+		{"content-encoding", remote.ContentEncoding, expect.ContentEncoding},
+	} {
+		if field.want == "" {
+			continue
+		}
+		if field.got != field.want {
+			return fmt.Sprintf("%s: got %q, want %q", field.name, field.got, field.want)
+		}
+	}
+
+	// metadata 键在写入与 HEAD 回读时均为小写；逐键精确比对，
+	// itb-sha256 与所有用户 metadata 都必须原样在场。
+	for k, want := range expect.Metadata {
+		got, ok := remote.Metadata[k]
+		if !ok {
+			return fmt.Sprintf("metadata %q missing on remote object", k)
+		}
+		if got != want {
+			return fmt.Sprintf("metadata %q: got %q, want %q", k, got, want)
+		}
+	}
+	return ""
+}
+
+// matchesExpectedState 报告远端对象是否已处于本次上传的完整预期状态。
+func matchesExpectedState(remote *StatInfo, expect uploadExpectations) bool {
+	return expectedStateMismatch(remote, expect) == ""
 }
 
 // verifyUpload 对刚上传的对象执行 1 次 HeadObject，比对远端返回的
@@ -287,39 +404,8 @@ func verifyUpload(ctx context.Context, client *Client, key string, expect upload
 		return fmt.Errorf("verify: %w", err)
 	}
 
-	if info.Size != expect.Size {
-		return fmt.Errorf("%w: content-length: got %d, want %d", ErrVerifyFailed, info.Size, expect.Size)
-	}
-	if info.ContentType != expect.ContentType {
-		return fmt.Errorf("%w: content-type: got %q, want %q", ErrVerifyFailed, info.ContentType, expect.ContentType)
-	}
-	for _, field := range []struct {
-		name string
-		got  string
-		want string
-	}{
-		{"cache-control", info.CacheControl, expect.CacheControl},
-		{"content-disposition", info.ContentDisposition, expect.ContentDisposition},
-		{"content-encoding", info.ContentEncoding, expect.ContentEncoding},
-	} {
-		if field.want == "" {
-			continue
-		}
-		if field.got != field.want {
-			return fmt.Errorf("%w: %s: got %q, want %q", ErrVerifyFailed, field.name, field.got, field.want)
-		}
-	}
-
-	// metadata 键在写入与 HEAD 回读时均为小写；逐键精确比对，
-	// itb-sha256 与所有用户 metadata 都必须原样在场。
-	for k, want := range expect.Metadata {
-		got, ok := info.Metadata[k]
-		if !ok {
-			return fmt.Errorf("%w: metadata %q missing on remote object", ErrVerifyFailed, k)
-		}
-		if got != want {
-			return fmt.Errorf("%w: metadata %q: got %q, want %q", ErrVerifyFailed, k, got, want)
-		}
+	if detail := expectedStateMismatch(info, expect); detail != "" {
+		return fmt.Errorf("%w: %s", ErrVerifyFailed, detail)
 	}
 	return nil
 }
