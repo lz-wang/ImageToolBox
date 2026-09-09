@@ -43,10 +43,11 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
    └──→ internal/httpapi（HTTP API）┴──→ internal/imageio（共享的编解码/格式/铺底/取色层）
 ```
 
-- `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。
+- `internal/cmd`：所有 `cli.Command` 定义、flag 绑定、文件 IO 与错误打印。命令逻辑只做参数解析和编排，真正处理委托给领域包。失败输出统一经 `ExecuteArgs`：请求 `--format json` 时任何失败在 stdout 输出恰好一份 `itb.error.v1` 文档并返回 `ErrReported`（main 不再向 stderr 重复打印）；Action 以 `operationError("<op>", err)` 标注操作名。
 - 领域包（`resize`、`convert`、`crop`、`rotate`、`watermark`、`compress`、`compare`、`s3`、`inspect`）：接受 `Options` 结构体、操作 `image.Image` 或文件路径，**不依赖 urfave/cli**。这种解耦使 Web API 能直接复用领域包的处理函数。
 - `internal/imageio`：跨领域共享的格式归一化（`NormalizeFormat`/`FormatFromPath`）、保存（`Save`/`SaveWithFormat`）、编码（`Encode`，含 JPEG/PNG/WEBP）、透明图铺底（`Flatten`）、十六进制颜色解析（`ParseHexColor`）。新增格式编解码应集中在这里。
 - `internal/s3`：存储后端，通过 `cmd/s3.go` 暴露为子命令。`ITB_S3_*` 环境变量由 CLI 层（urfave/cli 的 `Sources`）解析注入，优先级为 CLI flag > 环境变量 > 默认值；`internal/s3` 是纯领域包，自身不读取环境变量。注意：存储后端仅暴露为 CLI 子命令，HTTP API 不提供任何存储相关 API。
+- `internal/filehash`：跨命令共享的文件哈希 utility（单遍流式多算法摘要 + 读取后可观察变化检测 `VerifyUnchanged`）。inspect/selective hashing、compress 报告与 S3 上传快照共用；不提供 CLI 命令。
 - `internal/httpapi`：`itb serve` 的标准库 HTTP API（`/api/v1`），直接调用领域包而非 CLI 子进程。
 - `watermark.AddFile` 是文件级水印领域入口。渲染 helper 必须保持包私有，CLI/HTTP adapter 不得绕过该入口。
 
@@ -99,13 +100,29 @@ main.go ──→ internal/cmd（CLI）──→ 各领域包 (compress/resize/c
 - Resolve dimensions must equal Apply output bounds（`Resolve(bounds).size == Apply(img).Bounds().size`，测试锁定；`rotatedSize` 复刻 imaging v1.6.2 的推导语义，升级依赖后漂移会立即暴露）
 - HTTP performs output admission before allocation（HTTP 先 Probe 逻辑尺寸 → `rotate.Resolve` → `validateImageSize` 计划输出准入 → `Plan.WorkingBytes` 不超过 `MaxWorkingBytes` 工作集准入，再执行分配）
 
+## 稳定机器可读 schema
+
+脚本消费方以 `schema_version` 判断契约版本，修改任何字段前必须评估破坏性并在 CHANGELOG 记录：
+
+| Schema | 输出面 | 要点 |
+|--------|--------|------|
+| `itb.error.v1` | 所有命令 `--format json` 失败时的 stdout | `schema_version` / `operation` / `error{code,message,retryable,http_status,provider_code}`；稳定 `E_*` 错误码清单见 `internal/cmd/error.go`；stdout 恰好一份 JSON，stderr 不重复 |
+| `itb.inspect.v3` | `inspect --format json` | 新增 `content` 内容识别对象（format/canonical_extension/mime_type/recognized/decode_supported/full_decode_supported/extension_matches）；保留 `decode_config_ok`/`full_decode_ok`/`frame_count`/`animation_known`/`animated` |
+| `itb.compress.v1` | `compress --format json` | input/output（path/format/size/sha256）、quality、processor（`pngquant+oxipng` / `djpeg+cjpeg` 固定命名）、elapsed_ms |
+| `itb.s3.list.v2` | `s3 list --format json` | 结构化对象（bucket/prefix/complete/count/pages/next_continuation_token/objects）；v1 为裸数组 |
+| `itb.s3.upload.v2` | `s3 upload --format json` | 新增 `status`（uploaded/skipped/reused）；`skipped`/`reason` 兼容保留 |
+| `itb.s3.download.v2` | `s3 download --format json` | 新增 `status`（downloaded/reused）与 `content_type` |
+
+`itb.s3.stat.v1` 维持 v1 不变。
+
 ## 测试约定
 
 - 表驱动 + `t.Run`，测试文件与被测代码同包（如 `package resize`）。
 - 不使用 `testdata/`，测试中用 `image.NewNRGBA` 等就地合成图片，避免二进制 fixture。
 - 根目录的 `test-images/` 仅作手动验证（已 gitignore），不要在测试里引用。
 - 纯 Go 单测不依赖内嵌的原生二进制；涉及 `compress` 的集成测试才会触发解压流程。
-- `internal/s3/minio_test.go` 包含真实 MinIO 的领域集成测试和编译后 `itb` 二进制 CLI E2E（upload/stat/download/skip/metadata/cache-control/overwrite/verify/delete + path-style）。CI 在 workflow step 中通过 `docker run` 启动 MinIO 并分别执行两层测试；本地默认跳过，可用 `ITB_TEST_MINIO_ENDPOINT`（默认 `http://127.0.0.1:9000`）、`ITB_TEST_MINIO_ACCESS_KEY`/`ITB_TEST_MINIO_SECRET_KEY`（默认 `minioadmin`）指向自建实例运行。
+- `internal/s3/minio_test.go` 包含真实 MinIO 的领域集成测试和编译后 `itb` 二进制 CLI E2E（upload/stat/download/skip/metadata/cache-control/overwrite/verify/delete + path-style，以及 list 分页、skip-matching、条件上传、期望值校验、本地复用与 stdout/stderr 单 JSON 文档契约）。CI 在 workflow step 中通过 `docker run` 启动 MinIO 并分别执行两层测试；本地默认跳过，可用 `ITB_TEST_MINIO_ENDPOINT`（默认 `http://127.0.0.1:9000`）、`ITB_TEST_MINIO_ACCESS_KEY`/`ITB_TEST_MINIO_SECRET_KEY`（默认 `minioadmin`）指向自建实例运行。
+- `internal/cmd/e2e_test.go` 是不依赖 MinIO 的编译后二进制 E2E：inspect 内容识别契约（PNG/JPEG/GIF/WebP/BMP/TIFF/SVG/伪装 SVG/损坏 TIFF、`--hash sha256` 选择性哈希）、`itb.error.v1` stdout/stderr 单文档契约与 compress 失败不留 partial，随 `make test-unit` 真实执行。
 
 ## 文档约定
 

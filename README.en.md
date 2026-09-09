@@ -627,12 +627,18 @@ MinIO compatibility is continuously verified in CI: a real MinIO container
 started via `docker run` in a step (GitHub Actions service containers do
 not support container commands, so `server /data` cannot be passed) runs
 the integration test (`internal/s3/minio_test.go`) covering
-upload / stat / download / skip-existing / skip-unchanged / metadata /
-cache-control / overwrite / verify / delete, and path-style addressing.
+upload / stat / download / skip-existing / skip-unchanged / skip-matching /
+metadata / cache-control / overwrite / verify / delete / list pagination /
+conditional upload (If-None-Match) / expectation checks / local-copy reuse,
+and path-style addressing.
 CI sets `ITB_REQUIRE_MINIO=1` (strict mode: the test fails instead of
 skipping when MinIO is unavailable). Local `go test` skips it when MinIO
 is unreachable; point `ITB_TEST_MINIO_ENDPOINT` (and friends) at your own
 instance to run it.
+The MinIO-independent compiled-binary E2E (`internal/cmd/e2e_test.go`) locks
+the inspect content-recognition contract (PNG/JPEG/GIF/WebP/BMP/TIFF/SVG plus
+disguised and corrupted samples), the `itb.error.v1` single-JSON-document
+stdout/stderr semantics, and compress never leaving partial output on failure.
 
 ### Environment variables
 

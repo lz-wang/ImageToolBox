@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+本轮围绕"可靠上传/下载/列举/校验 + 机器可读输出"共 11 个独立 commit，全部稳定 JSON schema 清单如下：
+
+| Schema | 用途 |
+|--------|------|
+| `itb.error.v1` | CLI 失败输出的统一机器可读错误契约（`--format json` 时失败输出到 stdout，含稳定 `E_*` 错误码） |
+| `itb.inspect.v3` | inspect JSON（新增 `content` 内容识别对象；保留 v2 的 full-decode 字段） |
+| `itb.compress.v1` | compress `--format json`（input/output 的 path/format/size/sha256、quality、processor、elapsed_ms） |
+| `itb.s3.list.v2` | s3 list JSON（从裸数组升级为结构化对象，携带 complete/分页元数据） |
+| `itb.s3.upload.v2` | s3 upload JSON（新增 `status`：uploaded/skipped/reused；skipped/reason 兼容保留） |
+| `itb.s3.download.v2` | s3 download JSON（新增 `status`：downloaded/reused 与 `content_type`） |
+
+### Added
+
+- **Commit 1** `s3 list` 完整分页契约：`--page-size`（1-1000，`--max-keys` 保留为 v0.9.x alias）、`--all`、`--limit`、`--continuation-token`；`--limit` 截断发生在 S3 请求边界（MaxKeys 收缩为剩余配额），token 恢复不跳过对象；token 缺失/重复/不前进时返回 `E_INCOMPLETE_LIST`，绝不输出半份结果。
+- **Commit 2** 统一机器可读错误契约 `itb.error.v1`：请求 `--format json` 的命令失败时 stdout 输出一份错误 JSON（schema_version/operation/error{code,message,retryable,http_status,provider_code}），stderr 不再重复；锁定 17 个稳定 `E_*` 错误码；S3 provider 错误只透出 HTTP 状态与 provider code，凭据/签名/原始 provider 文本绝不透出。
+- **Commit 3** 共享哈希包 `internal/filehash`：单遍流式多算法摘要（sha256/sha1/md5/crc32）；`SumFile` 读取后以 `os.SameFile` + size/modtime 检测可观察变化，变化时报 `E_SOURCE_CHANGED`；`inspect` 新增可重复 `--hash`（与 `--no-hash` 互斥），未指定时仍计算全部算法。
+- **Commit 4** `inspect` 内容识别层重构（`itb.inspect.v3`）：三阶段检测（内容识别 → 结构校验 → 可选完整解码）；格式注册表单点维护；BMP/TIFF 经 `golang.org/x/image` 完整解码；SVG 经流式 XML 解析识别（`recognized=true`、`decode_supported=false`，不是损坏，无显式宽高合法），HTML 改名 `.svg` 必须失败。
+- **Commit 5** `compress` 结构化输出与安全提交：`--format json`（`itb.compress.v1`，含 input/output sha256、processor 固定命名 `pngquant+oxipng` / `djpeg+cjpeg`）；输出先写目标目录临时文件、校验后原子 rename，失败不留 partial 文件。
+- **Commit 6** `s3 upload` 稳定本地快照：源文件复制到私有临时快照并单遍计算 SHA-256，`itb-sha256` 与实际 PUT body 严格对应，SDK 重试 rewind 安全；快照期间源文件可观察变化时以 `E_SOURCE_CHANGED` 失败。
+- **Commit 7** `s3 upload --skip-matching`：远端完整状态（sha256/size/Content-Type + 显式请求的 header/metadata，requested subset matching）一致才跳过（`status=reused`）；三个 skip 策略互斥。
+- **Commit 8** `s3 download` 期望值与本地复用：`--expect-size`（指针三态，0 字节合法）、`--expect-content-type`（参数与大小写不敏感）；`--if-exists verify` 仅在有校验依据时复用本地副本（`status=reused`），无依据直接 `E_INVALID_ARGUMENT`，绝不"文件存在就复用"。
+- **Commit 9** `s3` 网络控制暴露：`--max-attempts`（默认 3，AWS SDK 标准 retryer）、`--connect-timeout`/`--response-header-timeout`（默认 30s）、`--operation-timeout`（默认 0 禁用，作用于整个操作上下文）。
+- **Commit 10** `s3 upload --if-exists verify` 不可覆盖条件上传：真条件写 `IfNoneMatch="*"`（绝不 HEAD+判断+PUT 模拟）；412 后 HEAD 按完整状态匹配决定 reused/`E_TARGET_CONFLICT`；409 `ConditionalRequestConflict` 加入 SDK retryer 可重试；provider 不支持时以 `E_UNSUPPORTED_CAPABILITY` 失败，绝不降级。
+- **Commit 11** E2E 收口：MinIO 集成覆盖分页（3 对象 + page-size 2 强制两页）、skip-matching、条件上传、期望值校验与本地复用；编译后二进制 E2E 锁定 inspect 内容识别契约（七种格式 + 伪装/损坏样本）、错误契约 stdout/stderr 单文档语义与 compress 失败不留 partial。
+
 ## [v0.9.3] - 2026-09-03
 
 ### Changed

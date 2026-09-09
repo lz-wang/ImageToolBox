@@ -264,6 +264,144 @@ func TestMinIOIntegration(t *testing.T) {
 			t.Fatalf("expected not found after delete, got %v", err)
 		}
 	})
+
+	// ---- Commit 11 收口：分页 / skip-matching / 条件上传 / 期望值 ----
+
+	t.Run("list pagination across pages", func(t *testing.T) {
+		// 3 个对象 + PageSize 2 强制两页，不必创建 1001 个对象
+		pagePrefix := prefix + "page/"
+		uploaded := make([]string, 0, 3)
+		for i := range 3 {
+			key := pagePrefix + "obj-" + strconv.Itoa(i) + ".txt"
+			path := uploadFixture("page-obj.txt", helloContent)
+			if _, err := Upload(ctx, client, path, key, nil); err != nil {
+				t.Fatalf("seed page object %d: %v", i, err)
+			}
+			uploaded = append(uploaded, key)
+		}
+
+		result, err := List(ctx, client, &ListOptions{Prefix: pagePrefix, PageSize: 2, All: true})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if result.Count != 3 || result.Pages != 2 || !result.Complete {
+			t.Fatalf("result = count %d, pages %d, complete %v; want 3/2/true", result.Count, result.Pages, result.Complete)
+		}
+
+		singlePage, err := List(ctx, client, &ListOptions{Prefix: pagePrefix, PageSize: 2})
+		if err != nil {
+			t.Fatalf("List single page: %v", err)
+		}
+		if singlePage.Count != 2 || singlePage.Complete || singlePage.NextContinuationToken == "" {
+			t.Fatalf("single page = count %d complete %v token %q", singlePage.Count, singlePage.Complete, singlePage.NextContinuationToken)
+		}
+	})
+
+	t.Run("skip-matching reuses identical object", func(t *testing.T) {
+		path := uploadFixture("match.txt", helloContent)
+		key := prefix + "match.txt"
+		if _, err := Upload(ctx, client, path, key, &UploadOptions{
+			CacheControl: "no-cache",
+			Metadata:     map[string]string{"width": "1920"},
+		}); err != nil {
+			t.Fatalf("seed upload: %v", err)
+		}
+
+		result, err := Upload(ctx, client, path, key, &UploadOptions{
+			SkipMatching: true,
+			CacheControl: "no-cache",
+			Metadata:     map[string]string{"width": "1920"},
+		})
+		if err != nil {
+			t.Fatalf("Upload skip-matching: %v", err)
+		}
+		if result.Status != StatusReused || !result.Skipped {
+			t.Fatalf("result = %+v, want reused", result)
+		}
+	})
+
+	t.Run("conditional if-exists verify upload", func(t *testing.T) {
+		key := prefix + "immutable.bin"
+		path := uploadFixture("immutable.txt", helloContent)
+
+		created, err := Upload(ctx, client, path, key, &UploadOptions{IfExists: IfExistsVerify})
+		if err != nil {
+			t.Fatalf("conditional create: %v", err)
+		}
+		if created.Status != StatusUploaded {
+			t.Fatalf("first upload status = %q, want uploaded", created.Status)
+		}
+
+		// 相同内容：412 → HEAD 匹配 → reused
+		reused, err := Upload(ctx, client, path, key, &UploadOptions{IfExists: IfExistsVerify})
+		if err != nil {
+			t.Fatalf("conditional reuse: %v", err)
+		}
+		if reused.Status != StatusReused {
+			t.Fatalf("second upload status = %q, want reused", reused.Status)
+		}
+
+		// 不同内容：412 → HEAD 不匹配 → E_TARGET_CONFLICT，远端不被覆盖
+		other := uploadFixture("other.txt", "other content")
+		if _, err := Upload(ctx, client, other, key, &UploadOptions{IfExists: IfExistsVerify}); err == nil || !strings.Contains(err.Error(), ErrExpectationMismatch.Error()) {
+			t.Fatalf("err = %v, want expectation mismatch", err)
+		}
+		info, err := Stat(ctx, client, key)
+		if err != nil {
+			t.Fatalf("stat after conflict: %v", err)
+		}
+		if info.Metadata[MetadataSHA256Key] != helloSHA256 {
+			t.Errorf("immutable object was overwritten: sha = %q", info.Metadata[MetadataSHA256Key])
+		}
+	})
+
+	t.Run("download expect-size and content-type", func(t *testing.T) {
+		output := filepath.Join(t.TempDir(), "expected.txt")
+		good := int64(len(helloContent))
+		if _, err := Download(ctx, client, basicKey, output, &DownloadOptions{
+			ExpectSize:        &good,
+			ExpectContentType: "text/plain",
+		}); err != nil {
+			t.Fatalf("Download with expectations: %v", err)
+		}
+
+		wrong := good + 1
+		if _, err := Download(ctx, client, basicKey, filepath.Join(t.TempDir(), "bad.txt"), &DownloadOptions{
+			ExpectSize: &wrong,
+		}); err == nil || !strings.Contains(err.Error(), ErrExpectationMismatch.Error()) {
+			t.Fatalf("err = %v, want expectation mismatch", err)
+		}
+	})
+
+	t.Run("download reuses verified local copy", func(t *testing.T) {
+		output := filepath.Join(t.TempDir(), "local.txt")
+		if err := os.WriteFile(output, []byte(helloContent), 0o644); err != nil {
+			t.Fatalf("seed local copy: %v", err)
+		}
+
+		result, err := Download(ctx, client, basicKey, output, &DownloadOptions{
+			VerifySHA256: helloSHA256,
+			IfExists:     IfExistsVerify,
+		})
+		if err != nil {
+			t.Fatalf("Download reuse: %v", err)
+		}
+		if result.Status != StatusReused {
+			t.Fatalf("status = %q, want reused", result.Status)
+		}
+
+		// 不一致的本地副本必须报冲突而不是复用
+		divergent := filepath.Join(t.TempDir(), "divergent.txt")
+		if err := os.WriteFile(divergent, []byte("divergent"), 0o644); err != nil {
+			t.Fatalf("seed divergent copy: %v", err)
+		}
+		if _, err := Download(ctx, client, basicKey, divergent, &DownloadOptions{
+			VerifySHA256: helloSHA256,
+			IfExists:     IfExistsVerify,
+		}); err == nil || !strings.Contains(err.Error(), ErrExpectationMismatch.Error()) {
+			t.Fatalf("err = %v, want expectation mismatch", err)
+		}
+	})
 }
 
 // TestMinIOCLIE2E 通过编译后的真实 itb 二进制验证 positional operand
@@ -403,4 +541,65 @@ func TestMinIOCLIE2E(t *testing.T) {
 		t.Fatalf("default downloaded content = %q, read error = %v", got, err)
 	}
 	run(tmp, "s3", "delete", "-f", defaultName)
+
+	// ---- Commit 11 收口：stdout/stderr 契约与 CLI 分页 ----
+
+	// 成功：stdout 恰好一份 JSON 文档
+	successOut := run(tmp, "s3", "upload", "--format", "json", fixture, key)
+	trimmed := strings.TrimSpace(successOut.stdout)
+	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
+		t.Fatalf("success stdout must be one JSON document:\n%s", successOut.stdout)
+	}
+	if strings.Contains(successOut.stderr, "Upload completed") {
+		t.Errorf("results must not leak to stderr: %q", successOut.stderr)
+	}
+
+	// 失败：stdout 恰好一份 itb.error.v1，stderr 无重复 raw error
+	failCmd := exec.Command(binary, "s3", "stat", "--format", "json", prefix+"missing-object.bin")
+	failCmd.Dir = tmp
+	failCmd.Env = baseEnv
+	var failOut, failErr bytes.Buffer
+	failCmd.Stdout = &failOut
+	failCmd.Stderr = &failErr
+	if err := failCmd.Run(); err == nil {
+		t.Fatal("stat of missing object must fail")
+	}
+	failTrimmed := strings.TrimSpace(failOut.String())
+	var machineError struct {
+		SchemaVersion string `json:"schema_version"`
+		Operation     string `json:"operation"`
+		Error         struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(failTrimmed), &machineError); err != nil {
+		t.Fatalf("failure stdout is not one JSON document: %v\n%s", err, failOut.String())
+	}
+	if machineError.SchemaVersion != "itb.error.v1" || machineError.Operation != "s3.stat" || machineError.Error.Code != "E_OBJECT_NOT_FOUND" {
+		t.Fatalf("machine error = %+v", machineError)
+	}
+	if strings.Contains(failErr.String(), "E_OBJECT_NOT_FOUND") {
+		t.Errorf("stderr must not duplicate the machine error: %q", failErr.String())
+	}
+
+	// CLI list 分页：3 个对象 + --page-size 2 --all 强制两页
+	pagePrefix := prefix + "clipage/"
+	for i := range 3 {
+		path := filepath.Join(tmp, "clipage.txt")
+		if err := os.WriteFile(path, []byte(helloContent), 0o644); err != nil {
+			t.Fatalf("write page fixture: %v", err)
+		}
+		run(tmp, "s3", "upload", path, pagePrefix+"obj-"+strconv.Itoa(i)+".txt")
+	}
+	var paged struct {
+		Count    int  `json:"count"`
+		Pages    int  `json:"pages"`
+		Complete bool `json:"complete"`
+	}
+	if err := json.Unmarshal([]byte(run(tmp, "s3", "list", "--format", "json", "--page-size", "2", "--all", pagePrefix).stdout), &paged); err != nil {
+		t.Fatalf("decode paged list JSON: %v", err)
+	}
+	if paged.Count != 3 || paged.Pages != 2 || !paged.Complete {
+		t.Fatalf("paged list = %+v, want count 3 / pages 2 / complete", paged)
+	}
 }

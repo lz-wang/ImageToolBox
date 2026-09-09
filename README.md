@@ -614,10 +614,14 @@ MinIO 兼容性由 CI 持续验证：CI 在 step 内以 `docker run` 启动真�
 （GitHub Actions 的 service container 不支持容器命令，无法传入
 `server /data`），并设置 `ITB_REQUIRE_MINIO=1`（strict 模式：MinIO 不可用时
 测试失败而非跳过），执行覆盖
-upload / stat / download / skip-existing / skip-unchanged / metadata /
-cache-control / overwrite / verify / delete 与 path-style 的集成测试
+upload / stat / download / skip-existing / skip-unchanged / skip-matching /
+metadata / cache-control / overwrite / verify / delete / list 分页 /
+条件上传（If-None-Match）/ 期望值校验 / 本地副本复用与 path-style 的集成测试
 （`internal/s3/minio_test.go`）；本地 `go test` 在 MinIO 不可达时自动跳过，
 可通过 `ITB_TEST_MINIO_ENDPOINT` 等环境变量指向自建实例运行。
+不依赖 MinIO 的编译后二进制 E2E（`internal/cmd/e2e_test.go`）锁定 inspect
+内容识别契约（PNG/JPEG/GIF/WebP/BMP/TIFF/SVG/伪装与损坏样本）、
+`itb.error.v1` stdout/stderr 单文档语义与 compress 失败不留 partial。
 
 ### 环境变量
 
