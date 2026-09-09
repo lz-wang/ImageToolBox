@@ -334,8 +334,15 @@ integrity is verified on download, not here.
 
 `s3 download --verify` compares the SHA-256 computed while streaming against
 the object's `itb-sha256` metadata; `--verify-sha256 HASH` compares against a
-known hash (both single-pass). Any failure — including checksum mismatch —
-leaves no partial file at the output path (temp file + rename).
+known hash (both single-pass). `--expect-size N` and `--expect-content-type
+MIME` are checked against response headers before the target is created and
+against actual bytes afterwards (`E_TARGET_CONFLICT` on mismatch; 0-byte
+objects are valid, so an unset size is distinct from `--expect-size 0`).
+`--if-exists verify` reuses a local copy only when its size/SHA-256 provably
+matches a provided basis (`status=reused`, 0 × GET) — with no basis it fails
+immediately; "the file exists" is never sufficient. Any failure — including
+checksum mismatch — leaves no partial file at the output path (temp file +
+rename). The `itb.s3.download.v2` JSON adds `status` and `content_type`.
 
 `upload`, `download`, and `stat` all accept `--format table|json`. JSON output
 carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,

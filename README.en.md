@@ -790,6 +790,14 @@ local file values.
 
 # Verify against a known hash (provider-neutral integrity check; combinable with --verify)
 ./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
+
+# Expected size and Content-Type validation
+./itb s3 download -b my-bucket --expect-size 123456 \
+  --expect-content-type image/png photo.jpg
+
+# Reuse a provably identical local copy (skips GET, status=reused)
+./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
+  --if-exists verify sha256/xxx /tmp/original.png
 ```
 
 Downloads stream into a temp file in the output directory and rename into place
@@ -800,6 +808,25 @@ check (upload `--verify` only checks headers/metadata). `--verify-sha256` must
 be a valid SHA-256 digest (64 hex characters / 32 bytes); anything else fails
 with `ErrInvalidSHA256` before any network request is made.
 
+**Expectation checks**: `--expect-size` (pointer semantics — `0` is a valid
+object size, not "unspecified") and `--expect-content-type` (comparison ignores
+`; charset=...` parameters and case) are checked against the GET response
+headers **before** the target file is created, and against the actual written
+bytes after the download; any mismatch fails with `E_TARGET_CONFLICT`
+(`ErrExpectationMismatch`) and leaves no file behind.
+
+**Local reuse (`--if-exists verify`)**: the default `replace` always performs a
+GET and overwrites (matching v0.9.x). `verify` skips the GET only when the
+caller provides a verification basis (`--verify-sha256`, or `--verify`, which
+first HEADs the remote itb-sha256): a local copy whose size/SHA-256 provably
+matches is reused (JSON `status=reused`); a present-but-divergent copy fails
+with `E_TARGET_CONFLICT`; a missing copy downloads normally. With no
+verification basis at all it fails immediately with `E_INVALID_ARGUMENT` —
+"the file exists" is never sufficient.
+
+The `--format json` contract is `itb.s3.download.v2` with new `status`
+(`downloaded` / `reused`) and `content_type` fields.
+
 <details>
 <summary>download options</summary>
 
@@ -809,7 +836,10 @@ with `ErrInvalidSHA256` before any network request is made.
 | `[dst]` | Local output path (defaults to the current directory, file name taken from the last segment of the object key) |
 | `--verify` | Read the object's itb-sha256 metadata and compare the SHA-256 computed while streaming |
 | `--verify-sha256` | Expected SHA-256 (64 hex characters), independent of object metadata |
-| `--format` | Output format: `table` / `json` (JSON contract `itb.s3.download.v1`) |
+| `--expect-size` | Expected object size in bytes (checked against response headers and actual bytes) |
+| `--expect-content-type` | Expected Content-Type (parameter and case insensitive) |
+| `--if-exists` | Policy when the target exists: `replace` (default, always GET and overwrite) / `verify` (reuse a provably identical local copy) |
+| `--format` | Output format: `table` / `json` (JSON contract `itb.s3.download.v2`) |
 
 </details>
 

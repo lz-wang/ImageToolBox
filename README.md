@@ -761,6 +761,14 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 # 按已知哈希校验（provider-neutral 完整性验证，可与 --verify 同用）
 ./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
+
+# 期望值校验：对象大小与 Content-Type
+./itb s3 download -b my-bucket --expect-size 123456 \
+  --expect-content-type image/png photo.jpg
+
+# 本地副本一致则复用（跳过 GET，status=reused）
+./itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
+  --if-exists verify sha256/xxx /tmp/original.png
 ```
 
 下载先写入同目录临时文件，成功后 rename 到目标路径；任何失败（网络中断、
@@ -769,6 +777,21 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 这才是对 body 字节的真正完整性校验（upload 的 `--verify` 只校验 header/metadata）。
 `--verify-sha256` 必须是 64 个十六进制字符（32 字节）的合法 SHA-256 digest，
 否则在任何网络请求之前返回参数错误（`ErrInvalidSHA256`）。
+
+**期望值校验**：`--expect-size`（指针语义，`0` 是合法的对象大小而非"未指定"）
+与 `--expect-content-type`（比较忽略 `; charset=...` 参数与大小写）会在创建
+目标文件**之前**对 GET 响应头检查一次，下载结束后再对实际写入字节数检查一次；
+任一不符返回 `E_TARGET_CONFLICT`（`ErrExpectationMismatch`），不留任何文件。
+
+**本地复用（`--if-exists verify`）**：默认 `replace` 总是执行 GET 并覆盖（与
+v0.9.x 一致）。`verify` 只在调用方提供校验依据（`--verify-sha256`，或 `--verify`
+时先 HEAD 取远端 itb-sha256）时才允许跳过 GET：本地副本 size/SHA-256 与期望
+一致则复用（JSON `status=reused`）；副本存在但不一致返回 `E_TARGET_CONFLICT`；
+本地不存在则正常下载。**没有任何校验依据时直接报 `E_INVALID_ARGUMENT`——绝不
+"文件存在就复用"。**
+
+`--format json` 契约为 `itb.s3.download.v2`：新增 `status`（`downloaded` /
+`reused`）与 `content_type` 字段。
 
 <details>
 <summary>download 参数</summary>
@@ -779,7 +802,10 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 | `[dst]` | 本地输出路径（默认保存到当前目录，文件名取对象键最后一段） |
 | `--verify` | 读取对象 itb-sha256 metadata，边下载边计算 SHA-256 并比对 |
 | `--verify-sha256` | 期望的 SHA-256（64 个十六进制字符），独立于对象 metadata 的完整性校验 |
-| `--format` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.download.v1`） |
+| `--expect-size` | 期望的对象字节数（响应头与实际字节各检查一次） |
+| `--expect-content-type` | 期望的 Content-Type（忽略参数与大小写） |
+| `--if-exists` | 目标已存在策略：`replace`（默认，总是 GET 覆盖）/ `verify`（本地副本可证明一致则复用） |
+| `--format` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.download.v2`） |
 
 </details>
 

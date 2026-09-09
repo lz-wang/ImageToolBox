@@ -216,6 +216,8 @@ local file.
 DEFAULTS:
   If [dst] is omitted, the file is saved to the current
   directory under the last segment of the object key.
+  --if-exists replace: every run performs a GET and
+  overwrites the local target.
 
 CONSTRAINTS:
   The download writes to a temporary file in the same
@@ -227,13 +229,25 @@ CONSTRAINTS:
   --verify-sha256 checks against a known hexadecimal hash
   (provider-neutral integrity check) and can be combined
   with --verify.
+  --expect-size / --expect-content-type are checked against
+  the GET response headers before the target file is
+  created and against the actual bytes afterwards.
+  --if-exists verify reuses the local copy only when its
+  size/SHA-256 provably matches (--verify-sha256 or --verify
+  required as a basis); a present-but-divergent copy fails
+  with E_TARGET_CONFLICT, and a missing copy downloads
+  normally.
 
 EXAMPLES:
   itb s3 download -b my-bucket photo.jpg ./photo.jpg
   itb s3 download -b my-bucket images/photo.jpg
   itb s3 download -b my-bucket --verify photo.jpg
   itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
-    sha256/xxx /tmp/original.png`,
+    sha256/xxx /tmp/original.png
+  itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" \
+    --if-exists verify sha256/xxx /tmp/original.png
+  itb s3 download -b my-bucket --expect-size 123456 \
+    --expect-content-type image/png photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "verify",
@@ -242,6 +256,21 @@ EXAMPLES:
 			&cli.StringFlag{
 				Name:  "verify-sha256",
 				Usage: "Expected hexadecimal SHA-256 `HASH` (independent of object metadata; can be combined with --verify)",
+			},
+			&cli.Int64Flag{
+				Name:      "expect-size",
+				Usage:     "Expected object `SIZE` in bytes (checked against response headers and actual bytes)",
+				Validator: nonNegativeInt64Validator("expect-size"),
+			},
+			&cli.StringFlag{
+				Name:  "expect-content-type",
+				Usage: "Expected Content-Type `MIME` (parameter and case insensitive comparison)",
+			},
+			&cli.StringFlag{
+				Name:      "if-exists",
+				Value:     "replace",
+				Usage:     "Policy when the target `POLICY` file exists: replace (always GET and overwrite) or verify (reuse a provably identical local copy, status=reused)",
+				Validator: enumValidator("if-exists", "replace", "verify"),
 			},
 			&cli.StringFlag{
 				Name:      "format",
@@ -467,10 +496,21 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 		output = path.Base(key)
 	}
 
+	// --expect-size 三态：未提供时必须用 nil 表达"未指定"，
+	// 因为 0 字节对象合法，零值不能代表缺省
+	var expectSize *int64
+	if cmd.IsSet("expect-size") {
+		v := cmd.Int64("expect-size")
+		expectSize = &v
+	}
+
 	result, err := s3.Download(ctx, client, key, output, &s3.DownloadOptions{
-		Verify:       cmd.Bool("verify"),
-		VerifySHA256: cmd.String("verify-sha256"),
-		Progress:     os.Stderr,
+		Verify:            cmd.Bool("verify"),
+		VerifySHA256:      cmd.String("verify-sha256"),
+		ExpectSize:        expectSize,
+		ExpectContentType: cmd.String("expect-content-type"),
+		IfExists:          s3.IfExistsBehavior(cmd.String("if-exists")),
+		Progress:          os.Stderr,
 	})
 	if err != nil {
 		return err
@@ -480,6 +520,10 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(result)
+	}
+	if result.Status == s3.StatusReused {
+		fmt.Printf("Download reused local copy: %s -> %s (%d bytes)\n", result.Key, result.OutputPath, result.Size)
+		return nil
 	}
 	fmt.Printf("Download completed: %s -> %s (%d bytes)\n", result.Key, result.OutputPath, result.Size)
 	return nil

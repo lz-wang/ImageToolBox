@@ -59,6 +59,17 @@ func positiveInt64Validator(flag string) func(int64) error {
 	}
 }
 
+// nonNegativeInt64Validator 生成非负 int64 校验器
+//（--expect-size 等允许 0 值的 flag 使用）。
+func nonNegativeInt64Validator(flag string) func(int64) error {
+	return func(v int64) error {
+		if v < 0 {
+			return fmt.Errorf("--%s 不能为负数（当前: %d）", flag, v)
+		}
+		return nil
+	}
+}
+
 // positiveDurationValidator 生成正时长校验器。
 func positiveDurationValidator(flag string) func(time.Duration) error {
 	return func(v time.Duration) error {

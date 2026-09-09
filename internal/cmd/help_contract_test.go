@@ -432,6 +432,7 @@ func TestFlagDefaultContracts(t *testing.T) {
 		{"s3 list format", []string{"s3", "list"}, "format", `"table"`, false},
 		{"s3 upload format", []string{"s3", "upload"}, "format", `"table"`, false},
 		{"s3 download format", []string{"s3", "download"}, "format", `"table"`, false},
+		{"s3 download if-exists", []string{"s3", "download"}, "if-exists", `"replace"`, false},
 		{"s3 stat format", []string{"s3", "stat"}, "format", `"table"`, false},
 		{"s3 upload content-type auto-detect", []string{"s3", "upload"}, "content-type", "auto-detect", true},
 		{"serve addr", []string{"serve"}, "addr", `"127.0.0.1:8080"`, false},

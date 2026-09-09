@@ -215,6 +215,9 @@ var s3SentinelMapping = []struct {
 	{filehash.ErrSourceChanged, CodeSourceChanged, "source file changed while being read", false},
 	{s3.ErrVerifyFailed, CodeTargetConflict, "remote object state does not match this upload", false},
 	{s3.ErrChecksumMismatch, CodeChecksumMismatch, "downloaded content does not match the expected SHA-256", false},
+	{s3.ErrExpectationMismatch, CodeTargetConflict, "object state does not match the expected values", false},
+	{s3.ErrReuseVerificationUnavailable, CodeInvalidArgument, "--if-exists=verify requires --verify-sha256 or --verify as a verification basis", false},
+	{s3.ErrInvalidIfExists, CodeInvalidArgument, "invalid --if-exists value", false},
 	{s3.ErrIncompleteList, CodeIncompleteList, "object listing could not be continued reliably", true},
 }
 
