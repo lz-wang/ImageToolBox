@@ -69,7 +69,34 @@ Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original
 
 # Specify compression quality (1-100, default 80)
 ./itb compress -q 90 photo.jpg
+
+# Machine-readable JSON output (contract itb.compress.v1)
+./itb compress -q 80 source.png output.png --format json
 ```
+
+Compression output uses **safe commit**: the result is staged to a temporary
+file in the destination directory and, once the pipeline succeeds and the
+output validates (non-empty, correct format), atomically renamed to the target
+path. Any failure removes the temporary file — an existing destination stays
+untouched and no partial content ever appears at the target path.
+
+`--format json` emits the `itb.compress.v1` contract:
+
+```json
+{
+  "schema_version": "itb.compress.v1",
+  "input":  {"path": "source.png", "format": "png", "size": 120000, "sha256": "..."},
+  "output": {"path": "output.png", "format": "png", "size": 80000, "sha256": "..."},
+  "quality": 80,
+  "processor": "pngquant+oxipng",
+  "elapsed_ms": 123
+}
+```
+
+`processor` is fixed at `pngquant+oxipng` (PNG) or `djpeg+cjpeg` (JPEG); the
+input/output `sha256` is computed in a single streaming pass by the shared
+`internal/filehash` package, with observable change detection on the input
+side (a source modified mid-read fails with `E_SOURCE_CHANGED`).
 
 <details>
 <summary>Options & compression pipeline</summary>
@@ -80,6 +107,7 @@ Auto-detects the image format (PNG/JPEG) and compresses it, keeping the original
 | `[dst]` | `*_compressed.*` | Output path; appends `_compressed` to the original name when omitted |
 | `--in-place` | `false` | Overwrite the input file (cannot be used with `[dst]`) |
 | `-q, --quality` | `80` | Compression quality 1-100 |
+| `--format` | `table` | Output format: `table` / `json` (JSON contract `itb.compress.v1`) |
 
 **Compression pipeline**
 

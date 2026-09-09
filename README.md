@@ -69,7 +69,31 @@ brew install lz-wang/tap/itb
 
 # 指定压缩质量（1-100，默认 80）
 ./itb compress -q 90 photo.jpg
+
+# 机器可读 JSON 输出（契约 itb.compress.v1）
+./itb compress -q 80 source.png output.png --format json
 ```
+
+压缩输出采用**安全提交**：结果先写入目标目录下的临时文件，成功并校验
+（非空、格式正确）后原子 rename 到目标路径。任何失败都会清理临时文件，
+已存在的目标保持原状，目标路径不会出现 partial 内容。
+
+`--format json` 输出契约 `itb.compress.v1`：
+
+```json
+{
+  "schema_version": "itb.compress.v1",
+  "input":  {"path": "source.png", "format": "png", "size": 120000, "sha256": "..."},
+  "output": {"path": "output.png", "format": "png", "size": 80000, "sha256": "..."},
+  "quality": 80,
+  "processor": "pngquant+oxipng",
+  "elapsed_ms": 123
+}
+```
+
+`processor` 固定为 `pngquant+oxipng`（PNG）或 `djpeg+cjpeg`（JPEG）；
+输入/输出的 `sha256` 由共享的 `internal/filehash` 单遍流式计算，输入侧
+附带可观察变化检测（读取期间源文件被修改时以 `E_SOURCE_CHANGED` 失败）。
 
 <details>
 <summary>命令参数与压缩管道</summary>
@@ -80,6 +104,7 @@ brew install lz-wang/tap/itb
 | `[dst]` | `*_compressed.*` | 输出路径，省略时在原文件名后加 `_compressed` |
 | `--in-place` | `false` | 覆盖输入文件（不能同时提供 `[dst]`） |
 | `-q, --quality` | `80` | 压缩质量 1-100 |
+| `--format` | `table` | 输出格式：`table` / `json`（JSON 契约 `itb.compress.v1`） |
 
 **压缩管道**
 

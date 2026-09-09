@@ -17,6 +17,7 @@ itb compress photo.png
 itb compress photo.png compressed.png
 itb compress -q 90 photo.jpg compressed.jpg
 itb compress --in-place photo.jpg
+itb compress --format json photo.png
 ```
 
 Flags:
@@ -25,6 +26,13 @@ Flags:
 - `[dst]`: optional output image path; default adds `_compressed`.
 - `--in-place`: overwrite the input file; cannot be used with `[dst]`.
 - `-q, --quality`: quality `1-100`, default `80`.
+- `--format`: `table` (default) or `json` — the `itb.compress.v1` contract with
+  `input`/`output` `{path, format, size, sha256}`, `quality`, `processor`
+  (`pngquant+oxipng` or `djpeg+cjpeg`), and `elapsed_ms`.
+
+Output is staged to a temp file and atomically committed to the destination: a
+failed run never leaves a partial file, and an existing destination stays
+untouched.
 
 Pipeline:
 

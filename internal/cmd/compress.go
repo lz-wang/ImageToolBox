@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +28,9 @@ Pipelines:
 DEFAULTS:
   If [dst] is omitted, writes <name>_compressed.<ext>.
   The input file is kept; only --in-place overwrites it.
+  Output is staged to a temporary file and committed with an
+  atomic rename: a failed run never leaves a partial file at
+  the destination.
 
 CONSTRAINTS:
   Supported input formats are PNG and JPEG only.
@@ -35,7 +39,8 @@ CONSTRAINTS:
 EXAMPLES:
   itb compress photo.png
   itb compress -q 90 photo.jpg compressed.jpg
-  itb compress --in-place photo.jpg`,
+  itb compress --in-place photo.jpg
+  itb compress --format json photo.png`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "in-place",
@@ -47,6 +52,12 @@ EXAMPLES:
 				Value:     compress.DefaultQuality,
 				Usage:     "Compression quality (1-100)",
 				Validator: intRangeValidator("quality", 1, 100),
+			},
+			&cli.StringFlag{
+				Name:      "format",
+				Value:     "table",
+				Usage:     "Output `FORMAT`: table/json (JSON contract itb.compress.v1)",
+				Validator: enumValidator("format", "table", "json"),
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -65,8 +76,9 @@ func runCompress(ctx context.Context, cmd *cli.Command) error {
 	}
 	tmpPath := ""
 	if cmd.Bool("in-place") {
-		// 临时文件放在输入文件所在目录，保证 rename 不跨文件系统
-		tmp, err := os.CreateTemp(filepath.Dir(inputFile), ".itb-compress-*"+filepath.Ext(inputFile))
+		// 临时文件放在输入文件所在目录，保证 rename 不跨文件系统；
+		// 后缀区分于领域层的安全提交临时文件（.itb-compress-*）
+		tmp, err := os.CreateTemp(filepath.Dir(inputFile), ".itb-inplace-*"+filepath.Ext(inputFile))
 		if err != nil {
 			return fmt.Errorf("创建临时文件失败: %w", err)
 		}
@@ -91,6 +103,12 @@ func runCompress(ctx context.Context, cmd *cli.Command) error {
 			return fmt.Errorf("覆盖原文件失败: %w", err)
 		}
 		outputPath = inputFile
+	}
+
+	if cmd.String("format") == "json" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(compress.NewReport(inputFile, outputPath, result))
 	}
 
 	fmt.Printf("检测到格式: %s\n", result.Format)

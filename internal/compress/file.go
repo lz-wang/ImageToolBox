@@ -4,11 +4,23 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
+	"imagetoolbox/internal/filehash"
 	"imagetoolbox/internal/imageio"
 )
 
 const DefaultQuality = 80
+
+// Processor 名称锁定进机器可读输出契约（itb.compress.v1），不得随意改名。
+const (
+	ProcessorPNG  = "pngquant+oxipng"
+	ProcessorJPEG = "djpeg+cjpeg"
+)
+
+// CompressSchemaVersion 是 compress --format json 的机器可读契约版本。
+const CompressSchemaVersion = "itb.compress.v1"
 
 // FileOptions 文件级压缩选项
 type FileOptions struct {
@@ -35,12 +47,64 @@ type Result struct {
 	Format     string // 检测到的输入格式（png/jpeg）
 	InputSize  int64  // 输入文件字节数
 	OutputSize int64  // 输出文件字节数
+
+	// InputSHA256 / OutputSHA256 是压缩前后内容的 SHA-256（单遍流式
+	// 计算；输入侧由 SumFile 附带可观察变化检测）
+	InputSHA256  string
+	OutputSHA256 string
+
+	// Quality 是实际生效的质量值（经 Normalize 归一化）
+	Quality int
+
+	// Processor 是执行本次压缩的处理器管线名（pngquant+oxipng 或
+	// djpeg+cjpeg），锁定进机器可读契约
+	Processor string
+
+	// ElapsedMs 是压缩流程耗时（毫秒）
+	ElapsedMs int64
+}
+
+// FileStat 是机器可读报告中单个文件的摘要。
+type FileStat struct {
+	Path   string `json:"path"`
+	Format string `json:"format"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// CompressReport 是 compress --format json 的机器可读契约
+//（itb.compress.v1）。
+type CompressReport struct {
+	SchemaVersion string   `json:"schema_version"`
+	Input         FileStat `json:"input"`
+	Output        FileStat `json:"output"`
+	Quality       int      `json:"quality"`
+	Processor     string   `json:"processor"`
+	ElapsedMs     int64    `json:"elapsed_ms"`
+}
+
+// NewReport 由压缩结果构造机器可读报告。格式未知（压缩失败）时不可调用。
+func NewReport(inputPath, outputPath string, r Result) CompressReport {
+	return CompressReport{
+		SchemaVersion: CompressSchemaVersion,
+		Input:         FileStat{Path: inputPath, Format: r.Format, Size: r.InputSize, SHA256: r.InputSHA256},
+		Output:        FileStat{Path: outputPath, Format: r.Format, Size: r.OutputSize, SHA256: r.OutputSHA256},
+		Quality:       r.Quality,
+		Processor:     r.Processor,
+		ElapsedMs:     r.ElapsedMs,
+	}
 }
 
 // CompressFile 检测输入图片格式（PNG/JPEG），执行对应的压缩管道并写入 outputPath。
-// 供 CLI 与 Web API 共用。inputPath 与 outputPath 不得指向同一文件；原地
-// 覆盖必须由调用方先写入另一临时文件，再原子 rename 回输入路径。
+// 供 CLI 与 Web API 共用。inputPath 与 outputPath 不得指向同一文件。
+//
+// 输出采用安全提交流程：压缩结果先写入目标目录下的 .itb-compress-*
+// 临时文件，成功并校验（可关闭、非空、格式正确）后原子 rename 到
+// outputPath；任何失败都会删除临时文件——已存在的目标保持原状，
+// 目标路径不会留下 partial 内容。原地覆盖输入仍须由调用方先写入另一
+// 临时文件，再原子 rename 回输入路径。
 func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOptions) (Result, error) {
+	start := time.Now()
 	ctx = commandContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
@@ -61,6 +125,13 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 		return Result{}, err
 	}
 
+	// 输入摘要单遍完成，并附带可观察变化检测：hash 期间输入被修改时
+	// 直接失败，避免对不可信输入执行压缩
+	inputHash, err := filehash.SumFile(inputPath, []filehash.Algorithm{filehash.SHA256})
+	if err != nil {
+		return Result{}, fmt.Errorf("无法计算输入文件摘要: %w", err)
+	}
+
 	f, err := os.Open(inputPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("无法打开输入文件: %w", err)
@@ -74,45 +145,116 @@ func CompressFile(ctx context.Context, inputPath, outputPath string, opts FileOp
 		return Result{}, err
 	}
 
-	switch format {
-	case "png":
-		err = compressPNGTo(ctx, inputPath, outputPath, opts.Quality)
-	case "jpeg":
-		err = compressJPEGTo(ctx, inputPath, outputPath, opts.Quality)
-	default:
-		err = fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
-	}
+	// 安全提交：输出先落目标目录临时文件，全部成功并校验后 rename
+	outStat, err := commitOutput(outputPath, format, func(tmp *os.File) error {
+		switch format {
+		case "png":
+			return compressPNGTo(ctx, inputPath, tmp, opts.Quality)
+		case "jpeg":
+			return compressJPEGTo(ctx, inputPath, tmp, opts.Quality)
+		default:
+			return fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
+		}
+	})
 	if err != nil {
-		return Result{}, err
-	}
-	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 
-	outStat, err := os.Stat(outputPath)
+	// 输出摘要（文件已提交且不再变动）
+	outputHash, err := filehash.SumFile(outputPath, []filehash.Algorithm{filehash.SHA256})
 	if err != nil {
-		return Result{}, fmt.Errorf("无法读取输出文件信息: %w", err)
+		return Result{}, fmt.Errorf("无法计算输出文件摘要: %w", err)
+	}
+
+	processor := ProcessorPNG
+	if format == "jpeg" {
+		processor = ProcessorJPEG
 	}
 
 	return Result{
-		Format:     format,
-		InputSize:  stat.Size(),
-		OutputSize: outStat.Size(),
+		Format:       format,
+		InputSize:    stat.Size(),
+		OutputSize:   outStat.Size(),
+		InputSHA256:  inputHash.Digests[filehash.SHA256],
+		OutputSHA256: outputHash.Digests[filehash.SHA256],
+		Quality:      opts.Quality,
+		Processor:    processor,
+		ElapsedMs:    time.Since(start).Milliseconds(),
 	}, nil
 }
 
-func compressPNGTo(ctx context.Context, inputPath, outputPath string, quality int) error {
+// commitOutput 安全提交：把 compress 的输出写入目标目录下的
+// .itb-compress-* 临时文件，成功并校验（非空、格式正确）后原子 rename
+// 到 outputPath。任何失败都会清理临时文件——已存在的目标保持原状，
+// 目标路径不会留下 partial 内容。
+func commitOutput(outputPath, format string, compress func(tmp *os.File) error) (os.FileInfo, error) {
+	tmp, err := os.CreateTemp(filepath.Dir(outputPath), ".itb-compress-*")
+	if err != nil {
+		return nil, fmt.Errorf("无法创建临时输出文件: %w", err)
+	}
+	tmpPath := tmp.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			tmp.Close()
+			os.Remove(tmpPath)
+		}
+	}()
+
+	if err := compress(tmp); err != nil {
+		return nil, err
+	}
+
+	// 关闭并校验临时输出：非空且格式与输入一致（pngquant/oxipng 与
+	// djpeg/cjpeg 的产物必须是合法的同格式流）
+	info, err := validateTempOutput(tmp, format)
+	if err != nil {
+		return nil, err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		return nil, fmt.Errorf("无法设置输出文件权限: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, fmt.Errorf("无法关闭输出文件: %w", err)
+	}
+	if err := os.Rename(tmpPath, outputPath); err != nil {
+		return nil, fmt.Errorf("无法提交输出文件: %w", err)
+	}
+	committed = true
+	return info, nil
+}
+
+// validateTempOutput 校验临时输出：可重新打开、非空、格式与输入一致。
+func validateTempOutput(tmp *os.File, format string) (os.FileInfo, error) {
+	if err := tmp.Sync(); err != nil {
+		return nil, fmt.Errorf("无法写入输出文件: %w", err)
+	}
+	info, err := tmp.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("无法读取输出文件信息: %w", err)
+	}
+	if info.Size() == 0 {
+		return nil, fmt.Errorf("压缩输出为空")
+	}
+
+	check, err := os.Open(tmp.Name())
+	if err != nil {
+		return nil, fmt.Errorf("无法校验输出文件: %w", err)
+	}
+	outFormat, detectErr := DetectFormat(check)
+	check.Close()
+	if detectErr != nil || outFormat != format {
+		return nil, fmt.Errorf("压缩输出格式校验失败: got %v, want %s", outFormat, format)
+	}
+	return info, nil
+}
+
+func compressPNGTo(ctx context.Context, inputPath string, output *os.File, quality int) error {
 	input, err := os.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("无法打开输入文件: %w", err)
 	}
 	defer input.Close()
-
-	output, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("无法创建输出文件: %w", err)
-	}
-	defer output.Close()
 
 	return CompressPNG(PNGOptions{
 		Context:     ctx,
@@ -123,13 +265,7 @@ func compressPNGTo(ctx context.Context, inputPath, outputPath string, quality in
 	})
 }
 
-func compressJPEGTo(ctx context.Context, inputPath, outputPath string, quality int) error {
-	output, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("无法创建输出文件: %w", err)
-	}
-	defer output.Close()
-
+func compressJPEGTo(ctx context.Context, inputPath string, output *os.File, quality int) error {
 	return CompressJPEG(JPEGOptions{
 		Context:     ctx,
 		Quality:     quality,
