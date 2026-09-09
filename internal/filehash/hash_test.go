@@ -174,28 +174,28 @@ func TestVerifyUnchanged(t *testing.T) {
 	}
 
 	t.Run("unchanged passes", func(t *testing.T) {
-		if err := verifyUnchanged(path, file, initial); err != nil {
+		if err := VerifyUnchanged(path, file, initial); err != nil {
 			t.Fatalf("verifyUnchanged: %v", err)
 		}
 	})
 
 	t.Run("size changed fails", func(t *testing.T) {
 		grown := mutatedInfo{FileInfo: initial, size: initial.Size() + 1, modtime: initial.ModTime()}
-		if err := verifyUnchanged(path, file, grown); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
+		if err := VerifyUnchanged(path, file, grown); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
 			t.Fatalf("err = %v, want %v", err, ErrSourceChanged)
 		}
 	})
 
 	t.Run("modtime changed fails", func(t *testing.T) {
 		shifted := mutatedInfo{FileInfo: initial, size: initial.Size(), modtime: initial.ModTime().Add(time.Second)}
-		if err := verifyUnchanged(path, file, shifted); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
+		if err := VerifyUnchanged(path, file, shifted); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
 			t.Fatalf("err = %v, want %v", err, ErrSourceChanged)
 		}
 	})
 
 	t.Run("file deleted fails", func(t *testing.T) {
 		missing := filepath.Join(dir, "gone.txt")
-		if err := verifyUnchanged(missing, file, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
+		if err := VerifyUnchanged(missing, file, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
 			t.Fatalf("err = %v, want %v", err, ErrSourceChanged)
 		}
 	})
@@ -205,7 +205,7 @@ func TestVerifyUnchanged(t *testing.T) {
 		if err := os.WriteFile(replacement, []byte("stable"), 0o644); err != nil {
 			t.Fatalf("write replacement: %v", err)
 		}
-		if err := verifyUnchanged(replacement, file, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
+		if err := VerifyUnchanged(replacement, file, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
 			t.Fatalf("err = %v, want %v", err, ErrSourceChanged)
 		}
 	})
@@ -241,7 +241,7 @@ func TestSumFileDetectsInPlaceMutation(t *testing.T) {
 	defer reopened.Close()
 
 	// verifyUnchanged 以"打开时"的 initial 与最新路径比对 → 检测到变化
-	if err := verifyUnchanged(path, reopened, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
+	if err := VerifyUnchanged(path, reopened, initial); err == nil || !strings.Contains(err.Error(), ErrSourceChanged.Error()) {
 		t.Fatalf("err = %v, want %v", err, ErrSourceChanged)
 	}
 }

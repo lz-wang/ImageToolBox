@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -34,47 +33,34 @@ var contentTypes = map[string]string{
 //
 //	显式指定（--content-type）
 //	  ↓
-//	内容 magic sniff（http.DetectContentType + SVG 特判）
+//	内容 magic sniff（基于待上传内容的文件头 + SVG/JSON 特判）
 //	  ↓
-//	扩展名兜底表
+//	原始文件名的扩展名兜底表
 //	  ↓
 //	application/octet-stream
 //
 // 内容优先是为了防止"HTML/XML 错误页改名为 image.jpg"以 image/jpeg
 // 上传：对象存储按 Content-Type 提供响应，错误的内容类型会被浏览器
-// 当图片渲染请求执行。
-func ResolveContentType(path string, explicit string) string {
+// 当图片渲染请求执行。header 来自上传快照（实际 PUT body），
+// originalName 始终是源文件名——快照的随机临时名不参与兜底。
+func ResolveContentType(header []byte, originalName string, explicit string) string {
 	if explicit != "" {
 		return explicit
 	}
-	if ct := sniffContentType(path); ct != "" {
+	if ct := sniffContentTypeBytes(header); ct != "" {
 		return ct
 	}
 	// 扩展名归一化为小写：foo.PNG / foo.JSON 这类大小写混合的
 	// 文件名同样能命中兜底表
-	if ct, ok := contentTypes[strings.ToLower(filepath.Ext(path))]; ok {
+	if ct, ok := contentTypes[strings.ToLower(filepath.Ext(originalName))]; ok {
 		return ct
 	}
 	return "application/octet-stream"
 }
 
-// sniffContentType 读取文件头做内容检测，返回空串表示未识别
-// （调用方走扩展名兜底）。文件不可读时同样返回空串，由兜底逻辑
-// 决定最终值，读取失败不阻断上传。
-func sniffContentType(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-
-	buf := make([]byte, sniffLen)
-	n, err := f.Read(buf)
-	if err != nil && n == 0 {
-		return ""
-	}
-	buf = buf[:n]
-
+// sniffContentTypeBytes 对文件头字节做内容检测，返回空串表示未识别
+// （调用方走扩展名兜底）。
+func sniffContentTypeBytes(buf []byte) string {
 	ct := http.DetectContentType(buf)
 	if ct == "application/octet-stream" {
 		return ""

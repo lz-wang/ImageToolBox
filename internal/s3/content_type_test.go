@@ -70,24 +70,28 @@ func TestResolveContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := writeContentFixture(t, tt.fileName, tt.content)
-			if got := ResolveContentType(path, tt.explicit); got != tt.want {
+			header := tt.content
+			if len(header) > sniffLen {
+				header = header[:sniffLen]
+			}
+			got := ResolveContentType(header, tt.fileName, tt.explicit)
+			if got != tt.want {
 				t.Errorf("ResolveContentType(%s) = %q, want %q", tt.fileName, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestResolveContentTypeMissingFile 文件不可读时兜底到扩展名表，
-// 读取失败不阻断上传。
-func TestResolveContentTypeMissingFile(t *testing.T) {
-	got := ResolveContentType(filepath.Join(t.TempDir(), "gone.png"), "")
+// TestResolveContentTypeUsesOriginalNameFallback 扩展名兜底永远使用
+// 原始文件名，而不是上传快照的随机临时名。
+func TestResolveContentTypeUsesOriginalNameFallback(t *testing.T) {
+	got := ResolveContentType(unknownBinary, "/somewhere/photo.png", "")
 	if got != "image/png" {
-		t.Errorf("missing file falls back to extension, got %q", got)
+		t.Errorf("original-name fallback = %q, want image/png", got)
 	}
-	got = ResolveContentType(filepath.Join(t.TempDir(), "gone"), "")
+	got = ResolveContentType(unknownBinary, "/tmp/itb-upload-snapshot-123456", "")
 	if got != "application/octet-stream" {
-		t.Errorf("missing file without extension, got %q", got)
+		t.Errorf("snapshot name must not contribute an extension, got %q", got)
 	}
 }
 

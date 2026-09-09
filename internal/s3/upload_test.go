@@ -2,13 +2,11 @@ package s3
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 )
@@ -273,26 +271,6 @@ func TestUploadMissingInputFile(t *testing.T) {
 		t.Error("expected error for missing file")
 	}
 	assertMethods(t, rec.snapshotMethods(), nil)
-}
-
-func TestReaderSHA256(t *testing.T) {
-	got, err := readerSHA256(strings.NewReader(helloContent))
-	if err != nil {
-		t.Fatalf("readerSHA256: %v", err)
-	}
-	if got != helloSHA256 {
-		t.Errorf("readerSHA256 = %q, want %q", got, helloSHA256)
-	}
-}
-
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
-
-func TestReaderSHA256ReadError(t *testing.T) {
-	if _, err := readerSHA256(errorReader{}); err == nil {
-		t.Error("expected error from failing reader")
-	}
 }
 
 func TestIsUnchanged(t *testing.T) {

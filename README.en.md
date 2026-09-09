@@ -704,6 +704,17 @@ the default behavior remains unconditional overwrite. `--skip-existing`
 and `--skip-unchanged` are mutually exclusive upload strategies;
 combining them is rejected as a flag error.
 
+**Stable snapshot semantics**: before uploading, the source file is copied to
+a private temporary snapshot (0600, removed afterwards) whose SHA-256 is
+computed in the same read, followed by observable change detection on the
+source (`os.SameFile` + size/modtime). This guarantees the `itb-sha256`
+metadata strictly matches the actual PUT body, SDK retries re-read the same
+stable data, and any later change to the source never affects the in-flight
+upload; if the source is modified/replaced/deleted during the snapshot, the
+whole upload fails with `E_SOURCE_CHANGED` instead of uploading inconsistent
+data. Content-Type is detected from the snapshot contents, while the extension
+fallback still uses the original file name.
+
 `--metadata` entries must be `key=value` (repeatable); keys are lowercased,
 must be non-empty, and may not contain control characters. Duplicate keys
 and the reserved key `itb-sha256` are rejected before any network request.

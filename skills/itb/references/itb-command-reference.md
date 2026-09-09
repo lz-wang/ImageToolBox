@@ -303,6 +303,11 @@ skips only when that metadata hash matches the local file (never rely on
 ETag for this). Default upload always overwrites. The two skip flags are
 mutually exclusive — combining them is a flag error.
 
+Uploads read the source through a private stable snapshot: the stored
+`itb-sha256` always matches the actual PUT body, retries re-read identical
+bytes, and a source that observably changes mid-snapshot fails with
+`E_SOURCE_CHANGED` instead of uploading inconsistent data.
+
 `--metadata key=value` (repeatable) attaches user metadata: keys are
 lowercased, must be non-empty, may not contain control characters, and
 `itb-sha256` is reserved (rejected before any network request).

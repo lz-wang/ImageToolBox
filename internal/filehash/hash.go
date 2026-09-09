@@ -141,14 +141,16 @@ func SumFile(path string, algorithms []Algorithm) (Result, error) {
 		return Result{}, err
 	}
 
-	if err := verifyUnchanged(path, file, initial); err != nil {
+	if err := VerifyUnchanged(path, file, initial); err != nil {
 		return Result{}, err
 	}
 	return result, nil
 }
 
-// verifyUnchanged 比对初始 FileInfo、当前 FD 与当前路径，报告可观察变化。
-func verifyUnchanged(path string, file *os.File, initial fs.FileInfo) error {
+// VerifyUnchanged 比对初始 FileInfo、当前 FD 与当前路径，报告读取期间
+// 的可观察变化（内容被就地修改、路径被 rename 替换或文件被删除）。
+// 供 SumFile 与需要"边读边做其他事"的调用方（如 S3 上传快照）复用。
+func VerifyUnchanged(path string, file *os.File, initial fs.FileInfo) error {
 	current, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf("%w: failed to re-stat open file: %v", ErrSourceChanged, err)

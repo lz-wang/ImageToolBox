@@ -2,13 +2,12 @@ package s3
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -86,16 +85,27 @@ type UploadResult struct {
 
 // Upload 上传文件到存储桶。
 //
-// 执行顺序：open → HEAD preflight（仅启用跳过语义时）→ SHA-256 →
-// Seek(0) → PUT，整个函数只打开一次文件。HEAD 必须先于 hash：
-// --skip-existing 命中时在 hash 之前直接返回，0 字节本地内容读取；
-// --skip-unchanged 复用同一次 HEAD 结果，单次上传最多
-// 1 × HEAD + 1 × PUT。--verify 在 PUT 成功后追加 1 次 HEAD 回读
-// 校验（skip 命中时不追加，preflight HEAD 已证明对象状态）。
+// 执行顺序：open → HEAD preflight（仅启用跳过语义时）→ 复制到私有
+// 临时快照（单遍 SHA-256）→ 源文件变化检测 → 从快照 PUT。
+//
+// 快照保证：itb-sha256 metadata 与实际 PUT body 严格对应（两者来自
+// 同一次读取）、AWS SDK retry 每次 rewind 读取的都是同一份稳定数据、
+// 原文件在快照之后的任何变化都不影响本次上传、原路径只读取一次。
+// 快照期间源文件发生可观察变化时整个上传失败（ErrSourceChanged），
+// 不上传内容不一致的数据。
+//
+// HEAD preflight 必须先于快照：--skip-existing 命中时直接返回，
+// 0 字节本地读取；--skip-unchanged 复用同一次 HEAD 结果与快照哈希
+// 比对，单次上传最多 1 × HEAD + 1 × PUT。--verify 在 PUT 成功后
+// 追加 1 次 HEAD 回读校验（skip 命中时不追加，preflight HEAD 已
+// 证明对象状态）。
 //
 // 上传时把本地文件 SHA-256 写入 itb-sha256 用户 metadata，供后续
 // --skip-unchanged 比对。默认无条件覆盖已存在对象；
 // SkipExisting/SkipUnchanged 只增加跳过语义，不改变默认行为。
+//
+// Content-Type 基于快照内容检测（保证与实际上传内容一致）；扩展名
+// 兜底仍使用原始文件名。
 //
 // 本函数不输出任何内容：结果通过 UploadResult 返回，进度提示写入
 // opts.Progress，由 adapter（CLI/脚本）决定如何呈现。
@@ -130,7 +140,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	// HEAD preflight 必须发生在 hash 之前
+	// HEAD preflight 必须发生在快照之前
 	var remote *StatInfo
 
 	if opts != nil && (opts.SkipExisting || opts.SkipUnchanged) {
@@ -153,10 +163,13 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}
 	}
 
-	sha256Value, err := readerSHA256(file)
+	// 稳定快照：复制到私有临时文件并单遍计算 SHA-256，随后检测源文件
+	// 可观察变化。失败路径全部由 snapshotSource 清理快照。
+	snapshotPath, sha256Value, err := snapshotSource(inputPath, file, fileInfo)
 	if err != nil {
 		return nil, err
 	}
+	defer os.Remove(snapshotPath)
 
 	if opts != nil && opts.SkipUnchanged && isUnchanged(remote, sha256Value) {
 		// 命中即远端 itb-sha256 与本地一致，Size 与 SHA256 都是确切值
@@ -170,20 +183,30 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		}, nil
 	}
 
-	// hash 已消费文件内容，回卷到起点后再交给 PutObject
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to rewind input file: %w", err)
+	// 从快照重新打开作为 PUT body：*os.File 实现 io.Seeker，
+	// SDK retry 可以安全 rewind 重读同一份稳定数据
+	body, err := os.Open(snapshotPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reopen upload snapshot: %w", err)
+	}
+	defer body.Close()
+
+	// 读取快照头部做内容检测（与实际上传内容严格一致）
+	var header [sniffLen]byte
+	headerSize, err := body.ReadAt(header[:], 0)
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("failed to read upload snapshot header: %w", err)
 	}
 
-	// Content-Type 内容优先：显式 --content-type > magic sniff > 扩展名兜底，
-	// 防止 HTML/XML 错误页借 .jpg 扩展名以 image/jpeg 上传。
+	// Content-Type 内容优先：显式 --content-type > 快照 magic sniff >
+	// 原始文件名扩展名兜底，防止 HTML/XML 错误页借 .jpg 扩展名以
+	// image/jpeg 上传。
 	var explicitContentType string
 	if opts != nil {
 		explicitContentType = opts.ContentType
 	}
-	contentType := ResolveContentType(inputPath, explicitContentType)
+	contentType := ResolveContentType(header[:headerSize], filepath.Base(inputPath), explicitContentType)
 
-	// 获取文件大小
 	fileSize := fileInfo.Size()
 
 	// 如果文件大于 5MB，向 Progress 输出传输提示
@@ -204,7 +227,7 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(client.bucket),
 		Key:         aws.String(key),
-		Body:        file,
+		Body:        body,
 		ContentType: aws.String(contentType),
 		Metadata:    objectMetadata,
 	}
@@ -320,13 +343,4 @@ func isUnchanged(remote *StatInfo, localSHA256 string) bool {
 	return remote != nil &&
 		remote.Metadata != nil &&
 		remote.Metadata[MetadataSHA256Key] == localSHA256
-}
-
-// readerSHA256 计算读取内容的 SHA-256，返回十六进制编码。
-func readerSHA256(r io.Reader) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(h, r); err != nil {
-		return "", fmt.Errorf("failed to hash input file: %w", err)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
