@@ -391,6 +391,9 @@ Read file info, basic image info, detailed metadata, and file hash.
 # Skip hash computation
 ./itb inspect --no-hash photo.jpg
 
+# Compute only selected algorithms (repeatable)
+./itb inspect --hash sha256 --hash crc32 --no-detail --format json photo.jpg
+
 # Full-decode validation (frame-by-frame for GIF); usable as an upload preflight
 ./itb inspect --strict --full-decode --format json image.png
 ```
@@ -404,11 +407,21 @@ Read file info, basic image info, detailed metadata, and file hash.
 | `--format` | `table` | Output format: `table` / `json` / `plain` (`plain` prints only the SHA-256) |
 | `--no-detail` | `false` | Skip detailed metadata |
 | `--detail` | `true` | Kept for compatibility (hidden from help); equivalent to not passing `--no-detail` |
-| `--no-hash` | `false` | Skip file hash computation |
+| `--hash` | (all) | Compute only the specified algorithms (repeatable: `sha256` / `sha1` / `md5` / `crc32`); all are computed when omitted |
+| `--no-hash` | `false` | Skip file hash computation (mutually exclusive with `--hash`) |
 | `--strict` | `false` | Return an error immediately if image parsing fails |
 | `--full-decode` | `false` | Fully decode the image (frame-by-frame for GIF), validating the file tail and reporting frame/animation info |
 
 </details>
+
+Hashing is implemented by the shared `internal/filehash` package using a
+**single streaming pass followed by change detection**: after hashing, the file
+is re-checked (`os.SameFile` + size/modtime). If an observable change happened
+during the read (in-place modification, replacement, or deletion), the command
+fails with `E_SOURCE_CHANGED` instead of emitting a questionable digest;
+malicious concurrent modifications that preserve size and modtime cannot be
+detected. The `plain` output requires sha256 to be in the computed set
+(combinations like `--hash crc32` are rejected as argument errors).
 
 The JSON contract version is `itb.inspect.v2`. By default (header decoding)
 only the image header is read, which cannot detect files whose header is fine

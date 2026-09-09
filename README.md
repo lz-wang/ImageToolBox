@@ -392,6 +392,9 @@ MS-SSIM: 0.987423
 # 不计算 hash
 ./itb inspect --no-hash photo.jpg
 
+# 只计算指定算法（可重复指定）
+./itb inspect --hash sha256 --hash crc32 --no-detail --format json photo.jpg
+
 # 完整解码校验（GIF 逐帧），可作为上传前 preflight
 ./itb inspect --strict --full-decode --format json image.png
 ```
@@ -405,11 +408,18 @@ MS-SSIM: 0.987423
 | `--format` | `table` | 输出格式：`table` / `json` / `plain`（`plain` 仅输出 SHA-256） |
 | `--no-detail` | `false` | 不输出详细元数据 |
 | `--detail` | `true` | 兼容保留（已从 help 隐藏），等价于不传 `--no-detail` |
-| `--no-hash` | `false` | 不计算文件 hash |
+| `--hash` | (全部) | 只计算指定算法（可重复：`sha256` / `sha1` / `md5` / `crc32`）；未指定时计算全部 |
+| `--no-hash` | `false` | 不计算文件 hash（与 `--hash` 互斥） |
 | `--strict` | `false` | 图像解析失败时直接返回错误 |
 | `--full-decode` | `false` | 完整解码图片（GIF 逐帧），校验文件后半部分并输出帧数/动画状态 |
 
 </details>
+
+哈希计算由共享的 `internal/filehash` 实现，采用**单次流式读取 + 读取后变化检测**：
+hash 完成后复查文件（`os.SameFile` + size/modtime），检测到读取期间发生可观察变化
+（就地修改、被替换或删除）时以 `E_SOURCE_CHANGED` 失败，不输出可信度存疑的摘要；
+无法检测保留 size 与 modtime 的恶意并发修改。`plain` 输出要求 sha256 在计算集合中
+（`--hash crc32` 之类的组合会报参数错误）。
 
 JSON 契约版本为 `itb.inspect.v2`。默认（header 解码）只读取图片头，
 无法发现"文件头正常但后半部分损坏"的文件；`--full-decode` 对文件做

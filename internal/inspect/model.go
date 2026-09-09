@@ -1,6 +1,10 @@
 package inspect
 
-import "time"
+import (
+	"time"
+
+	"imagetoolbox/internal/filehash"
+)
 
 // SchemaVersion 是 inspect JSON 输出的契约版本。
 // v2：新增 full_decode_ok / frame_count / animation_known，
@@ -16,6 +20,10 @@ type Options struct {
 	// 其余格式用 image.Decode），捕获"文件头正常但后半部分损坏"的
 	// 情况，并解析动画/帧数信息。
 	FullDecode bool
+
+	// Hashes 是选择性计算的哈希算法集合；nil 且 NoHash=false 表示
+	// 全部计算（历史行为）。NoHash=true 时忽略本字段。
+	Hashes []filehash.Algorithm
 }
 
 type Result struct {
@@ -79,10 +87,12 @@ type DetailInfo struct {
 }
 
 type HashInfo struct {
-	SHA256 string `json:"sha256"`
-	SHA1   string `json:"sha1"`
-	MD5    string `json:"md5"`
-	CRC32  string `json:"crc32"`
+	// 选择性计算（--hash）时未选中的算法省略；默认全量计算的输出
+	// 形状与 v2 完全一致
+	SHA256 string `json:"sha256,omitempty"`
+	SHA1   string `json:"sha1,omitempty"`
+	MD5    string `json:"md5,omitempty"`
+	CRC32  string `json:"crc32,omitempty"`
 }
 
 type InfoError struct {

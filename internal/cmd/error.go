@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"imagetoolbox/internal/filehash"
 	"imagetoolbox/internal/s3"
 )
 
@@ -210,6 +211,7 @@ var s3SentinelMapping = []struct {
 	{s3.ErrInvalidMetadata, CodeInvalidArgument, "invalid object metadata", false},
 	{s3.ErrReservedMetadataKey, CodeInvalidArgument, "reserved metadata key", false},
 	{s3.ErrInvalidSHA256, CodeInvalidArgument, "invalid SHA-256 digest", false},
+	{filehash.ErrSourceChanged, CodeSourceChanged, "source file changed while being read", false},
 	{s3.ErrVerifyFailed, CodeTargetConflict, "remote object state does not match this upload", false},
 	{s3.ErrChecksumMismatch, CodeChecksumMismatch, "downloaded content does not match the expected SHA-256", false},
 	{s3.ErrIncompleteList, CodeIncompleteList, "object listing could not be continued reliably", true},

@@ -200,6 +200,8 @@ Read-only file/image inspection with hashes; JSON contract `itb.inspect.v2`.
 itb inspect photo.jpg
 itb inspect --format json photo.jpg
 itb inspect --format plain photo.jpg   # sha256 only
+itb inspect --no-hash photo.jpg
+itb inspect --hash sha256 --hash crc32 --no-detail --format json photo.jpg
 itb inspect --strict --full-decode --format json image.png   # upload preflight
 ```
 
@@ -208,6 +210,11 @@ Flags:
 - `<src>`: required input image path.
 - `--format`: `table` (default) / `json` / `plain`.
 - `--no-detail` / `--no-hash`: skip detail or hash computation.
+- `--hash ALGO`: compute only the given algorithm (repeatable:
+  `sha256`/`sha1`/`md5`/`crc32`); unselected algorithms are omitted from JSON.
+  Without `--hash`, all algorithms are computed. Mutually exclusive with
+  `--no-hash`. Hashing is a single streaming pass with post-read change
+  detection (`E_SOURCE_CHANGED` if the file observably changed mid-read).
 - `--strict`: return an error instead of an `error` object when parsing fails.
 - `--full-decode`: fully decode the image (frame-by-frame for GIF). Detects
   files whose header is fine but tail is corrupted; adds `full_decode_ok`

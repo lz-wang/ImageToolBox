@@ -1,44 +1,29 @@
 package inspect
 
 import (
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"hash"
-	"hash/crc32"
-	"io"
-	"os"
+	"imagetoolbox/internal/filehash"
 )
 
-func ComputeAllHashes(path string) (*HashInfo, error) {
-	f, err := os.Open(path)
+// computeHashes 按指定算法集合计算文件摘要；algorithm 为空表示全部算法
+//（历史行为）。实现委托给共享的 internal/filehash 包，inspect 不再
+// 自行维护哈希管道。
+func computeHashes(path string, algorithms []filehash.Algorithm) (*HashInfo, error) {
+	result, err := filehash.SumFile(path, algorithms)
 	if err != nil {
-		return nil, fmt.Errorf("打开文件失败: %w", err)
+		return nil, err
 	}
-	defer f.Close()
-
-	sha256Hash := sha256.New()
-	sha1Hash := sha1.New()
-	md5Hash := md5.New()
-	var crc32Hash hash.Hash32 = crc32.NewIEEE()
-
-	writer := io.MultiWriter(
-		sha256Hash,
-		sha1Hash,
-		md5Hash,
-		crc32Hash,
-	)
-
-	if _, err := io.Copy(writer, f); err != nil {
-		return nil, fmt.Errorf("计算 hash 失败: %w", err)
+	info := &HashInfo{}
+	for algorithm, digest := range result.Digests {
+		switch algorithm {
+		case filehash.SHA256:
+			info.SHA256 = digest
+		case filehash.SHA1:
+			info.SHA1 = digest
+		case filehash.MD5:
+			info.MD5 = digest
+		case filehash.CRC32:
+			info.CRC32 = digest
+		}
 	}
-
-	return &HashInfo{
-		SHA256: hex.EncodeToString(sha256Hash.Sum(nil)),
-		SHA1:   hex.EncodeToString(sha1Hash.Sum(nil)),
-		MD5:    hex.EncodeToString(md5Hash.Sum(nil)),
-		CRC32:  fmt.Sprintf("%08x", crc32Hash.Sum32()),
-	}, nil
+	return info, nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"imagetoolbox/internal/filehash"
 	"imagetoolbox/internal/inspect"
 )
 
@@ -54,16 +55,31 @@ EXAMPLES:
 				Usage: "Skip detailed metadata",
 			},
 			&cli.BoolFlag{
-				Name:  "no-hash",
-				Usage: "Skip file hash computation",
-			},
-			&cli.BoolFlag{
 				Name:  "strict",
 				Usage: "Return an error when image parsing fails",
 			},
 			&cli.BoolFlag{
 				Name:  "full-decode",
 				Usage: "Fully decode the image (GIF frame by frame) to verify the file tail and report the frame count / animation state",
+			},
+		},
+		// --hash 与 --no-hash 是互斥的哈希策略
+		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
+			{
+				Flags: [][]cli.Flag{
+					{
+						&cli.StringSliceFlag{
+							Name:  "hash",
+							Usage: "Compute only the specified file `ALGO` (repeatable: sha256/sha1/md5/crc32); without --hash all algorithms are computed",
+						},
+					},
+					{
+						&cli.BoolFlag{
+							Name:  "no-hash",
+							Usage: "Skip file hash computation",
+						},
+					},
+				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -77,9 +93,16 @@ func runInspect(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
+
+	algorithms, err := filehash.Parse(cmd.StringSlice("hash"))
+	if err != nil {
+		return err
+	}
+
 	result, err := inspect.File(inputFile, inspect.Options{
 		Detail:     cmd.Bool("detail") && !cmd.Bool("no-detail"),
 		NoHash:     cmd.Bool("no-hash"),
+		Hashes:     algorithms,
 		Strict:     cmd.Bool("strict"),
 		FullDecode: cmd.Bool("full-decode"),
 	})
@@ -95,7 +118,7 @@ func runInspect(ctx context.Context, cmd *cli.Command) error {
 
 	case "plain":
 		if result.Hashes == nil || result.Hashes.SHA256 == "" {
-			return fmt.Errorf("plain 输出需要 sha256；请移除 --no-hash")
+			return fmt.Errorf("plain 输出需要 sha256；请移除 --no-hash 或加上 --hash sha256")
 		}
 		fmt.Fprintln(os.Stdout, result.Hashes.SHA256)
 		return nil

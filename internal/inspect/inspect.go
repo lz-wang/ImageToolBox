@@ -49,7 +49,7 @@ func File(path string, opts Options) (*Result, error) {
 	}
 
 	if !opts.NoHash {
-		hashes, err := ComputeAllHashes(path)
+		hashes, err := computeHashes(path, opts.Hashes)
 		if err != nil {
 			return nil, err
 		}
