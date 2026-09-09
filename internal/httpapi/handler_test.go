@@ -620,8 +620,8 @@ func TestEndpointSuccess(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		if result.SchemaVersion != "itb.inspect.v2" || result.Image == nil || result.Image.Width != 32 {
-			t.Fatalf("result = %+v, want schema itb.inspect.v2 with width 32", result)
+		if result.SchemaVersion != "itb.inspect.v3" || result.Image == nil || result.Image.Width != 32 {
+			t.Fatalf("result = %+v, want schema itb.inspect.v3 with width 32", result)
 		}
 	})
 	t.Run("inspect full-decode returns animation info", func(t *testing.T) {
