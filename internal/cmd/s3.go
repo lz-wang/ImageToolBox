@@ -84,6 +84,29 @@ never land in shell history.`,
 				Usage:   "Force path-style URLs (needed by MinIO). Effective default: enabled automatically for loopback endpoints and endpoints on port 9000",
 				Sources: cli.EnvVars("ITB_S3_FORCE_PATH_STYLE"),
 			},
+			&cli.IntFlag{
+				Name:      "max-attempts",
+				Value:     s3.DefaultMaxAttempts,
+				Usage:     "Maximum S3 API `ATTEMPTS` per operation, including the first (AWS SDK standard retryer)",
+				Validator: positiveIntValidator("max-attempts"),
+			},
+			&cli.DurationFlag{
+				Name:      "connect-timeout",
+				Value:     s3.DefaultConnectTimeout,
+				Usage:     "`DURATION` allowed for establishing the TCP connection",
+				Validator: positiveDurationValidator("connect-timeout"),
+			},
+			&cli.DurationFlag{
+				Name:      "response-header-timeout",
+				Value:     s3.DefaultResponseHeaderTimeout,
+				Usage:     "`DURATION` to wait for a response header before giving up (body transfer is not limited)",
+				Validator: positiveDurationValidator("response-header-timeout"),
+			},
+			&cli.DurationFlag{
+				Name:  "operation-timeout",
+				Value: 0,
+				Usage: "Total `DURATION` for the whole operation, 0 = disabled (an explicit limit may interrupt large transfers)",
+			},
 		},
 		Commands: []*cli.Command{
 			newS3UploadCommand(),
@@ -407,13 +430,16 @@ EXAMPLES:
 func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 	// ITB_S3_* 已由 flag 的 Sources 在 CLI 层解析，这里只做领域归一化
 	cfg := &s3.Config{
-		Endpoint:        cmd.String("endpoint"),
-		AccessKeyID:     cmd.String("access-key"),
-		SecretAccessKey: cmd.String("secret-key"),
-		SessionToken:    cmd.String("session-token"),
-		Region:          cmd.String("region"),
-		Bucket:          cmd.String("bucket"),
-		ForcePathStyle:  cmd.Bool("force-path-style"),
+		Endpoint:              cmd.String("endpoint"),
+		AccessKeyID:           cmd.String("access-key"),
+		SecretAccessKey:       cmd.String("secret-key"),
+		SessionToken:          cmd.String("session-token"),
+		Region:                cmd.String("region"),
+		Bucket:                cmd.String("bucket"),
+		ForcePathStyle:        cmd.Bool("force-path-style"),
+		MaxAttempts:           cmd.Int("max-attempts"),
+		ConnectTimeout:        cmd.Duration("connect-timeout"),
+		ResponseHeaderTimeout: cmd.Duration("response-header-timeout"),
 	}
 	cfg.Normalize()
 
@@ -424,7 +450,20 @@ func newS3Client(ctx context.Context, cmd *cli.Command) (*s3.Client, error) {
 	return s3.NewClient(ctx, cfg)
 }
 
+// withOperationTimeout 应用 --operation-timeout 到整个操作上下文
+//（如 list 的全部分页、upload + verify、download）。0 表示禁用；
+// 显式配置时用户接受它可能中断大文件传输。
+func withOperationTimeout(ctx context.Context, cmd *cli.Command) (context.Context, context.CancelFunc) {
+	if d := cmd.Duration("operation-timeout"); d > 0 {
+		return context.WithTimeout(ctx, d)
+	}
+	return ctx, func() {}
+}
+
 func runS3Upload(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := withOperationTimeout(ctx, cmd)
+	defer cancel()
+
 	input, key, err := s3UploadArgs(cmd)
 	if err != nil {
 		return err
@@ -482,6 +521,9 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Download(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := withOperationTimeout(ctx, cmd)
+	defer cancel()
+
 	key, output, err := s3DownloadArgs(cmd)
 	if err != nil {
 		return err
@@ -530,6 +572,9 @@ func runS3Download(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Delete(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := withOperationTimeout(ctx, cmd)
+	defer cancel()
+
 	key, err := s3KeyArg(cmd)
 	if err != nil {
 		return err
@@ -559,6 +604,9 @@ func runS3Delete(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3List(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := withOperationTimeout(ctx, cmd)
+	defer cancel()
+
 	prefix, err := s3PrefixArg(cmd)
 	if err != nil {
 		return err
@@ -587,6 +635,9 @@ func runS3List(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runS3Stat(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := withOperationTimeout(ctx, cmd)
+	defer cancel()
+
 	key, err := s3KeyArg(cmd)
 	if err != nil {
 		return err

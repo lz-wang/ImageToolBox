@@ -666,6 +666,16 @@ All S3 subcommands share the following options:
 | `-r, --region` | `us-east-1` | Region |
 | `-b, --bucket` | (required) | Bucket name (or `ITB_S3_BUCKET`) |
 | `--force-path-style` | `false` | Force path-style URL (required by MinIO; or `ITB_S3_FORCE_PATH_STYLE`; auto-enabled for loopback / `:9000` endpoints) |
+| `--max-attempts` | `3` | Maximum S3 API attempts per operation, including the first (AWS SDK standard retryer) |
+| `--connect-timeout` | `30s` | Timeout for establishing the TCP connection |
+| `--response-header-timeout` | `30s` | Timeout waiting for a response header (body transfer is not limited) |
+| `--operation-timeout` | `0` (disabled) | Total duration limit for the whole operation (all list pages / upload + verify / download); an explicit limit may interrupt large transfers |
+
+Network timeout notes: no total HTTP request timeout is set — large GET/PUT
+transfer time depends on file size and network conditions;
+`--response-header-timeout` only limits waiting for the response header, while
+`--operation-timeout` applies to the whole operation (including the upload
+snapshot and the `--verify` read-back) via context; `0` disables it.
 
 </details>
 

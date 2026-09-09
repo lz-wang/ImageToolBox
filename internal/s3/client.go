@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -24,9 +25,10 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	cfg.Normalize()
 
 	// 创建自定义 HTTP 客户端（不设请求总超时，见 newHTTPClient）
-	httpClient := newHTTPClient()
+	httpClient := newHTTPClient(cfg.ConnectTimeout, cfg.ResponseHeaderTimeout)
 
 	// 创建凭证提供者：长期凭证 SessionToken 留空；
 	// 临时凭证（AccessKey + SecretKey + SessionToken）会以
@@ -37,11 +39,13 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 		cfg.SessionToken,
 	)
 
-	// 加载 AWS 配置
+	// 加载 AWS 配置；重试直接使用 SDK 标准 retryer，MaxAttempts 通过
+	// WithRetryMaxAttempts 稳定暴露给调用方，不另写 retry loop
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(creds),
 		config.WithRegion(cfg.Region),
 		config.WithHTTPClient(httpClient),
+		config.WithRetryMaxAttempts(cfg.MaxAttempts),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
@@ -69,17 +73,23 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 // 超时控制收敛在 Transport 层：
 //   - ResponseHeaderTimeout 只限制"请求发出后等待响应头"的时间，
 //     防止服务器无响应时永久挂起，不限制 body 传输时长；
-//   - 连接、TLS 握手、keepalive、代理与连接池等配置继承
+//   - ConnectTimeout 只限制 TCP 连接建立时长；
+//   - keepalive、TLS 握手、代理与连接池等配置继承
 //     http.DefaultTransport 的成熟默认值。
 //
-// 用户主动取消由 context / 进程终止控制。
-func newHTTPClient() *http.Client {
+// 用户主动取消由 context / 进程终止控制；操作级总时长由 adapter
+// 以 context（--operation-timeout）控制。
+func newHTTPClient(connectTimeout, responseHeaderTimeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 
 	transport.MaxIdleConns = 20
 	transport.MaxIdleConnsPerHost = 10
 	transport.IdleConnTimeout = 90 * time.Second
-	transport.ResponseHeaderTimeout = 30 * time.Second
+	transport.ResponseHeaderTimeout = responseHeaderTimeout
+	transport.DialContext = (&net.Dialer{
+		Timeout:   connectTimeout,
+		KeepAlive: 30 * time.Second,
+	}).DialContext
 
 	return &http.Client{
 		Transport: transport,

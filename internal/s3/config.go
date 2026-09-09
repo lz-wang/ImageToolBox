@@ -3,6 +3,15 @@ package s3
 import (
 	"fmt"
 	"net/url"
+	"time"
+)
+
+// S3 网络行为的默认值：与 AWS SDK Go v2 标准 retryer 的默认最大
+// 尝试次数（3）及 v0.9.x 以来的传输层超时基线一致。
+const (
+	DefaultMaxAttempts           = 3
+	DefaultConnectTimeout        = 30 * time.Second
+	DefaultResponseHeaderTimeout = 30 * time.Second
 )
 
 // Config S3 客户端配置
@@ -14,15 +23,36 @@ type Config struct {
 	Region          string // 区域
 	Bucket          string // 存储桶名称
 	ForcePathStyle  bool   // 是否强制路径样式（MinIO 需要）
+
+	// MaxAttempts 是单个 S3 API 操作的最大尝试次数（含首次），
+	// 由 AWS SDK 标准 retryer 执行，默认 3。
+	MaxAttempts int
+
+	// ConnectTimeout 限制 TCP 连接建立时长，默认 30s。
+	ConnectTimeout time.Duration
+
+	// ResponseHeaderTimeout 限制"请求发出后等待响应头"的时长，
+	// 不限制 body 传输时长，默认 30s。
+	ResponseHeaderTimeout time.Duration
 }
 
-// Normalize 归一化配置：补全 region 默认值，并按端点自动启用路径样式。
+// Normalize 归一化配置：补全 region 与网络行为默认值，并按端点自动
+// 启用路径样式。
 //
 // 环境变量不在领域层读取：ITB_S3_* 由 CLI 层（urfave/cli 的
 // Sources）解析注入，优先级为 CLI flag > 环境变量 > 默认值。
 func (c *Config) Normalize() {
 	if c.Region == "" {
 		c.Region = "us-east-1"
+	}
+	if c.MaxAttempts <= 0 {
+		c.MaxAttempts = DefaultMaxAttempts
+	}
+	if c.ConnectTimeout <= 0 {
+		c.ConnectTimeout = DefaultConnectTimeout
+	}
+	if c.ResponseHeaderTimeout <= 0 {
+		c.ResponseHeaderTimeout = DefaultResponseHeaderTimeout
 	}
 
 	// 自动检测 MinIO 等自建端点，默认启用路径样式。

@@ -4,9 +4,18 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNormalize(t *testing.T) {
+	// withDefaults 补全网络行为默认值（Normalize 的职责之一）
+	withDefaults := func(cfg Config) Config {
+		cfg.MaxAttempts = DefaultMaxAttempts
+		cfg.ConnectTimeout = DefaultConnectTimeout
+		cfg.ResponseHeaderTimeout = DefaultResponseHeaderTimeout
+		return cfg
+	}
+
 	tests := []struct {
 		name string
 		cfg  Config
@@ -15,42 +24,47 @@ func TestNormalize(t *testing.T) {
 		{
 			name: "region 为空时默认 us-east-1",
 			cfg:  Config{Endpoint: "e", AccessKeyID: "a", SecretAccessKey: "s", Bucket: "b"},
-			want: Config{Endpoint: "e", AccessKeyID: "a", SecretAccessKey: "s", Region: "us-east-1", Bucket: "b"},
+			want: withDefaults(Config{Endpoint: "e", AccessKeyID: "a", SecretAccessKey: "s", Region: "us-east-1", Bucket: "b"}),
 		},
 		{
 			name: "region 已设值时保持不变",
 			cfg:  Config{Endpoint: "e", Region: "cn-north-1"},
-			want: Config{Endpoint: "e", Region: "cn-north-1"},
+			want: withDefaults(Config{Endpoint: "e", Region: "cn-north-1"}),
 		},
 		{
 			name: "localhost 自动启用路径样式",
 			cfg:  Config{Endpoint: "http://localhost:9000"},
-			want: Config{Endpoint: "http://localhost:9000", Region: "us-east-1", ForcePathStyle: true},
+			want: withDefaults(Config{Endpoint: "http://localhost:9000", Region: "us-east-1", ForcePathStyle: true}),
 		},
 		{
 			name: "127.0.0.1 自动启用路径样式",
 			cfg:  Config{Endpoint: "http://127.0.0.1:9000"},
-			want: Config{Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", ForcePathStyle: true},
+			want: withDefaults(Config{Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", ForcePathStyle: true}),
 		},
 		{
 			name: ":9000 自动启用路径样式",
 			cfg:  Config{Endpoint: "http://minio:9000"},
-			want: Config{Endpoint: "http://minio:9000", Region: "us-east-1", ForcePathStyle: true},
+			want: withDefaults(Config{Endpoint: "http://minio:9000", Region: "us-east-1", ForcePathStyle: true}),
 		},
 		{
 			name: "普通端点不启用路径样式",
 			cfg:  Config{Endpoint: "https://s3.amazonaws.com"},
-			want: Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1"},
+			want: withDefaults(Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1"}),
 		},
 		{
 			name: "已显式启用保持不变",
 			cfg:  Config{Endpoint: "https://s3.amazonaws.com", ForcePathStyle: true},
-			want: Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1", ForcePathStyle: true},
+			want: withDefaults(Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1", ForcePathStyle: true}),
 		},
 		{
 			name: "空端点不触发检测",
 			cfg:  Config{},
-			want: Config{Region: "us-east-1"},
+			want: withDefaults(Config{Region: "us-east-1"}),
+		},
+		{
+			name: "显式网络配置保持不变",
+			cfg:  Config{MaxAttempts: 5, ConnectTimeout: time.Second, ResponseHeaderTimeout: 2 * time.Second},
+			want: Config{Region: "us-east-1", MaxAttempts: 5, ConnectTimeout: time.Second, ResponseHeaderTimeout: 2 * time.Second},
 		},
 	}
 

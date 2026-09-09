@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // TestSessionTokenSigning 协议级验证临时凭证：配置 SessionToken 后，
@@ -67,27 +68,30 @@ func TestSessionTokenSigning(t *testing.T) {
 // 是覆盖整个请求（含大文件 body 传输）的总超时，必须保持为 0，
 // 避免大文件上传/下载在固定时限处被截断。
 func TestNewHTTPClientNoTotalTimeout(t *testing.T) {
-	client := newHTTPClient()
+	client := newHTTPClient(time.Second, time.Second)
 
 	if client.Timeout != 0 {
 		t.Fatalf("http client total timeout = %v, want 0", client.Timeout)
 	}
 }
 
-// TestNewHTTPClientTransportTimeouts 确保 Transport 层超时已配置：
-// 只限制等待响应头与空闲连接回收，不涉及 body 传输时长。
+// TestNewHTTPClientTransportTimeouts 确保 Transport 层超时按配置生效：
+// 只限制连接建立与等待响应头，不涉及 body 传输时长。
 func TestNewHTTPClientTransportTimeouts(t *testing.T) {
-	client := newHTTPClient()
+	client := newHTTPClient(7*time.Second, 11*time.Second)
 
 	transport, ok := client.Transport.(*http.Transport)
 	if !ok {
 		t.Fatal("expected *http.Transport")
 	}
 
-	if transport.ResponseHeaderTimeout <= 0 {
-		t.Error("ResponseHeaderTimeout must be configured")
+	if transport.ResponseHeaderTimeout != 11*time.Second {
+		t.Errorf("ResponseHeaderTimeout = %v, want 11s", transport.ResponseHeaderTimeout)
 	}
 	if transport.IdleConnTimeout <= 0 {
 		t.Error("IdleConnTimeout must be configured")
+	}
+	if transport.DialContext == nil {
+		t.Fatal("DialContext must be configured with the connect timeout")
 	}
 }

@@ -650,6 +650,15 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 | `-r, --region` | `us-east-1` | 区域 |
 | `-b, --bucket` | (必填) | 存储桶名称（或 `ITB_S3_BUCKET`） |
 | `--force-path-style` | `false` | 强制路径样式 URL（MinIO 需要；或 `ITB_S3_FORCE_PATH_STYLE`；loopback / `:9000` 端点自动启用） |
+| `--max-attempts` | `3` | 单个 S3 API 操作的最大尝试次数（含首次，AWS SDK 标准 retryer 自动重试） |
+| `--connect-timeout` | `30s` | TCP 连接建立超时 |
+| `--response-header-timeout` | `30s` | 等待响应头超时（不限制 body 传输时长） |
+| `--operation-timeout` | `0`（禁用） | 整个操作的总时长上限（list 全部分页 / upload + verify / download）；显式配置时可能中断大文件传输 |
+
+网络超时说明：不设置 http 请求总超时——大文件 GET/PUT 的传输时长取决于
+文件大小与网络状况；`--response-header-timeout` 只限制等待响应头，
+`--operation-timeout` 通过 context 作用于整个操作（含上传稳定快照与
+`--verify` 回读），`0` 表示禁用。
 
 </details>
 

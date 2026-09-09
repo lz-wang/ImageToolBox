@@ -264,6 +264,9 @@ Common flags:
 - `-r, --region`: default `us-east-1`.
 - `-b, --bucket`: required bucket (or `ITB_S3_BUCKET`).
 - `--force-path-style`: often required for MinIO (or `ITB_S3_FORCE_PATH_STYLE`; auto-enabled for loopback / `:9000` endpoints).
+- `--max-attempts`: max S3 API attempts per operation (default 3, AWS SDK standard retryer).
+- `--connect-timeout` / `--response-header-timeout`: transport timeouts, default `30s` each; body transfer is never time-limited by default.
+- `--operation-timeout`: total limit for the whole operation; default `0` (disabled) because an explicit limit can interrupt large transfers.
 
 Examples:
 
