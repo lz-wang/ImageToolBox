@@ -691,6 +691,9 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 ./itb s3 upload -b my-bucket --skip-matching photo.jpg \
   --metadata source-sha256=abc123 --cache-control no-cache
 
+# 不可覆盖条件上传（If-None-Match，用于 sha256/xxx 这类不可变对象键）
+./itb s3 upload -b my-bucket --if-exists verify original.png sha256/xxx.png
+
 # PUT 后追加 1 次 HEAD，校验远端属性与本次上传一致
 ./itb s3 upload -b my-bucket --verify photo.jpg
 ```
@@ -707,6 +710,17 @@ ITB_S3_FORCE_PATH_STYLE   # 强制路径样式 URL（true/false）
 键都必须原样在场且相等，远端多出的 metadata 不影响匹配；未指定的 header 表示
 "don't care" 而非"要求为空"。请求契约：命中为单次 `HEAD`；未命中为 `HEAD → PUT`
 （再加 `--verify` 时为 `HEAD → PUT → HEAD`，最多两个 HEAD）。
+
+**`--if-exists verify`（不可覆盖条件上传）**：通过条件写
+（`PutObject IfNoneMatch="*"`）实现"不存在才写入"：对象不存在 → 正常上传；
+已存在 → provider 返回 412，itb 随后 HEAD 并按完整预期状态匹配
+（`matchesExpectedState`，与 `--skip-matching` 同一事实来源）：一致则
+`status=reused`，不一致返回 `E_TARGET_CONFLICT`。**核心是 provider 原子判定的
+条件写，绝不以 "HEAD + 判断 + PUT" 模拟**（那有 TOCTOU 竞态）。并发条件写冲突
+（AWS 定义的 409 `ConditionalRequestConflict`）已加入 SDK retryer 的可重试错误码，
+重试读取的是同一份稳定快照；provider 明确不支持条件头（501 `NotImplemented`）
+时以 `E_UNSUPPORTED_CAPABILITY` 失败，**绝不自动降级**。默认 `--if-exists replace`
+保持无条件覆盖。
 
 **稳定快照语义**：上传前源文件会被复制到一份私有临时快照（0600，用后即删），
 SHA-256 在同一次读取中计算，随后源文件做可观察变化检测（`os.SameFile` +
@@ -737,6 +751,7 @@ WebP/PDF/ZIP/HTML/JSON/SVG），扩展名仅在内容无法识别时兜底——
 | `--skip-existing` | `false` | 对象键已存在即跳过上传 |
 | `--skip-unchanged` | `false` | 内容一致才跳过上传（比对 itb-sha256 metadata） |
 | `--skip-matching` | `false` | 完整状态一致才跳过（sha256/size/Content-Type + 显式请求的 header/metadata，`status=reused`） |
+| `--if-exists` | `replace` | 写入策略：`replace`（无条件覆盖）/ `verify`（不可覆盖条件上传 If-None-Match） |
 | `--verify` | `false` | PUT 后追加 1 次 HEAD，校验远端 size/Content-Type/HTTP 头/metadata 与本次上传一致 |
 | `--format` | `table` | 输出格式：`table` / `json`（JSON 契约 `itb.s3.upload.v2`） |
 

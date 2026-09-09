@@ -347,8 +347,15 @@ immediately; "the file exists" is never sufficient. Any failure — including
 checksum mismatch — leaves no partial file at the output path (temp file +
 rename). The `itb.s3.download.v2` JSON adds `status` and `content_type`.
 
+`s3 upload --if-exists verify` performs a true immutable conditional upload
+(`IfNoneMatch="*"`): it writes only when the key is absent; if the key exists,
+the remote state is matched against this upload (`status=reused`) or the
+command fails with `E_TARGET_CONFLICT`. A provider without conditional-write
+support fails with `E_UNSUPPORTED_CAPABILITY` — it never degrades to an
+unsafe HEAD + PUT.
+
 `upload`, `download`, and `stat` all accept `--format table|json`. JSON output
-carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,
+carries a `schema_version` contract (`itb.s3.upload.v2`, `itb.s3.download.v2`,
 `itb.s3.stat.v1`); scripts should branch on it rather than parsing terminal
 text. stdout carries results only — progress and diagnostics go to stderr.
 

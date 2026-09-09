@@ -708,6 +708,9 @@ snapshot and the `--verify` read-back) via context; `0` disables it.
 ./itb s3 upload -b my-bucket --skip-matching photo.jpg \
   --metadata source-sha256=abc123 --cache-control no-cache
 
+# Immutable conditional upload (If-None-Match, for sha256/xxx-style keys)
+./itb s3 upload -b my-bucket --if-exists verify original.png sha256/xxx.png
+
 # Follow the PUT with one HEAD to verify the stored object matches this upload
 ./itb s3 upload -b my-bucket --verify photo.jpg
 ```
@@ -728,6 +731,21 @@ remote metadata does not affect matching, and unspecified headers mean
 "don't care", not "must be empty". Request contract: a hit is a single
 `HEAD`; a miss is `HEAD → PUT` (plus a final `HEAD` with `--verify`, at most
 two HEADs).
+
+**`--if-exists verify` (immutable conditional upload)**: implemented with a
+true conditional write (`PutObject IfNoneMatch="*"`) for "write only if
+absent": when the object is absent the upload proceeds; when it exists the
+provider answers 412 and itb HEADs the object and matches it against the full
+expected state (`matchesExpectedState`, the same source of truth as
+`--skip-matching`) — a match yields `status=reused`, a difference fails with
+`E_TARGET_CONFLICT`. **The core is the provider's atomic conditional write;
+it is never simulated with "HEAD + check + PUT"** (which has a TOCTOU race).
+Concurrent conditional-write conflicts (AWS-defined 409
+`ConditionalRequestConflict`) are registered as retryable with the SDK
+retryer, and retries re-read the same stable snapshot; a provider that
+explicitly does not support conditional headers (501 `NotImplemented`) fails
+with `E_UNSUPPORTED_CAPABILITY` and is **never degraded automatically**.
+The default `--if-exists replace` keeps unconditional overwrite.
 
 **Stable snapshot semantics**: before uploading, the source file is copied to
 a private temporary snapshot (0600, removed afterwards) whose SHA-256 is
@@ -764,6 +782,7 @@ uploads as `text/html`, not `image/jpeg`.
 | `--skip-existing` | `false` | Skip upload when the object key already exists |
 | `--skip-unchanged` | `false` | Skip upload only when content is unchanged (compares itb-sha256 metadata) |
 | `--skip-matching` | `false` | Skip only when the remote object's complete state matches (sha256/size/Content-Type + explicitly requested headers/metadata, `status=reused`) |
+| `--if-exists` | `replace` | Write policy: `replace` (unconditional overwrite) / `verify` (immutable conditional upload via If-None-Match) |
 | `--verify` | `false` | After PUT, issue one HEAD to verify remote size/Content-Type/HTTP headers/metadata match this upload |
 | `--format` | `table` | Output format: `table` / `json` (JSON contract `itb.s3.upload.v2`) |
 

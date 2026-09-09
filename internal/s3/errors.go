@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -61,6 +62,12 @@ var (
 	//（64 个十六进制字符 / 32 字节）。参数错误必须在任何网络请求
 	// 之前失败，而不是等下载完成后才变成 checksum mismatch。
 	ErrInvalidSHA256 = errors.New("invalid SHA-256 digest")
+
+	// ErrUnsupportedCapability provider 明确不支持所需能力
+	//（如条件写 If-None-Match 返回 501 NotImplemented）。
+	// 遇到该错误绝不自动降级为 HEAD + PUT——那会重新引入条件写
+	// 要消除的 TOCTOU 竞态。
+	ErrUnsupportedCapability = errors.New("provider does not support the requested capability")
 )
 
 // WrapError 包装 S3 API 错误，提供更友好的错误信息。
@@ -104,4 +111,39 @@ func WrapError(err error) error {
 	}
 
 	return err
+}
+
+// conditionalWriteError 分类条件写（IfNoneMatch）PUT 的 provider 响应。
+// 返回值：
+//
+//	"precondition_failed" → 412 PreconditionFailed：对象已存在
+//	"conflict"            → 409 ConditionalRequestConflict：并发条件写
+//	                        冲突（重试耗尽后到达此处的残余错误）
+//	"unsupported"         → 501 NotImplemented：provider 明确不支持
+//	                        条件写
+//	""                    → 与条件写无关
+func conditionalWriteError(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "PreconditionFailed", "ConditionalRequestConflict", "NotImplemented":
+			return map[string]string{
+				"PreconditionFailed":          "precondition_failed",
+				"ConditionalRequestConflict":  "conflict",
+				"NotImplemented":              "unsupported",
+			}[apiErr.ErrorCode()]
+		}
+	}
+	var respErr *smithyhttp.ResponseError
+	if errors.As(err, &respErr) {
+		switch respErr.HTTPStatusCode() {
+		case http.StatusPreconditionFailed:
+			return "precondition_failed"
+		case http.StatusConflict:
+			return "conflict"
+		case http.StatusNotImplemented:
+			return "unsupported"
+		}
+	}
+	return ""
 }

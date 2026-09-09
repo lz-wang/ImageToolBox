@@ -212,6 +212,7 @@ var s3SentinelMapping = []struct {
 	{s3.ErrReservedMetadataKey, CodeInvalidArgument, "reserved metadata key", false},
 	{s3.ErrInvalidSHA256, CodeInvalidArgument, "invalid SHA-256 digest", false},
 	{s3.ErrSkipStrategyConflict, CodeInvalidArgument, "only one skip strategy can be enabled", false},
+	{s3.ErrUnsupportedCapability, CodeUnsupportedCapability, "provider does not support the requested capability", false},
 	{filehash.ErrSourceChanged, CodeSourceChanged, "source file changed while being read", false},
 	{s3.ErrVerifyFailed, CodeTargetConflict, "remote object state does not match this upload", false},
 	{s3.ErrChecksumMismatch, CodeChecksumMismatch, "downloaded content does not match the expected SHA-256", false},

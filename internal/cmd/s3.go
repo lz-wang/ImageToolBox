@@ -146,6 +146,13 @@ CONSTRAINTS:
   metadata value. Extra remote metadata is irrelevant;
   unspecified headers mean "don't care", not "must be
   empty".
+  --if-exists verify performs a true conditional upload
+  (PutObject If-None-Match="*"): it writes only when the
+  key is absent; if it exists, the remote state is matched
+  against this upload (reused) or the command fails with
+  E_TARGET_CONFLICT. A provider that does not support
+  conditional writes fails with E_UNSUPPORTED_CAPABILITY
+  instead of degrading to an unsafe HEAD + PUT.
   --verify issues one HEAD after the PUT and checks that
   the remote size / Content-Type / HTTP headers / metadata
   match this upload (body bytes are not re-checked).
@@ -161,6 +168,7 @@ EXAMPLES:
   itb s3 upload -b my-bucket --skip-unchanged photo.jpg
   itb s3 upload -b my-bucket --skip-matching photo.jpg \
     --metadata source-sha256=abc123 --cache-control no-cache
+  itb s3 upload -b my-bucket --if-exists verify original.png sha256/xxx.png
   itb s3 upload -b my-bucket --verify photo.jpg`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -183,6 +191,12 @@ EXAMPLES:
 			&cli.StringFlag{
 				Name:  "content-encoding",
 				Usage: "Content-Encoding response header `VALUE` (e.g. gzip)",
+			},
+			&cli.StringFlag{
+				Name:      "if-exists",
+				Value:     "replace",
+				Usage:     "Write `POLICY`: replace (unconditional overwrite, default) or verify (immutable upload via If-None-Match: existing object with the expected state is reused, otherwise E_TARGET_CONFLICT; a provider without conditional-write support fails instead of degrading)",
+				Validator: enumValidator("if-exists", "replace", "verify"),
 			},
 			&cli.BoolFlag{
 				Name:  "verify",
@@ -494,6 +508,7 @@ func runS3Upload(ctx context.Context, cmd *cli.Command) error {
 		SkipUnchanged:      cmd.Bool("skip-unchanged"),
 		SkipMatching:       cmd.Bool("skip-matching"),
 		Verify:             cmd.Bool("verify"),
+		IfExists:           s3.IfExistsBehavior(cmd.String("if-exists")),
 	}
 
 	result, err := s3.Upload(ctx, client, input, key, opts)

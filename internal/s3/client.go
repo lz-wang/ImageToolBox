@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -57,6 +58,16 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 		if cfg.ForcePathStyle {
 			o.UsePathStyle = true
 		}
+		// 条件写（If-None-Match）可能遇到 AWS 明确定义的
+		// 409 ConditionalRequestConflict（并发条件写冲突），
+		// AWS 官方明确该错误可重试；上传使用稳定快照，SDK 重试时
+		// rewind 读取的是同一份数据，因此交给标准 retryer 自动处理
+		o.Retryer = retry.AddWithErrorCodes(
+			retry.NewStandard(func(so *retry.StandardOptions) {
+				so.MaxAttempts = cfg.MaxAttempts
+			}),
+			"ConditionalRequestConflict",
+		)
 	})
 	return &Client{
 		client:         client,

@@ -79,6 +79,17 @@ type UploadOptions struct {
 	// 预期是否一致，不一致返回 ErrVerifyFailed。
 	// 跳过语义命中时不产生额外请求（HEAD preflight 已证明对象状态）。
 	Verify bool
+
+	// IfExists 决定上传目标的写入策略：replace（默认，无条件覆盖，
+	// v0.9.x 行为）或 verify（不可覆盖条件上传）。
+	//
+	// verify 使用 PutObjectInput.IfNoneMatch="*"（条件写）实现：
+	// 对象不存在 → PUT 成功；已存在 → provider 返回 412，随后 HEAD
+	// 按完整状态匹配（matchesExpectedState，与 --skip-matching 同一
+	// 事实来源）决定 reused 或 E_TARGET_CONFLICT。绝不以
+	// "HEAD + 判断 + PUT" 模拟——那存在 TOCTOU 竞态。
+	// 并发冲突 409 ConditionalRequestConflict 由 SDK retryer 重试。
+	IfExists IfExistsBehavior
 }
 
 // UploadResult 上传结果
@@ -242,8 +253,17 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 	// 原始文件名扩展名兜底，防止 HTML/XML 错误页借 .jpg 扩展名以
 	// image/jpeg 上传。
 	var explicitContentType string
+	var ifExists IfExistsBehavior
 	if opts != nil {
 		explicitContentType = opts.ContentType
+		ifExists = opts.IfExists
+	}
+	switch ifExists {
+	case "", IfExistsReplace:
+		ifExists = IfExistsReplace
+	case IfExistsVerify:
+	default:
+		return nil, fmt.Errorf("%w: %q (supported: replace, verify)", ErrInvalidIfExists, ifExists)
 	}
 	contentType := ResolveContentType(header[:headerSize], filepath.Base(inputPath), explicitContentType)
 
@@ -301,6 +321,11 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 		ContentType: aws.String(contentType),
 		Metadata:    objectMetadata,
 	}
+	if ifExists == IfExistsVerify {
+		// 不可覆盖条件上传：直接 PUT If-None-Match="*"，由 provider
+		// 原子判定"不存在才写入"，绝不模拟 HEAD + 判断 + PUT
+		putInput.IfNoneMatch = aws.String("*")
+	}
 	if opts != nil {
 		if opts.CacheControl != "" {
 			putInput.CacheControl = aws.String(opts.CacheControl)
@@ -315,6 +340,36 @@ func Upload(ctx context.Context, client *Client, inputPath string, key string, o
 
 	_, err = client.client.PutObject(ctx, putInput)
 	if err != nil {
+		if ifExists == IfExistsVerify {
+			switch conditionalWriteError(err) {
+			case "precondition_failed":
+				// 412：对象已存在。HEAD 后按完整预期状态匹配决定
+				// reused / 冲突（与 --skip-matching 唯一事实来源）
+				remote, statErr := statUploadTarget(ctx, client, key)
+				if statErr != nil {
+					return nil, statErr
+				}
+				if matchesExpectedState(remote, expect) {
+					return &UploadResult{
+						SchemaVersion: UploadSchemaVersion,
+						Key:           key,
+						Size:          fileSize,
+						SHA256:        sha256Value,
+						Status:        StatusReused,
+						Skipped:       true,
+						Reason:        "object already exists with the expected state",
+					}, nil
+				}
+				return nil, fmt.Errorf("%w: object %q already exists and differs from the expected state", ErrExpectationMismatch, key)
+			case "conflict":
+				// 409 ConditionalRequestConflict：并发条件写冲突，
+				// SDK retryer 重试耗尽后的残余错误
+				return nil, fmt.Errorf("%w: concurrent conditional writes on %q; retries exhausted", ErrExpectationMismatch, key)
+			case "unsupported":
+				// provider 明确不支持条件写：绝不降级为 HEAD + PUT
+				return nil, fmt.Errorf("%w: conditional upload (If-None-Match) rejected by provider; refusing to fall back to an unsafe non-conditional PUT", ErrUnsupportedCapability)
+			}
+		}
 		return nil, WrapError(err)
 	}
 
