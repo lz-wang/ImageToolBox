@@ -374,7 +374,13 @@ MS-SSIM: 0.987423
 
 ## 图片检查
 
-读取图片文件信息、图像基本信息、详细元数据和文件 hash。
+读取图片文件信息、内容识别结论、图像基本信息、详细元数据和文件 hash。
+
+**内容识别（`itb.inspect.v3` 起）**：格式从**文件内容**识别（magic 嗅探 + SVG 流式
+XML 解析），从不依赖扩展名。支持识别 PNG / JPEG / GIF / WebP / BMP / TIFF / SVG：
+其中 BMP、TIFF 可完整光栅解码（基于 `golang.org/x/image`）；SVG 会被识别为图片
+（`recognized=true`）但**不做光栅解码**（`decode_supported=false`）——这是能力边界
+而非文件损坏，没有显式 width/height 的 SVG 同样合法。
 
 ```bash
 # 默认表格输出，默认计算所有 hash，默认输出详细数据
@@ -421,15 +427,41 @@ hash 完成后复查文件（`os.SameFile` + size/modtime），检测到读取�
 无法检测保留 size 与 modtime 的恶意并发修改。`plain` 输出要求 sha256 在计算集合中
 （`--hash crc32` 之类的组合会报参数错误）。
 
-JSON 契约版本为 `itb.inspect.v2`。默认（header 解码）只读取图片头，
-无法发现"文件头正常但后半部分损坏"的文件；`--full-decode` 对文件做
-完整解码并补充以下字段：
+JSON 契约版本为 `itb.inspect.v3`。v3 新增 `content` 内容识别对象：
+
+```json
+{
+  "content": {
+    "format": "jpeg",
+    "canonical_extension": ".jpg",
+    "mime_type": "image/jpeg",
+    "recognized": true,
+    "decode_supported": true,
+    "full_decode_supported": true,
+    "extension_matches": true
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `format` / `canonical_extension` / `mime_type` | 识别出的规范格式名、规范扩展名与权威 MIME（来自格式注册表）；未识别时省略 |
+| `recognized` | 文件内容是否被识别为受支持格式（含 SVG） |
+| `decode_supported` | 是否存在光栅解码器；SVG 为 `false`（能力边界，非损坏） |
+| `full_decode_supported` | 是否支持 `--full-decode`；SVG 为 `false`（对其使用该 flag 记录 warning） |
+| `extension_matches` | 文件扩展名是否与识别出的格式一致（`.jpeg`/`.tif` 等 alias 也算匹配） |
+
+检测流程分三个阶段：**内容识别 → 结构校验（`image.DecodeConfig`，SVG 跳过）→
+可选完整解码**。未识别内容保留 v2 行为（`error.decode_config_failed`，`--strict`
+报错）；已识别但结构损坏的文件同样保留该结论。默认（header 解码）只读取图片头，
+无法发现"文件头正常但后半部分损坏"的文件；`--full-decode` 对文件做完整解码并补充
+以下字段：
 
 | 字段 | 说明 |
 |------|------|
 | `full_decode_ok` | 三态：省略 = 未尝试；`true` = 完整解码通过；`false` = 文件后半部分损坏 |
 | `frame_count` | GIF 完整解码得到的帧数（其他格式省略） |
-| `animation_known` | `animated` 是否可信：JPEG/PNG 恒为 `true`；GIF 需要 `--full-decode`；WebP 来自 VP8X 头嗅探 |
+| `animation_known` | `animated` 是否可信：JPEG/PNG/BMP/TIFF 恒为 `true`；GIF 需要 `--full-decode`；WebP 来自 VP8X 头嗅探 |
 | `animated` | 动画状态，仅在 `animation_known=true` 时有意义 |
 
 ## HTTP API（itb serve）

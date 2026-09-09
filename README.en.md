@@ -373,7 +373,15 @@ This capability is exposed through the CLI only and is not part of the HTTP API.
 
 ## Image inspection
 
-Read file info, basic image info, detailed metadata, and file hash.
+Read file info, content-recognition results, basic image info, detailed metadata, and file hash.
+
+**Content recognition (since `itb.inspect.v3`)**: the format is recognized from
+the **file content** (magic sniffing plus streamed XML parsing for SVG), never
+from the extension. PNG / JPEG / GIF / WebP / BMP / TIFF / SVG are recognized:
+BMP and TIFF are fully raster-decodable (via `golang.org/x/image`); SVG is
+recognized as an image (`recognized=true`) but is **never raster-decoded**
+(`decode_supported=false`) — that is a capability boundary, not corruption, and
+SVG files without explicit width/height are valid.
 
 ```bash
 # Default table output; computes all hashes; prints detailed data
@@ -423,15 +431,44 @@ malicious concurrent modifications that preserve size and modtime cannot be
 detected. The `plain` output requires sha256 to be in the computed set
 (combinations like `--hash crc32` are rejected as argument errors).
 
-The JSON contract version is `itb.inspect.v2`. By default (header decoding)
-only the image header is read, which cannot detect files whose header is fine
-but whose tail is corrupted; `--full-decode` fully decodes the file and adds:
+The JSON contract version is `itb.inspect.v3`. v3 adds the `content`
+recognition object:
+
+```json
+{
+  "content": {
+    "format": "jpeg",
+    "canonical_extension": ".jpg",
+    "mime_type": "image/jpeg",
+    "recognized": true,
+    "decode_supported": true,
+    "full_decode_supported": true,
+    "extension_matches": true
+  }
+}
+```
+
+| Field | Description |
+|------|------|
+| `format` / `canonical_extension` / `mime_type` | Recognized canonical format name, canonical extension, and authoritative MIME (from the format registry); omitted when unrecognized |
+| `recognized` | Whether the file content is recognized as a supported format (including SVG) |
+| `decode_supported` | Whether a raster decoder exists; `false` for SVG (capability boundary, not corruption) |
+| `full_decode_supported` | Whether `--full-decode` is supported; `false` for SVG (using it on SVG records a warning) |
+| `extension_matches` | Whether the file extension matches the recognized format (aliases like `.jpeg`/`.tif` also match) |
+
+Detection runs in three stages: **content recognition → structure validation
+(`image.DecodeConfig`, skipped for SVG) → optional full decode**. Unrecognized
+content keeps the v2 behavior (`error.decode_config_failed`, error under
+`--strict`); recognized-but-structurally-broken files keep the same conclusion.
+By default (header decoding) only the image header is read, which cannot detect
+files whose header is fine but whose tail is corrupted; `--full-decode` fully
+decodes the file and adds:
 
 | Field | Description |
 |------|------|
 | `full_decode_ok` | Tri-state: omitted = not attempted; `true` = full decode passed; `false` = corrupted tail |
 | `frame_count` | Frame count from full GIF decode (omitted for other formats) |
-| `animation_known` | Whether `animated` is trustworthy: always `true` for JPEG/PNG; GIF requires `--full-decode`; WebP comes from the VP8X header sniff |
+| `animation_known` | Whether `animated` is trustworthy: always `true` for JPEG/PNG/BMP/TIFF; GIF requires `--full-decode`; WebP comes from the VP8X header sniff |
 | `animated` | Animation state, meaningful only when `animation_known=true` |
 
 ## HTTP API (itb serve)

@@ -18,12 +18,21 @@ func newInspectCommand() *cli.Command {
 		Usage:     "Inspect image info, metadata, and file hashes",
 		Category:  categoryAnalysis,
 		ArgsUsage: "<src>",
-		Description: `Inspect a local image file: file information, basic
-image properties, detailed metadata, and file hashes.
+		Description: `Inspect a local image file: file information, content
+recognition, basic image properties, detailed metadata, and
+file hashes.
+
+Content is recognized from the file itself (magic bytes plus
+streamed XML for SVG), never from its extension. PNG, JPEG,
+GIF, WebP, BMP, and TIFF are raster-decodable; SVG is
+recognized as an image (recognized=true) but is never
+raster-decoded (decode_supported=false) — that is not an
+error, and files without explicit SVG dimensions are valid.
 
 This command is read-only: it does not modify the source
-image. Detailed metadata and SHA-256 are included by
-default; use --no-detail or --no-hash to skip them.
+image. Detailed metadata and all hashes are included by
+default; use --no-detail / --hash / --no-hash to trim the
+output.
 
 --full-decode decodes the file completely (GIF frame by
 frame), catching files whose header is fine but whose tail
@@ -36,6 +45,7 @@ EXAMPLES:
   itb inspect --format plain photo.jpg
   itb inspect --no-detail photo.jpg
   itb inspect --no-hash photo.jpg
+  itb inspect --hash sha256 --no-detail --format json image.png
   itb inspect --strict --full-decode --format json image.png`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{

@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-
-	_ "github.com/deepteams/webp"
 )
 
+// File 检查图片文件，输出分三个阶段：
+//
+//  1. content recognition —— 从文件 magic / SVG 流式解析识别格式
+//  2. structure/config validation —— image.DecodeConfig 校验结构（SVG 跳过）
+//  3. optional full decode —— --full-decode 完整解码（SVG 不支持）
+//
+// 识别不再依赖 DecodeConfig 是否成功："内容能识别但结构损坏"与
+// "内容完全无法识别"是不同的结论，SVG 这类不支持 raster 解码的格式
+// 也不会被误报为损坏。
 func File(path string, opts Options) (*Result, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
@@ -48,43 +52,58 @@ func File(path string, opts Options) (*Result, error) {
 		Warnings: []string{},
 	}
 
+	// 阶段 1：内容识别（magic 嗅探 + SVG 流式解析）
+	result.Content = recognizeContent(header, path)
+
+	// 阶段 2：结构/配置校验。已识别为不支持 raster 解码的格式（SVG）
+	// 跳过 DecodeConfig，这不是损坏；未识别内容仍尝试 DecodeConfig，
+	// 其失败保留 v2 的 error 结论。
+	if !(result.Content.Recognized && !result.Content.DecodeSupported) {
+		imgInfo, decodeErr := decodeImageConfig(path)
+		if decodeErr != nil {
+			if opts.Strict {
+				return nil, fmt.Errorf("解析图片元数据失败: %w", decodeErr)
+			}
+			result.Error = &InfoError{
+				Code:    "decode_config_failed",
+				Message: decodeErr.Error(),
+			}
+		} else {
+			result.Image = imgInfo
+			// WebP 动画信息来自 VP8X 头嗅探，无需完整解码即可断言
+			if imgInfo.Format == "webp" {
+				animated, known := webpAnimation(header)
+				imgInfo.Animated = animated
+				imgInfo.AnimationKnown = known
+			}
+		}
+	}
+
+	// 阶段 3：可选完整解码：捕获"header 正常但文件后半部分损坏"，
+	// GIF 额外解析帧数与动画状态。已识别但不支持完整解码的格式
+	//（SVG）记录 warning，不报错误。
+	if opts.FullDecode {
+		if !result.Content.FullDecodeSupported {
+			if result.Content.Recognized {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("full decode not supported for %s", result.Content.Format))
+			}
+		} else if result.Image != nil {
+			if err := applyFullDecode(path, result.Image); err != nil {
+				if opts.Strict {
+					return nil, fmt.Errorf("完整解码失败: %w", err)
+				}
+				result.Warnings = append(result.Warnings, fmt.Sprintf("full decode failed: %v", err))
+			}
+		}
+	}
+
 	if !opts.NoHash {
 		hashes, err := computeHashes(path, opts.Hashes)
 		if err != nil {
 			return nil, err
 		}
 		result.Hashes = hashes
-	}
-
-	imgInfo, decodeErr := decodeImageConfig(path)
-	if decodeErr != nil {
-		if opts.Strict {
-			return nil, fmt.Errorf("解析图片元数据失败: %w", decodeErr)
-		}
-
-		result.Error = &InfoError{
-			Code:    "decode_config_failed",
-			Message: decodeErr.Error(),
-		}
-	} else {
-		result.Image = imgInfo
-		// WebP 动画信息来自 VP8X 头嗅探，无需完整解码即可断言
-		if imgInfo.Format == "webp" {
-			animated, known := webpAnimation(header)
-			imgInfo.Animated = animated
-			imgInfo.AnimationKnown = known
-		}
-	}
-
-	// 完整解码：捕获"header 正常但文件后半部分损坏"，GIF 额外解析
-	// 帧数与动画状态
-	if opts.FullDecode && result.Image != nil {
-		if err := applyFullDecode(path, result.Image); err != nil {
-			if opts.Strict {
-				return nil, fmt.Errorf("完整解码失败: %w", err)
-			}
-			result.Warnings = append(result.Warnings, fmt.Sprintf("full decode failed: %v", err))
-		}
 	}
 
 	if opts.Detail {
@@ -95,13 +114,42 @@ func File(path string, opts Options) (*Result, error) {
 		}
 
 		if result.Image != nil {
-			detail.ExtensionMatchesFormat = extensionMatchesFormat(result.File.Ext, result.Image.Format)
+			detail.ExtensionMatchesFormat = result.Content.ExtensionMatches
 		}
 
 		result.Detail = detail
 	}
 
 	return result, nil
+}
+
+// recognizeContent 执行阶段 1：先 magic 嗅探光栅格式，未命中时尝试
+// SVG 流式识别。识别结论全部来自 formatRegistry。
+func recognizeContent(header []byte, path string) ContentInfo {
+	content := ContentInfo{}
+
+	if spec := magicSniff(header); spec != nil {
+		content.Format = spec.Name
+		content.CanonicalExtension = spec.CanonicalExtension
+		content.MIMEType = spec.MIMEType
+		content.Recognized = true
+		content.DecodeSupported = spec.DecodeSupported
+		content.FullDecodeSupported = spec.FullDecodeSupported
+		content.ExtensionMatches = spec.ExtensionMatches(filepath.Ext(path))
+		return content
+	}
+
+	if sniffSVG(path) {
+		spec, _ := LookupFormat("svg")
+		content.Format = spec.Name
+		content.CanonicalExtension = spec.CanonicalExtension
+		content.MIMEType = spec.MIMEType
+		content.Recognized = true
+		content.DecodeSupported = spec.DecodeSupported
+		content.FullDecodeSupported = spec.FullDecodeSupported
+		content.ExtensionMatches = spec.ExtensionMatches(filepath.Ext(path))
+	}
+	return content
 }
 
 func decodeImageConfig(path string) (*ImageInfo, error) {
@@ -125,12 +173,9 @@ func decodeImageConfig(path string) (*ImageInfo, error) {
 		ColorModel:     fmt.Sprintf("%T", cfg.ColorModel),
 		HasAlpha:       hasAlpha(cfg.ColorModel),
 		DecodeConfigOK: true,
-	}
-	// JPEG/PNG 是静态格式，header 阶段即可断言非动画；
-	// GIF 需要完整解码数帧，WebP 由 VP8X 嗅探判断
-	switch format {
-	case "jpeg", "png":
-		info.AnimationKnown = true
+		// 静态光栅格式 header 阶段即可断言非动画；GIF 需要完整解码
+		// 数帧，WebP 由 VP8X 嗅探判断
+		AnimationKnown: staticAnimationFormats[format],
 	}
 	return info, nil
 }
@@ -189,24 +234,6 @@ func hasAlpha(model color.Model) bool {
 		color.RGBAModel,
 		color.RGBA64Model:
 		return true
-	default:
-		return false
-	}
-}
-
-func extensionMatchesFormat(ext string, format string) bool {
-	ext = strings.ToLower(strings.TrimPrefix(ext, "."))
-	format = strings.ToLower(format)
-
-	switch ext {
-	case "jpg", "jpeg":
-		return format == "jpeg"
-	case "png":
-		return format == "png"
-	case "gif":
-		return format == "gif"
-	case "webp":
-		return format == "webp"
 	default:
 		return false
 	}

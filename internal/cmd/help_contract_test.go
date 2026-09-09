@@ -264,12 +264,14 @@ func TestInspectHelpContract(t *testing.T) {
 		"plain prints the SHA-256 only",
 		"--full-decode",
 		"<src>",
-		"Detailed metadata and SHA-256 are included by",
+		"Detailed metadata and all hashes are included by",
 		"read-only",
+		"recognized from the file itself",
+		"decode_supported=false",
 	} {
 		assertContains(t, out, want)
 	}
-	assertNotContains(t, out, "--detail")
+	assertNotContains(t, out, "--detail ")
 	assertNotContains(t, out, "--input")
 }
 

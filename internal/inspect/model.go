@@ -7,9 +7,10 @@ import (
 )
 
 // SchemaVersion 是 inspect JSON 输出的契约版本。
-// v2：新增 full_decode_ok / frame_count / animation_known，
-// animated 仅在 animation_known 为 true 时有意义。
-const SchemaVersion = "itb.inspect.v2"
+// v2：新增 full_decode_ok / frame_count / animation_known。
+// v3：新增 content 内容识别对象（三阶段：内容识别 → 结构校验 →
+// 可选完整解码），支持 BMP/TIFF/SVG 识别。
+const SchemaVersion = "itb.inspect.v3"
 
 type Options struct {
 	Detail bool
@@ -29,11 +30,39 @@ type Options struct {
 type Result struct {
 	SchemaVersion string      `json:"schema_version"`
 	File          FileInfo    `json:"file"`
+	Content       ContentInfo `json:"content"`
 	Image         *ImageInfo  `json:"image,omitempty"`
 	Detail        *DetailInfo `json:"detail,omitempty"`
 	Hashes        *HashInfo   `json:"hashes,omitempty"`
 	Warnings      []string    `json:"warnings,omitempty"`
 	Error         *InfoError  `json:"error,omitempty"`
+}
+
+// ContentInfo 是内容识别层（v3 新增）的结论：格式从文件内容识别，
+// 而不是从扩展名推断。
+type ContentInfo struct {
+	// Format 是规范格式名；未识别时为空串
+	Format string `json:"format,omitempty"`
+
+	// CanonicalExtension 是该格式的规范扩展名；未识别时为空串
+	CanonicalExtension string `json:"canonical_extension,omitempty"`
+
+	// MIMEType 是该格式的权威 MIME 类型；未识别时为空串
+	MIMEType string `json:"mime_type,omitempty"`
+
+	// Recognized 表示文件内容被识别为受支持格式（含 SVG 这类
+	// 不支持 raster 解码的格式）
+	Recognized bool `json:"recognized"`
+
+	// DecodeSupported 表示是否存在注册的 raster decoder。
+	// SVG 为 false：不支持 raster 解码不是"图片损坏"。
+	DecodeSupported bool `json:"decode_supported"`
+
+	// FullDecodeSupported 表示是否支持 --full-decode。
+	FullDecodeSupported bool `json:"full_decode_supported"`
+
+	// ExtensionMatches 报告文件扩展名是否与识别出的格式一致
+	ExtensionMatches bool `json:"extension_matches"`
 }
 
 type FileInfo struct {

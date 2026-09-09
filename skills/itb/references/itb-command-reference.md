@@ -194,7 +194,15 @@ Requirements and semantics:
 
 ## Inspect
 
-Read-only file/image inspection with hashes; JSON contract `itb.inspect.v2`.
+Read-only file/image inspection with hashes; JSON contract `itb.inspect.v3`.
+
+Content recognition: the format comes from the file itself (magic bytes plus
+streamed XML for SVG), never from the extension. PNG, JPEG, GIF, WebP, BMP, and
+TIFF are raster-decodable; SVG is recognized (`recognized=true`) but never
+raster-decoded (`decode_supported=false`) — not an error, and SVGs without
+explicit width/height are valid. The `content` object reports `format`,
+`canonical_extension`, `mime_type`, `recognized`, `decode_supported`,
+`full_decode_supported`, and `extension_matches`.
 
 ```bash
 itb inspect photo.jpg
