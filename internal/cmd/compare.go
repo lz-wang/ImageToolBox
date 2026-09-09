@@ -58,7 +58,9 @@ EXAMPLES:
 				Usage: "Compute MS-SSIM (fixed five-scale; shortest side must be >= 161 pixels)",
 			},
 		},
-		Action: runCompare,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("compare", runCompare(ctx, cmd))
+		},
 	}
 }
 

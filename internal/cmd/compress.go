@@ -49,7 +49,9 @@ EXAMPLES:
 				Validator: intRangeValidator("quality", 1, 100),
 			},
 		},
-		Action: runCompress,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("compress", runCompress(ctx, cmd))
+		},
 	}
 }
 

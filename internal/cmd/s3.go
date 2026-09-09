@@ -182,7 +182,9 @@ EXAMPLES:
 				},
 			},
 		},
-		Action: runS3Upload,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("s3.upload", runS3Upload(ctx, cmd))
+		},
 	}
 }
 
@@ -231,7 +233,9 @@ EXAMPLES:
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},
-		Action: runS3Download,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("s3.download", runS3Download(ctx, cmd))
+		},
 	}
 }
 
@@ -255,7 +259,9 @@ EXAMPLES:
 				Usage:   "Delete without confirmation",
 			},
 		},
-		Action: runS3Delete,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("s3.delete", runS3Delete(ctx, cmd))
+		},
 	}
 }
 
@@ -317,7 +323,9 @@ EXAMPLES:
 				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 		},
-		Action: runS3List,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("s3.list", runS3List(ctx, cmd))
+		},
 	}
 }
 
@@ -344,7 +352,9 @@ EXAMPLES:
 				Validator: enumValidator("format", "table", "json"),
 			},
 		},
-		Action: runS3Stat,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("s3.stat", runS3Stat(ctx, cmd))
+		},
 	}
 }
 

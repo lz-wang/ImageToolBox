@@ -45,7 +45,9 @@ EXAMPLES:
 				Validator: nonZeroOpenRangeFloatValidator("angle", -360, 360),
 			},
 		},
-		Action: runRotate,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("rotate", runRotate(ctx, cmd))
+		},
 	}
 }
 

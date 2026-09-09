@@ -127,7 +127,9 @@ EXAMPLES:
 				},
 			},
 		},
-		Action: runWatermark,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("watermark", runWatermark(ctx, cmd))
+		},
 	}
 }
 

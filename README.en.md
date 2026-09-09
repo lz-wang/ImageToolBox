@@ -498,6 +498,53 @@ Output convention: **stdout carries formal results only** (switch with
 contract — list uses `itb.s3.list.v2`), while
 progress hints and diagnostics go to **stderr** — scripts can safely pipe stdout JSON.
 
+### Machine-readable error contract (itb.error.v1)
+
+When any command that requested `--format json` fails, stdout carries exactly one
+`itb.error.v1` JSON document and stderr does not repeat the same error (non-JSON
+mode is unchanged: error text goes to stderr):
+
+```json
+{
+  "schema_version": "itb.error.v1",
+  "operation": "s3.download",
+  "error": {
+    "code": "E_CHECKSUM_MISMATCH",
+    "message": "downloaded content does not match the expected SHA-256",
+    "retryable": false,
+    "http_status": null,
+    "provider_code": null
+  }
+}
+```
+
+Stable error code list:
+
+| Code | Meaning |
+|--------|------|
+| `E_INVALID_ARGUMENT` | Invalid arguments (including flag parse errors) |
+| `E_INVALID_CONFIG` | Incomplete connection configuration (endpoint/bucket, etc.) |
+| `E_FILE_NOT_FOUND` | Local file does not exist |
+| `E_FILE_READ` | Local file read failure (permissions, etc.) |
+| `E_SOURCE_CHANGED` | Source file observably changed while being read |
+| `E_OBJECT_NOT_FOUND` | Object does not exist |
+| `E_BUCKET_NOT_FOUND` | Bucket does not exist |
+| `E_ACCESS_DENIED` | Access denied (credentials or permissions) |
+| `E_INVALID_CREDENTIALS` | Credentials missing or incomplete |
+| `E_TIMEOUT` | Operation or network timeout |
+| `E_NETWORK` | Network communication failure |
+| `E_THROTTLED` | Server-side throttling |
+| `E_CHECKSUM_MISMATCH` | Downloaded content does not match the expected SHA-256 |
+| `E_TARGET_CONFLICT` | Target object exists and differs from the expected state |
+| `E_UNSUPPORTED_CAPABILITY` | Provider does not support the required capability |
+| `E_INCOMPLETE_LIST` | Listing could not be continued reliably |
+| `E_INTERNAL` | itb internal error |
+
+Security boundary: S3 provider errors expose only the `http_status` and
+`provider_code` fields with a fixed summary `message`; Authorization,
+SecretAccessKey, SessionToken, signed URLs, and raw provider error text never
+enter this output.
+
 MinIO compatibility is continuously verified in CI: a real MinIO container
 started via `docker run` in a step (GitHub Actions service containers do
 not support container commands, so `server /data` cannot be passed) runs

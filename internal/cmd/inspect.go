@@ -66,7 +66,9 @@ EXAMPLES:
 				Usage: "Fully decode the image (GIF frame by frame) to verify the file tail and report the frame count / animation state",
 			},
 		},
-		Action: runInspect,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("inspect", runInspect(ctx, cmd))
+		},
 	}
 }
 

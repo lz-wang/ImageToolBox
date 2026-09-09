@@ -308,6 +308,16 @@ carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,
 `itb.s3.stat.v1`); scripts should branch on it rather than parsing terminal
 text. stdout carries results only — progress and diagnostics go to stderr.
 
+Machine-readable failures: when a command invoked with `--format json` fails,
+stdout carries exactly one `itb.error.v1` document
+(`schema_version` / `operation` / `error{code,message,retryable,http_status,provider_code}`)
+and nothing is duplicated on stderr. Branch on the stable `E_*` code
+(`E_INVALID_ARGUMENT`, `E_OBJECT_NOT_FOUND`, `E_ACCESS_DENIED`,
+`E_CHECKSUM_MISMATCH`, `E_INCOMPLETE_LIST`, `E_TIMEOUT`, `E_NETWORK`,
+`E_THROTTLED`, ...); `retryable` says whether retrying the same operation can
+succeed. S3 provider errors expose only HTTP status and provider code —
+credentials and signed URLs never appear in this output.
+
 `s3 list` requests a single page by default (`--page-size`, 1-1000, alias
 `--max-keys`). Pass `--all` to paginate until complete; `--limit N` stops
 after N objects. JSON output is the structured `itb.s3.list.v2` contract: an

@@ -55,7 +55,9 @@ EXAMPLES:
 				Validator: percentRangeValidator("height", 100),
 			},
 		},
-		Action: runCrop,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("crop", runCrop(ctx, cmd))
+		},
 	}
 }
 

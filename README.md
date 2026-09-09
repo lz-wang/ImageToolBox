@@ -498,6 +498,51 @@ S3 的对象/文件 operand 使用位置参数：`upload <src> [key]`、`downloa
 JSON 均携带 `schema_version` 契约，list 的契约版本为 `itb.s3.list.v2`），进度提示与诊断信息走
 **stderr**，脚本可以放心用管道消费 stdout 的 JSON。
 
+### 机器可读错误契约（itb.error.v1）
+
+任何请求了 `--format json` 的命令在失败时，stdout 统一输出一份 `itb.error.v1` JSON 文档，
+stderr 不再重复打印同一错误（非 JSON 模式行为不变：错误文本走 stderr）：
+
+```json
+{
+  "schema_version": "itb.error.v1",
+  "operation": "s3.download",
+  "error": {
+    "code": "E_CHECKSUM_MISMATCH",
+    "message": "downloaded content does not match the expected SHA-256",
+    "retryable": false,
+    "http_status": null,
+    "provider_code": null
+  }
+}
+```
+
+稳定错误码清单：
+
+| 错误码 | 含义 |
+|--------|------|
+| `E_INVALID_ARGUMENT` | 参数非法（含参数解析错误） |
+| `E_INVALID_CONFIG` | 连接配置不完整（endpoint/bucket 等） |
+| `E_FILE_NOT_FOUND` | 本地文件不存在 |
+| `E_FILE_READ` | 本地文件读取失败（权限等） |
+| `E_SOURCE_CHANGED` | 读取期间源文件发生可观察变化 |
+| `E_OBJECT_NOT_FOUND` | 对象不存在 |
+| `E_BUCKET_NOT_FOUND` | 存储桶不存在 |
+| `E_ACCESS_DENIED` | 访问被拒绝（凭证或权限） |
+| `E_INVALID_CREDENTIALS` | 凭证缺失或不完整 |
+| `E_TIMEOUT` | 操作或网络超时 |
+| `E_NETWORK` | 网络通信失败 |
+| `E_THROTTLED` | 服务端限流 |
+| `E_CHECKSUM_MISMATCH` | 下载内容与期望 SHA-256 不一致 |
+| `E_TARGET_CONFLICT` | 目标对象已存在且与期望状态不一致 |
+| `E_UNSUPPORTED_CAPABILITY` | provider 不支持所需能力 |
+| `E_INCOMPLETE_LIST` | 列举无法可靠继续 |
+| `E_INTERNAL` | itb 内部错误 |
+
+安全边界：S3 provider 错误只透出 `http_status` 与 `provider_code` 两个字段，
+`message` 使用固定摘要；Authorization、SecretAccessKey、SessionToken、signed URL
+以及 provider 原始错误文本绝不进入该输出。
+
 MinIO 兼容性由 CI 持续验证：CI 在 step 内以 `docker run` 启动真实 MinIO
 （GitHub Actions 的 service container 不支持容器命令，无法传入
 `server /data`），并设置 `ITB_REQUIRE_MINIO=1`（strict 模式：MinIO 不可用时

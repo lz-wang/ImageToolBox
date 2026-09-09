@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"context"
-	"os"
-
 	"github.com/urfave/cli/v3"
 )
 
@@ -44,9 +41,4 @@ constraints, and examples.`,
 			newVersionCommand(version),
 		},
 	}
-}
-
-// Execute 运行根命令。
-func Execute(ctx context.Context, version string) error {
-	return New(version).Run(ctx, os.Args)
 }

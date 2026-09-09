@@ -51,7 +51,9 @@ EXAMPLES:
 				Usage: "Background `COLOR` (#RGB/#RRGGBB/#RRGGBBAA) for transparent areas when writing JPEG; must be opaque",
 			},
 		},
-		Action: runConvert,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("convert", runConvert(ctx, cmd))
+		},
 	}
 }
 

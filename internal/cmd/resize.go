@@ -72,7 +72,9 @@ EXAMPLES:
 				Validator: enumValidator("filter", resize.FilterNames()...),
 			},
 		},
-		Action: runResize,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return operationError("resize", runResize(ctx, cmd))
+		},
 	}
 }
 
