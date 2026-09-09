@@ -359,13 +359,13 @@ func TestMinIOCLIE2E(t *testing.T) {
 	if output := run(tmp, "s3", "list", "--format", "plain", prefix).stdout; !strings.Contains(output, key) {
 		t.Fatalf("list output missing %q: %s", key, output)
 	}
-	var emptyList []ObjectInfo
+	var emptyList ListResult
 	emptyPrefix := prefix + "empty/"
 	if err := json.Unmarshal([]byte(run(tmp, "s3", "list", "--format", "json", emptyPrefix).stdout), &emptyList); err != nil {
 		t.Fatalf("decode empty list JSON: %v", err)
 	}
-	if len(emptyList) != 0 {
-		t.Fatalf("empty list = %+v, want no objects", emptyList)
+	if len(emptyList.Objects) != 0 || !emptyList.Complete || emptyList.SchemaVersion != ListSchemaVersion {
+		t.Fatalf("empty list = %+v, want no objects with complete=true", emptyList)
 	}
 
 	var skipped struct {

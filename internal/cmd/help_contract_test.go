@@ -337,6 +337,27 @@ func TestS3DownloadHelpContract(t *testing.T) {
 	assertNotContains(t, out, "--output")
 }
 
+// s3 list：分页契约必须在 help 中可读；--max-keys 只能以 v0.9.x 兼容
+// alias 的身份出现在 --page-size 行上。
+func TestS3ListHelpContract(t *testing.T) {
+	out := helpOutput(t, "s3", "list")
+
+	for _, want := range []string{
+		"[prefix]",
+		"--all",
+		"--limit",
+		"--continuation-token",
+		"complete=true",
+		"next_continuation_token",
+		"E_INCOMPLETE_LIST",
+		"one page only",
+	} {
+		assertContains(t, out, want)
+	}
+	assertRenderedFlagContains(t, out, "page-size", "--max-keys is kept as a v0.9.x alias")
+	assertNotContains(t, out, "--prefix")
+}
+
 func TestS3ObjectSelectorHelpContract(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -404,7 +425,8 @@ func TestFlagDefaultContracts(t *testing.T) {
 		{"watermark space auto", []string{"watermark"}, "space", "auto", true},
 		{"inspect format", []string{"inspect"}, "format", `"table"`, false},
 		{"s3 region", []string{"s3"}, "region", `"us-east-1"`, false},
-		{"s3 list max-keys", []string{"s3", "list"}, "max-keys", "1000", false},
+		{"s3 list page-size", []string{"s3", "list"}, "page-size", "1000", false},
+		{"s3 list limit", []string{"s3", "list"}, "limit", "0", false},
 		{"s3 list format", []string{"s3", "list"}, "format", `"table"`, false},
 		{"s3 upload format", []string{"s3", "upload"}, "format", `"table"`, false},
 		{"s3 download format", []string{"s3", "download"}, "format", `"table"`, false},

@@ -626,7 +626,10 @@ func TestS3Validators(t *testing.T) {
 		wantErr string
 	}{
 		{"list 非法 format", []string{"s3", "list", "--format", "xml"}, "--format 仅支持"},
-		{"list max-keys 非正数", []string{"s3", "list", "--max-keys", "0"}, "--max-keys 必须大于 0"},
+		{"list page-size 超下界", []string{"s3", "list", "--page-size", "0"}, "--page-size 必须在 1-1000"},
+		{"list page-size 超上界", []string{"s3", "list", "--page-size", "1001"}, "--page-size 必须在 1-1000"},
+		{"list max-keys alias 同样校验", []string{"s3", "list", "--max-keys", "0"}, "--page-size 必须在 1-1000"},
+		{"list limit 负数", []string{"s3", "list", "--limit", "-1"}, "--limit 不能为负数"},
 		{"stat 非法 format", []string{"s3", "stat", "a.jpg", "--format", "plain"}, "--format 仅支持"},
 		{"upload 非法 format", []string{"s3", "upload", "a.jpg", "--format", "plain"}, "--format 仅支持"},
 		{"download 非法 format", []string{"s3", "download", "a.jpg", "--format", "plain"}, "--format 仅支持"},

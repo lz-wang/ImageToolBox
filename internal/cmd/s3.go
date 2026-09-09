@@ -268,22 +268,52 @@ func newS3ListCommand() *cli.Command {
 
 DEFAULTS:
   If [prefix] is omitted, all objects are listed.
+  Only one page (up to --page-size keys) is requested.
+  complete=true in JSON output means the traversal from the
+  starting token finished normally; false means the listing
+  is partial and --continuation-token can resume it.
+
+CONSTRAINTS:
+  --all keeps paginating until the listing is complete.
+  --limit stops at N objects with complete=false and a
+  next_continuation_token; the S3 request is shrunk so the
+  token never skips objects.
+  A page that reports more objects without a usable
+  continuation token fails with E_INCOMPLETE_LIST instead of
+  returning a partial result.
 
 EXAMPLES:
   itb s3 list -b my-bucket
   itb s3 list -b my-bucket images/
-  itb s3 list -b my-bucket --format json`,
+  itb s3 list -b my-bucket images/ --all --format json
+  itb s3 list -b my-bucket --page-size 500 --limit 5000 --format json
+  itb s3 list -b my-bucket --continuation-token TOKEN --format json`,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
-				Name:      "max-keys",
+				Name:      "page-size",
+				Aliases:   []string{"max-keys"},
 				Value:     1000,
-				Usage:     "Maximum number of keys returned",
-				Validator: positiveIntValidator("max-keys"),
+				Usage:     "MaxKeys per ListObjectsV2 request (1-1000); --max-keys is kept as a v0.9.x alias",
+				Validator: intRangeValidator("page-size", 1, 1000),
+			},
+			&cli.BoolFlag{
+				Name:  "all",
+				Usage: "Paginate until the listing is complete (default: one page only)",
+			},
+			&cli.IntFlag{
+				Name:      "limit",
+				Value:     0,
+				Usage:     "Stop after `N` objects (0 = unlimited); incomplete results carry next_continuation_token",
+				Validator: nonNegativeIntValidator("limit"),
+			},
+			&cli.StringFlag{
+				Name:  "continuation-token",
+				Usage: "Resume a previous listing from its continuation `TOKEN`",
 			},
 			&cli.StringFlag{
 				Name:      "format",
 				Value:     "table",
-				Usage:     "Output `FORMAT`: table/json/plain",
+				Usage:     "Output `FORMAT`: table/json/plain (JSON contract itb.s3.list.v2)",
 				Validator: enumValidator("format", "table", "json", "plain"),
 			},
 		},
@@ -464,16 +494,19 @@ func runS3List(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	opts := &s3.ListOptions{
-		Prefix:  prefix,
-		MaxKeys: int32(cmd.Int("max-keys")),
+		Prefix:            prefix,
+		PageSize:          int32(cmd.Int("page-size")),
+		Limit:             cmd.Int("limit"),
+		ContinuationToken: cmd.String("continuation-token"),
+		All:               cmd.Bool("all"),
 	}
 
-	objects, err := s3.List(ctx, client, opts)
+	result, err := s3.List(ctx, client, opts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(s3.FormatOutput(objects, cmd.String("format")))
+	fmt.Print(s3.FormatOutput(result, cmd.String("format")))
 	return nil
 }
 

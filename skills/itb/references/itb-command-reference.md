@@ -256,6 +256,9 @@ itb s3 download -b my-bucket images/photo.jpg ./photo.jpg
 itb s3 download -b my-bucket images/photo.jpg   # saves ./photo.jpg (last key segment)
 itb s3 download -b my-bucket --verify-sha256 "$SOURCE_SHA256" sha256/xxx /tmp/original.png
 itb s3 list -b my-bucket --format json images/
+itb s3 list -b my-bucket images/ --all --format json
+itb s3 list -b my-bucket images/ --page-size 500 --limit 5000 --format json
+itb s3 list -b my-bucket images/ --continuation-token TOKEN --format json
 itb s3 stat -b my-bucket images/photo.jpg
 itb s3 stat -b my-bucket --format json images/photo.jpg
 itb s3 delete -b my-bucket images/photo.jpg
@@ -304,6 +307,17 @@ leaves no partial file at the output path (temp file + rename).
 carries a `schema_version` contract (`itb.s3.upload.v1`, `itb.s3.download.v1`,
 `itb.s3.stat.v1`); scripts should branch on it rather than parsing terminal
 text. stdout carries results only — progress and diagnostics go to stderr.
+
+`s3 list` requests a single page by default (`--page-size`, 1-1000, alias
+`--max-keys`). Pass `--all` to paginate until complete; `--limit N` stops
+after N objects. JSON output is the structured `itb.s3.list.v2` contract: an
+empty listing still reports `"complete": true` with `"objects": []`, while a
+truncated listing sets `"complete": false` and returns
+`next_continuation_token` that can be fed back via `--continuation-token`.
+`complete=true` only means the traversal from this run's starting token
+finished normally. If the server reports more objects without a usable
+continuation token, the command fails with `E_INCOMPLETE_LIST` instead of
+returning a partial listing.
 
 ## Serve (HTTP API)
 

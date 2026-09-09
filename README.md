@@ -494,9 +494,9 @@ S3 的对象/文件 operand 使用位置参数：`upload <src> [key]`、`downloa
 
 支持 AWS S3、MinIO、阿里云 OSS、腾讯云 COS 等所有 S3 协议兼容的存储服务。
 
-输出约定：**stdout 只承载正式结果**（`--format table|json` 切换；upload/download/stat 的 JSON
-携带 `schema_version` 契约，list 的 JSON 是对象数组且空结果为 `[]`），进度提示与诊断信息走 **stderr**，
-脚本可以放心用管道消费 stdout 的 JSON。
+输出约定：**stdout 只承载正式结果**（`--format table|json` 切换；upload/download/stat/list 的
+JSON 均携带 `schema_version` 契约，list 的契约版本为 `itb.s3.list.v2`），进度提示与诊断信息走
+**stderr**，脚本可以放心用管道消费 stdout 的 JSON。
 
 MinIO 兼容性由 CI 持续验证：CI 在 step 内以 `docker run` 启动真实 MinIO
 （GitHub Actions 的 service container 不支持容器命令，无法传入
@@ -677,7 +677,46 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 
 # JSON 格式输出
 ./itb s3 list -b my-bucket --format json
+
+# 完整分页：持续翻页直到遍历结束
+./itb s3 list -b my-bucket image/ --all --format json
+
+# 控制单页大小与总输出上限
+./itb s3 list -b my-bucket image/ --page-size 500 --limit 5000 --format json
+
+# 从上一次返回的 continuation token 恢复遍历
+./itb s3 list -b my-bucket image/ --continuation-token TOKEN --format json
 ```
+
+list 默认只请求一页（`MaxKeys` 上限 1000，与 v0.9.x 单页行为一致）；
+`--all` 才持续翻页直到遍历结束。
+
+JSON 契约版本为 `itb.s3.list.v2`（v2 起 JSON 从裸对象数组升级为结构化对象）：
+
+```json
+{
+  "schema_version": "itb.s3.list.v2",
+  "bucket": "my-bucket",
+  "prefix": "image/",
+  "complete": true,
+  "count": 2,
+  "pages": 1,
+  "next_continuation_token": "...",
+  "objects": [
+    {"key": "image/a.png", "size": 123, "last_modified": "...", "etag": "\"...\"", "storage_class": "STANDARD"}
+  ]
+}
+```
+
+`complete=true` 只表示**从本次起始 token 开始已正常遍历结束**：
+
+- 单页模式下服务端还有后续页，或被 `--limit` 截断时 `complete=false`，
+  并返回 `next_continuation_token` 供 `--continuation-token` 恢复；
+- `--limit` 截断发生在 S3 请求边界（最后一次请求的 `MaxKeys` 收缩为剩余
+  配额），恢复遍历不会跳过任何对象；
+- 服务端报告还有更多对象但 token 缺失、重复或不前进时，整个命令以
+  `E_INCOMPLETE_LIST` 失败，不输出半份成功结果；
+- 中间任何一页请求失败时整个命令失败，同样不输出半份 JSON。
 
 <details>
 <summary>list 参数</summary>
@@ -685,8 +724,11 @@ HEAD 校验只能证明 header/metadata 与预期一致，**不等于** body SHA
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `[prefix]` | | 对象键前缀 |
-| `--max-keys` | `1000` | 最大返回数量 |
-| `--format` | `table` | 输出格式：`table` / `json` / `plain` |
+| `--page-size` | `1000` | 单次 ListObjectsV2 请求的 `MaxKeys`（1-1000）；`--max-keys` 保留为 v0.9.x 兼容 alias |
+| `--all` | `false` | 持续翻页直到遍历结束（默认只请求一页） |
+| `--limit` | `0` | 输出对象总数上限（`0` = 不限制）；截断时 `complete=false` 并携带恢复 token |
+| `--continuation-token` | (空) | 从上一次 list 返回的 token 恢复遍历 |
+| `--format` | `table` | 输出格式：`table` / `json` / `plain`（JSON 契约 `itb.s3.list.v2`） |
 
 </details>
 

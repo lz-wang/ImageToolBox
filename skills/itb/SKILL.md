@@ -20,7 +20,7 @@ Use this skill to turn image-processing requests into safe, concrete `itb` CLI c
    - `watermark` for text or image watermarking.
    - `compare` for objective image-quality comparison using PSNR / SSIM / MS-SSIM.
    - `inspect` for metadata and file hash checks; add `--strict --full-decode` as an upload preflight (catches corrupted tails and reports GIF frame/animation info).
-   - `s3` for S3-compatible upload/download/list/stat/delete.
+   - `s3` for S3-compatible upload/download/list/stat/delete (`s3 list` is single-page by default; add `--all` for complete pagination and check `complete` / `next_continuation_token` in the `itb.s3.list.v2` JSON).
    - `serve` for the trusted HTTP API used by remote automation or a personal VPS deployment.
 4. Use transform command operands as `itb <command> [options] <src> [dst]`; `convert` requires `<dst>`, while the other transforms may derive one. `compare` instead takes `itb compare [options] <src> <dst>` where both operands are read-only inputs (the `dst` is the comparison target, not an output file).
 5. For multi-step local image pipelines, write intermediate outputs to a temporary or task-specific output directory and run commands in sequence.

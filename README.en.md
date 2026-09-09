@@ -494,8 +494,8 @@ S3 object/file operands use positional arguments: `upload <src> [key]`, `downloa
 Supports any S3-protocol-compatible storage: AWS S3, MinIO, Alibaba Cloud OSS, Tencent Cloud COS, etc.
 
 Output convention: **stdout carries formal results only** (switch with
-`--format table|json`; upload/download/stat JSON carries a `schema_version`
-contract, while list JSON is an object array and an empty result is `[]`), while
+`--format table|json`; upload/download/stat/list JSON all carry a `schema_version`
+contract — list uses `itb.s3.list.v2`), while
 progress hints and diagnostics go to **stderr** — scripts can safely pipe stdout JSON.
 
 MinIO compatibility is continuously verified in CI: a real MinIO container
@@ -687,7 +687,52 @@ with `ErrInvalidSHA256` before any network request is made.
 
 # JSON output
 ./itb s3 list -b my-bucket --format json
+
+# Full pagination: keep paginating until the listing is complete
+./itb s3 list -b my-bucket image/ --all --format json
+
+# Control the per-request page size and the total output limit
+./itb s3 list -b my-bucket image/ --page-size 500 --limit 5000 --format json
+
+# Resume a previous listing from its continuation token
+./itb s3 list -b my-bucket image/ --continuation-token TOKEN --format json
 ```
+
+By default list requests a single page (`MaxKeys` up to 1000, matching the
+v0.9.x single-page behavior); only `--all` keeps paginating until the
+traversal finishes.
+
+The JSON contract version is `itb.s3.list.v2` (as of v2 the JSON output is a
+structured object instead of a bare object array):
+
+```json
+{
+  "schema_version": "itb.s3.list.v2",
+  "bucket": "my-bucket",
+  "prefix": "image/",
+  "complete": true,
+  "count": 2,
+  "pages": 1,
+  "next_continuation_token": "...",
+  "objects": [
+    {"key": "image/a.png", "size": 123, "last_modified": "...", "etag": "\"...\"", "storage_class": "STANDARD"}
+  ]
+}
+```
+
+`complete=true` only means **the traversal from this run's starting token
+finished normally**:
+
+- When a single-page listing has more server-side pages, or `--limit`
+  truncates the output, `complete=false` and `next_continuation_token` is
+  returned for `--continuation-token` resumption;
+- `--limit` truncation happens on S3 request boundaries (the final request's
+  `MaxKeys` shrinks to the remaining quota), so resuming never skips objects;
+- If the server reports more objects but the continuation token is missing,
+  repeated, or not advancing, the whole command fails with
+  `E_INCOMPLETE_LIST` instead of returning a partial result;
+- If any middle page request fails, the whole command fails and no partial
+  JSON is emitted either.
 
 <details>
 <summary>list options</summary>
@@ -695,8 +740,11 @@ with `ErrInvalidSHA256` before any network request is made.
 | Option | Default | Description |
 |------|--------|------|
 | `[prefix]` | | Object key prefix |
-| `--max-keys` | `1000` | Maximum number of results |
-| `--format` | `table` | Output format: `table` / `json` / `plain` |
+| `--page-size` | `1000` | `MaxKeys` per ListObjectsV2 request (1-1000); `--max-keys` is kept as a v0.9.x alias |
+| `--all` | `false` | Keep paginating until the listing is complete (default: one page only) |
+| `--limit` | `0` | Total object output limit (`0` = unlimited); truncated results set `complete=false` and carry a resumption token |
+| `--continuation-token` | (empty) | Resume a previous listing from its token |
+| `--format` | `table` | Output format: `table` / `json` / `plain` (JSON contract `itb.s3.list.v2`) |
 
 </details>
 
